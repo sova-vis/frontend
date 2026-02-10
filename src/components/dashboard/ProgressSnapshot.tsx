@@ -36,7 +36,11 @@ export default function ProgressSnapshot() {
 
             <div className="mt-6 pt-6 border-t border-gray-50">
                 <p className="text-xs text-gray-400 text-center">
+<<<<<<< HEAD
                     You&apos;re doing great! Try to focus on <span className="text-amber-600 font-medium">Physics</span> this week.
+=======
+                    You're doing great! Try to focus on <span className="text-amber-600 font-medium">Physics</span> this week.
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
                 </p>
             </div>
         </div>

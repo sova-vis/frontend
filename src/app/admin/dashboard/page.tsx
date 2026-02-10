@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { UserPlus, Shield, Check, AlertCircle } from "lucide-react";
+<<<<<<< HEAD
 import { apiCall } from "@/lib/api";
 import { useAuth } from "@clerk/nextjs";
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
+=======
+
+export default function AdminDashboard() {
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -17,6 +22,7 @@ export default function AdminDashboard() {
     setMessage("");
 
     try {
+<<<<<<< HEAD
       const token = await getToken();
 
       if (!token) {
@@ -28,6 +34,13 @@ export default function AdminDashboard() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
+=======
+      const res = await fetch("http://localhost:3001/admin/add-teacher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "admin-session-token" // Hardcoded for this demo
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
         },
         body: JSON.stringify(formData),
       });
@@ -63,7 +76,11 @@ export default function AdminDashboard() {
               Create Teacher Account
             </h2>
             <p className="text-sm text-gray-500 mt-1">
+<<<<<<< HEAD
               This will create a new Clerk user with the &apos;teacher&apos; role.
+=======
+              This will create a new user in Supabase with the 'teacher' role.
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
             </p>
           </div>
 

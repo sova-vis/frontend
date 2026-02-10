@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // API calls are made directly to backend server via NEXT_PUBLIC_API_URL
+<<<<<<< HEAD
   images: {
     remotePatterns: [
       {
@@ -25,6 +26,8 @@ const nextConfig = {
       },
     ],
   },
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 };
 
 export default nextConfig;

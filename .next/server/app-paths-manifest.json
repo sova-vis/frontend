@@ -1,5 +1,6 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+<<<<<<< HEAD
   "/api/webhooks/clerk/route": "app/api/webhooks/clerk/route.js",
   "/auth/callback/page": "app/auth/callback/page.js",
   "/login/page": "app/login/page.js",
@@ -17,4 +18,8 @@
   "/student/settings/page": "app/student/settings/page.js",
   "/student/progress/page": "app/student/progress/page.js",
   "/student/topicals/page": "app/student/topicals/page.js"
+=======
+  "/page": "app/page.js",
+  "/login/page": "app/login/page.js"
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 }

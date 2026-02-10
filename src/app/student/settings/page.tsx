@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+<<<<<<< HEAD
 import Image from "next/image";
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 import { User, CreditCard } from "lucide-react";
 
 export default function SettingsPage() {
@@ -24,6 +27,7 @@ export default function SettingsPage() {
                     </h2>
                     <div className="flex items-center gap-6 mb-6">
                         <div className="w-20 h-20 bg-gray-200 rounded-full border-2 border-white shadow-md overflow-hidden">
+<<<<<<< HEAD
                             <Image
                                 src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`}
                                 alt="Profile"
@@ -31,6 +35,9 @@ export default function SettingsPage() {
                                 height={80}
                                 className="w-full h-full object-cover"
                             />
+=======
+                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`} alt="Profile" />
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
                         </div>
                         <div>
                             <button className="text-sm font-semibold text-primary border border-primary/20 px-4 py-2 rounded-lg hover:bg-primary/5 transition-colors">

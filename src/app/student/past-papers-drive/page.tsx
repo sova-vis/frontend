@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { FileText, Download, Eye, Search, Filter, Calendar, Book } from "lucide-react";
+<<<<<<< HEAD
 import { apiCall } from "@/lib/api";
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 
 interface PaperFile {
   id: string;
@@ -40,7 +43,11 @@ export default function GoogleDrivePapersPage() {
 
   const fetchPapers = async () => {
     try {
+<<<<<<< HEAD
       const response = await apiCall("/papers/drive/list");
+=======
+      const response = await fetch("http://localhost:3001/papers/drive/list");
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
       const data = await response.json();
       setPapers(data.files || []);
       setFilteredPapers(data.files || []);

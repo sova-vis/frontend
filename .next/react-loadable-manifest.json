@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "..\\node_modules\\@clerk\\nextjs\\dist\\esm\\app-router\\client\\ClerkProvider.js -> ./keyless-creator-reader.js": {
     "id": 3868,
@@ -10,3 +11,6 @@
     "files": []
   }
 }
+=======
+{}
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)

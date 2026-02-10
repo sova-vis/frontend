@@ -10,6 +10,7 @@ import {
     PieChart,
     Settings,
     LogOut,
+<<<<<<< HEAD
     ChevronLeft,
     MessageCircle,
     Home
@@ -23,12 +24,23 @@ const navItems = [
     { name: "Past Papers", href: "/student/past-papers", icon: FileText },
     { name: "Topicals", href: "/student/topicals", icon: Layers },
     { name: "Ask Question", href: "/student/ask", icon: MessageCircle },
+=======
+    ChevronLeft
+} from "lucide-react";
+import { motion } from "framer-motion";
+
+const navItems = [
+    { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
+    { name: "Past Papers", href: "/student/past-papers", icon: FileText },
+    { name: "Topicals", href: "/student/topicals", icon: Layers },
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
     { name: "Bookmarks", href: "/student/bookmarks", icon: Bookmark },
     { name: "Progress", href: "/student/progress", icon: PieChart },
 ];
 
 export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, onClose?: () => void }) {
     const pathname = usePathname();
+<<<<<<< HEAD
     const { signOut } = useClerk();
 
     const handleLogout = async () => {
@@ -42,6 +54,8 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
             if (onClose) onClose();
         }
     };
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 
     return (
         <>
@@ -104,6 +118,7 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                         <Settings size={20} />
                         <span>Settings</span>
                     </Link>
+<<<<<<< HEAD
                     <button 
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 transition-colors text-left"
@@ -111,6 +126,12 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                         <LogOut size={20} />
                         <span>Log Out</span>
                     </button>
+=======
+                    <Link href="/" className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 transition-colors text-left">
+                        <LogOut size={20} />
+                        <span>Log Out</span>
+                    </Link>
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
                 </div>
             </aside>
         </>

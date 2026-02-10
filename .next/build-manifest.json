@@ -1,10 +1,15 @@
 {
   "polyfillFiles": [
+<<<<<<< HEAD
     "static/chunks/polyfills-42372ed130431b0a.js"
+=======
+    "static/chunks/polyfills.js"
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
   ],
   "devFiles": [],
   "ampDevFiles": [],
   "lowPriorityFiles": [
+<<<<<<< HEAD
     "static/yRLsHliPmX0uZsgWp96Ev/_buildManifest.js",
     "static/yRLsHliPmX0uZsgWp96Ev/_ssgManifest.js"
   ],
@@ -27,6 +32,17 @@
       "static/chunks/main-7322d6a231a0bcb2.js",
       "static/chunks/pages/_error-7ba65e1336b92748.js"
     ]
+=======
+    "static/development/_buildManifest.js",
+    "static/development/_ssgManifest.js"
+  ],
+  "rootMainFiles": [
+    "static/chunks/webpack.js",
+    "static/chunks/main-app.js"
+  ],
+  "pages": {
+    "/_app": []
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
   },
   "ampFirstPages": []
 }

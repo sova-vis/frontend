@@ -1,5 +1,6 @@
 {
   "version": 3,
+<<<<<<< HEAD
   "middleware": {
     "/": {
       "files": [
@@ -33,4 +34,9 @@
   "sortedMiddleware": [
     "/"
   ]
+=======
+  "middleware": {},
+  "functions": {},
+  "sortedMiddleware": []
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 }

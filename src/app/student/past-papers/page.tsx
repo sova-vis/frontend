@@ -6,7 +6,10 @@ import {
     Atom, Beaker, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
     Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked
 } from "lucide-react";
+<<<<<<< HEAD
 import { apiCall } from "@/lib/api";
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 
 interface FolderItem {
     id: string;
@@ -18,7 +21,10 @@ interface FolderItem {
     viewUrl?: string;
     downloadUrl?: string;
     embedUrl?: string;
+<<<<<<< HEAD
     folderType?: string;
+=======
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 }
 
 interface FolderCache {
@@ -46,7 +52,11 @@ export default function PastPapersPage() {
             setError(null);
 
             // Browse root folder (no folderId means use default from env)
+<<<<<<< HEAD
             const response = await apiCall('/papers/browse');
+=======
+            const response = await fetch('http://localhost:3001/papers/browse');
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 
             if (!response.ok) {
                 throw new Error('Failed to load folders');
@@ -74,7 +84,11 @@ export default function PastPapersPage() {
         try {
             setLoadingFolders(prev => new Set(prev).add(folderId));
 
+<<<<<<< HEAD
             const response = await apiCall(`/papers/browse/${folderId}`);
+=======
+            const response = await fetch(`http://localhost:3001/papers/browse/${folderId}`);
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
 
             if (!response.ok) {
                 throw new Error('Failed to load folder');
@@ -125,8 +139,12 @@ export default function PastPapersPage() {
     const handleDownload = (paper: FolderItem) => {
         if (paper.downloadUrl) {
             const link = document.createElement('a');
+<<<<<<< HEAD
             const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         link.href = `${baseUrl}${paper.downloadUrl}`;
+=======
+            link.href = `http://localhost:3001${paper.downloadUrl}`;
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
             link.download = paper.name;
             document.body.appendChild(link);
             link.click();
@@ -397,7 +415,11 @@ export default function PastPapersPage() {
                             </div>
                         </div>
                         <iframe
+<<<<<<< HEAD
                             src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}${viewingPaper.embedUrl}`}
+=======
+                            src={`http://localhost:3001${viewingPaper.embedUrl}`}
+>>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
                             className="flex-1 w-full"
                             title="PDF Viewer"
                         />
