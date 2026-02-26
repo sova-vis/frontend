@@ -1,0 +1,20 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/webhooks/clerk/route": "app/api/webhooks/clerk/route.js",
+  "/auth/callback/page": "app/auth/callback/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/past-papers/page": "app/past-papers/page.js",
+  "/sign-in/[[...sign-in]]/page": "app/sign-in/[[...sign-in]]/page.js",
+  "/admin/login/page": "app/admin/login/page.js",
+  "/student/bookmarks/page": "app/student/bookmarks/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/student/ask/page": "app/student/ask/page.js",
+  "/teacher/dashboard/page": "app/teacher/dashboard/page.js",
+  "/student/dashboard/page": "app/student/dashboard/page.js",
+  "/student/past-papers-drive/page": "app/student/past-papers-drive/page.js",
+  "/student/past-papers/page": "app/student/past-papers/page.js",
+  "/student/settings/page": "app/student/settings/page.js",
+  "/student/progress/page": "app/student/progress/page.js",
+  "/student/topicals/page": "app/student/topicals/page.js"
+}
