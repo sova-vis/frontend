@@ -33,11 +33,7 @@ export default function BookmarksPage() {
                                 <span className="text-xs text-gray-400">{item.date}</span>
                             </div>
                             <h3 className="text-lg font-bold text-gray-900 mb-1">{item.title}</h3>
-<<<<<<< HEAD
                             {item.note && <p className="text-gray-500 text-sm italic">&ldquo;{item.note}&rdquo;</p>}
-=======
-                            {item.note && <p className="text-gray-500 text-sm italic">"{item.note}"</p>}
->>>>>>> c74dca7 (Initial foundation for an O/A Level exam-prep platform combining structured past papers, practice workflows, progress tracking, and future-ready AI evaluation and teacher support features)
                         </div>
 
                         <div className="flex items-center gap-2 self-start md:self-center">
