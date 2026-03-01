@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
   // API calls are made directly to backend server via NEXT_PUBLIC_API_URL
   images: {
     remotePatterns: [

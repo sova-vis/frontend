@@ -22,7 +22,7 @@ export default function StudentDashboard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-brand-red"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -34,7 +34,7 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6 md:p-10 pb-20">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-slate-950 p-4 md:p-10 pb-20">
       <div className="max-w-6xl mx-auto">
         <DashboardHeader />
 
@@ -44,7 +44,7 @@ export default function StudentDashboard() {
 
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Quick Actions</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Quick Actions</h2>
               </div>
               <ActionGrid />
             </section>

@@ -8,9 +8,9 @@ const subjects = [
 
 export default function ProgressSnapshot() {
     return (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700 h-full">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <TrendingUp size={20} className="text-primary" />
                     Progress Snapshot
                 </h3>
@@ -21,10 +21,10 @@ export default function ProgressSnapshot() {
                 {subjects.map((sub) => (
                     <div key={sub.name}>
                         <div className="flex justify-between text-sm mb-1.5">
-                            <span className="font-medium text-gray-700">{sub.name}</span>
-                            <span className="text-gray-500">{sub.progress}%</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{sub.name}</span>
+                            <span className="text-gray-500 dark:text-gray-400">{sub.progress}%</span>
                         </div>
-                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div
                                 className={`h-full rounded-full ${sub.color}`}
                                 style={{ width: `${sub.progress}%` }}
@@ -34,7 +34,7 @@ export default function ProgressSnapshot() {
                 ))}
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-50">
+            <div className="mt-6 pt-6 border-t border-gray-50 dark:border-slate-700">
                 <p className="text-xs text-gray-400 text-center">
                     You&apos;re doing great! Try to focus on <span className="text-amber-600 font-medium">Physics</span> this week.
                 </p>

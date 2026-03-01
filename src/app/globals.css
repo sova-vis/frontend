@@ -63,8 +63,17 @@
   * {
     @apply border-border;
   }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased transition-colors duration-200;
   }
 }
 
@@ -75,4 +84,60 @@
   .font-sans {
     font-family: var(--font-inter), system-ui, sans-serif;
   }
+}
+
+/* Dark mode compatibility layer for existing light-only utility classes */
+.dark .bg-white {
+  background-color: rgb(17 24 39) !important;
+}
+
+.dark .bg-white\/95,
+.dark .bg-white\/90,
+.dark .bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.88) !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: rgb(15 23 42) !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: rgb(30 41 59) !important;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: rgb(51 65 85) !important;
+}
+
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: rgb(241 245 249) !important;
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: rgb(203 213 225) !important;
+}
+
+.dark .shadow-slate-200\/50 {
+  --tw-shadow-color: rgba(15, 23, 42, 0.7) !important;
+}
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: rgb(30 41 59) !important;
 }

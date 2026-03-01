@@ -25,3 +25,42 @@ body {
     text-wrap: balance;
   }
 }
+
+/* 3D Animations for Education Objects */
+@keyframes book-flip {
+  0% { transform: rotateY(0deg) rotateX(5deg); }
+  50% { transform: rotateY(-30deg) rotateX(-5deg); }
+  100% { transform: rotateY(0deg) rotateX(5deg); }
+}
+
+@keyframes page-flip-v3 {
+  0% { transform: rotateY(0deg) skewY(0deg) scaleX(1); }
+  25% { transform: rotateY(-90deg) skewY(-15deg) scaleX(1.1); }
+  50% { transform: rotateY(-180deg) skewY(0deg) scaleX(1); }
+  75% { transform: rotateY(-90deg) skewY(15deg) scaleX(1.1); }
+  100% { transform: rotateY(0deg) skewY(0deg) scaleX(1); }
+}
+
+.perspective-2000 {
+  perspective: 2000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+@keyframes float-complex {
+  0%, 100% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+  25% { transform: translateY(-15px) rotateX(5deg) rotateY(5deg); }
+  50% { transform: translateY(-25px) rotateX(-5deg) rotateY(10deg); }
+  75% { transform: translateY(-15px) rotateX(5deg) rotateY(5deg); }
+}
+
+@keyframes pen-writing {
+  0%, 100% { transform: rotate(15deg) translateX(0); }
+  50% { transform: rotate(25deg) translateX(10px); }
+}

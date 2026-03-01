@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
+import {
     FileText, Download, Eye, Search, Loader2, ChevronRight, ChevronDown,
     Atom, Beaker, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
     Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked
@@ -53,7 +53,7 @@ export default function PastPapersPage() {
                 try {
                     const errorData = await response.json();
                     backendMessage = errorData?.error || backendMessage;
-                } catch {}
+                } catch { }
                 throw new Error(backendMessage);
             }
 
@@ -140,7 +140,7 @@ export default function PastPapersPage() {
 
     const getSubjectIcon = (subjectName: string) => {
         const name = subjectName.toLowerCase();
-        
+
         if (name.includes('chemistry') || name.includes('5070')) {
             return <FlaskConical className="w-5 h-5" />;
         } else if (name.includes('physics') || name.includes('5054')) {
@@ -162,7 +162,7 @@ export default function PastPapersPage() {
 
     const getPaperIcon = (fileName: string) => {
         const name = fileName.toLowerCase();
-        
+
         if (name.includes('qp') || name.includes('question')) {
             return <FileText className="w-4 h-4" />;
         } else if (name.includes('ms') || name.includes('mark') || name.includes('answer')) {
@@ -184,44 +184,44 @@ export default function PastPapersPage() {
         const getFolderStyle = () => {
             switch (item.folderType) {
                 case 'subject':
-                    return { 
-                        icon: getSubjectIcon(item.name), 
-                        color: 'text-gray-700', 
-                        bgColor: 'bg-white', 
+                    return {
+                        icon: getSubjectIcon(item.name),
+                        color: 'text-gray-700',
+                        bgColor: 'bg-white',
                         borderColor: 'border-gray-300',
-                        label: 'Subject' 
+                        label: 'Subject'
                     };
                 case 'category':
-                    return { 
-                        icon: <FolderOpen className="w-5 h-5" />, 
-                        color: 'text-gray-600', 
-                        bgColor: 'bg-gray-50', 
+                    return {
+                        icon: <FolderOpen className="w-5 h-5" />,
+                        color: 'text-gray-600',
+                        bgColor: 'bg-gray-50',
                         borderColor: 'border-gray-200',
-                        label: 'Category' 
+                        label: 'Category'
                     };
                 case 'year':
-                    return { 
-                        icon: <Calendar className="w-5 h-5" />, 
-                        color: 'text-gray-600', 
-                        bgColor: 'bg-gray-50', 
+                    return {
+                        icon: <Calendar className="w-5 h-5" />,
+                        color: 'text-gray-600',
+                        bgColor: 'bg-gray-50',
                         borderColor: 'border-gray-200',
-                        label: 'Year' 
+                        label: 'Year'
                     };
                 case 'month':
-                    return { 
-                        icon: <Calendar className="w-5 h-5" />, 
-                        color: 'text-gray-600', 
-                        bgColor: 'bg-gray-50', 
+                    return {
+                        icon: <Calendar className="w-5 h-5" />,
+                        color: 'text-gray-600',
+                        bgColor: 'bg-gray-50',
                         borderColor: 'border-gray-200',
-                        label: 'Session' 
+                        label: 'Session'
                     };
                 default:
-                    return { 
-                        icon: <FolderOpen className="w-5 h-5" />, 
-                        color: 'text-gray-600', 
-                        bgColor: 'bg-gray-50', 
+                    return {
+                        icon: <FolderOpen className="w-5 h-5" />,
+                        color: 'text-gray-600',
+                        bgColor: 'bg-gray-50',
                         borderColor: 'border-gray-200',
-                        label: '' 
+                        label: ''
                     };
             }
         };
@@ -233,7 +233,7 @@ export default function PastPapersPage() {
                 {/* Folder Header */}
                 <button
                     onClick={() => toggleFolder(item.id)}
-                    className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+                    className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                     style={{ paddingLeft: `${paddingLeft + 12}px` }}
                 >
                     {isLoading ? (
@@ -285,7 +285,7 @@ export default function PastPapersPage() {
     const renderFile = (item: FolderItem, depth: number = 0) => {
         const paddingLeft = depth * 24;
         const fileIcon = getPaperIcon(item.name);
-        
+
         // Determine file badge color based on type
         const getFileBadge = () => {
             const name = item.name.toLowerCase();
@@ -305,7 +305,7 @@ export default function PastPapersPage() {
         return (
             <div
                 key={item.id}
-                className="p-3 flex items-center justify-between hover:bg-gray-50 transition-all border-b border-gray-100 last:border-b-0 group"
+                className="p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800 transition-all border-b border-gray-100 dark:border-slate-700 last:border-b-0 group"
                 style={{ paddingLeft: `${paddingLeft + 12}px` }}
             >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -313,11 +313,11 @@ export default function PastPapersPage() {
                         {fileIcon}
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
-                        <span className="text-sm text-gray-900 truncate font-medium">{item.name}</span>
+                        <span className="text-sm text-gray-900 dark:text-gray-100 truncate font-medium">{item.name}</span>
                         <span className={`text-xs ${fileBadge.text} font-medium`}>{fileBadge.label}</span>
                     </div>
                 </div>
-                <div className="flex gap-2 flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-2 flex-shrink-0 ml-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                         onClick={() => handleView(item)}
                         className="p-2 text-white bg-gray-900 hover:bg-black rounded-lg transition-colors"
@@ -378,7 +378,7 @@ export default function PastPapersPage() {
     const filteredItems = getFilteredItems();
 
     return (
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {/* PDF Viewer Modal */}
             {viewingPaper && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -412,8 +412,8 @@ export default function PastPapersPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold font-display text-gray-900">Past Papers Library</h1>
-                    <p className="text-gray-600 mt-1">Browse past papers organized by subject, year, and session.</p>
+                    <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900 dark:text-white">Past Papers Library</h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">Browse past papers organized by subject, year, and session.</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <div className="relative flex-1 md:w-64">
@@ -421,7 +421,7 @@ export default function PastPapersPage() {
                         <input
                             type="text"
                             placeholder="Search subjects..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
+                            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-gray-900 dark:focus:border-gray-400"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -430,7 +430,7 @@ export default function PastPapersPage() {
             </div>
 
             {/* Folder Tree */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
                 {filteredItems.length === 0 ? (
                     <div className="p-12 text-center text-gray-500">
                         {searchTerm ? 'No subjects found matching your search.' : 'No folders found.'}
