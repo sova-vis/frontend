@@ -1,38 +1,45 @@
 "use client";
 import React from "react";
-import Image from "next/image";
-import { Bell, Flame, ArrowRight, BookOpen, Clock } from "lucide-react";
+import { ArrowRight, BookOpen, Sparkles } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import Image from "next/image";
 
 export function DashboardHeader() {
     const { user } = useUser();
     const { profile } = useClerkAuth();
     const name = profile?.full_name || user?.firstName || "Student";
+    const photoUrl = user?.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+    const subjects: string[] = profile?.selected_subjects || [];
 
-    // Use Clerk photo or generated avatar
-    const photoUrl = user?.imageUrl ||
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return "Good morning";
+        if (hour < 17) return "Good afternoon";
+        return "Good evening";
+    };
 
     return (
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900 dark:text-white">
-                    Hello, {name} 👋
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400">Let&apos;s make today productive.</p>
-            </div>
             <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1 bg-highlight/10 text-highlight-foreground px-3 py-1.5 rounded-full text-sm font-semibold">
-                    <Flame size={16} className="text-highlight" />
-                    <span>12 Day Streak</span>
+                <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-primary/20 shadow-sm flex-shrink-0">
+                    <Image src={photoUrl} alt="Profile" width={48} height={48} className="w-full h-full object-cover" />
                 </div>
-                <button className="p-2 text-gray-400 dark:text-gray-500 hover:text-primary transition-colors relative">
-                    <Bell size={24} />
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                </button>
-                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-600 shadow-sm overflow-hidden">
-                    <Image src={photoUrl} alt="Profile" width={40} height={40} className="w-full h-full object-cover" />
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900">
+                        {getGreeting()}, {name}
+                    </h1>
+                    <p className="text-gray-500 text-sm mt-0.5">
+                        {subjects.length > 0
+                            ? `Studying ${subjects.slice(0, 2).join(", ")}${subjects.length > 2 ? ` +${subjects.length - 2} more` : ""}`
+                            : "Let's make today productive."}
+                    </p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 border border-primary/15 rounded-full text-xs font-semibold text-primary">
+                    <Sparkles size={12} />
+                    AI-Powered Learning
                 </div>
             </div>
         </header>
@@ -41,30 +48,28 @@ export function DashboardHeader() {
 
 export function ContinueLearning() {
     const { profile } = useClerkAuth();
-    const subjects = profile?.selected_subjects || [];
+    const subjects: string[] = profile?.selected_subjects || [];
     const hasActivity = subjects.length > 0;
 
     if (!hasActivity) {
         return (
-            <section className="mb-10">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Get Started</h2>
-                </div>
-                <div className="bg-gradient-to-tr from-primary to-primary/80 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01]">
-                    <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full translate-x-10 -translate-y-10 blur-3xl"></div>
-
-                    <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-4">
+            <section className="mb-8">
+                <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(136,14,79,0.3),_transparent_60%)]" />
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div>
-                            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-medium mb-3">
-                                <BookOpen size={14} />
-                                <span>Begin Your Journey</span>
+                            <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-lg text-xs font-medium mb-3">
+                                <BookOpen size={12} />
+                                <span>Get started</span>
                             </div>
-                            <h3 className="text-2xl font-bold mb-2">Start Practicing</h3>
-                            <p className="text-white/80 max-w-md text-sm">Browse past papers and topicals to begin your learning journey.</p>
+                            <h3 className="text-xl font-bold mb-1">Start Your Exam Prep</h3>
+                            <p className="text-white/70 max-w-md text-sm">Browse past papers and topical practice questions to begin preparing.</p>
                         </div>
-
-                        <a href="/student/past-papers" className="bg-white text-primary px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm">
-                            Browse Papers <ArrowRight size={16} />
+                        <a
+                            href="/student/past-papers"
+                            className="flex-shrink-0 bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-gray-100 transition-colors"
+                        >
+                            Browse Papers <ArrowRight size={15} />
                         </a>
                     </div>
                 </div>
@@ -72,30 +77,31 @@ export function ContinueLearning() {
         );
     }
 
-    // Show with subject from profile
     const firstSubject = subjects[0];
 
     return (
-        <section className="mb-10">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Continue Learning</h2>
-            </div>
-            <div className="bg-gradient-to-tr from-primary to-primary/80 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01]">
-                <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full translate-x-10 -translate-y-10 blur-3xl"></div>
-
-                <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-4">
+        <section className="mb-8">
+            <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(136,14,79,0.3),_transparent_60%)]" />
+                <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div>
-                        <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-medium mb-3">
-                            <BookOpen size={14} />
+                        <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-lg text-xs font-medium mb-3">
+                            <BookOpen size={12} />
                             <span>{firstSubject}</span>
                         </div>
-                        <h3 className="text-2xl font-bold mb-2">Past Papers & Topicals</h3>
-                        <p className="text-white/80 max-w-md text-sm">Practice questions and review past papers for {firstSubject}.</p>
+                        <h3 className="text-xl font-bold mb-1">Continue Practicing</h3>
+                        <p className="text-white/70 max-w-md text-sm">
+                            Practice past papers and topicals for {firstSubject} and {subjects.length - 1} other {subjects.length - 1 === 1 ? "subject" : "subjects"}.
+                        </p>
                     </div>
-
-                    <a href="/student/past-papers" className="bg-white text-primary px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm">
-                        Start Practicing <ArrowRight size={16} />
-                    </a>
+                    <div className="flex gap-2 flex-shrink-0">
+                        <a
+                            href="/student/past-papers"
+                            className="bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-gray-100 transition-colors"
+                        >
+                            Past Papers <ArrowRight size={15} />
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>

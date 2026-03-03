@@ -21,8 +21,8 @@ export default function StudentDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-brand-red"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -34,23 +34,23 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-slate-950 p-4 md:p-10 pb-20">
+    <div className="p-4 md:p-8 pb-16">
       <div className="max-w-6xl mx-auto">
         <DashboardHeader />
 
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="flex-1 space-y-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-6">
             <ContinueLearning />
 
             <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Quick Actions</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-gray-900">Quick Actions</h2>
               </div>
               <ActionGrid />
             </section>
           </div>
 
-          <div className="w-full lg:w-80 xl:w-96 flex-shrink-0">
+          <div className="w-full lg:w-72 xl:w-80 flex-shrink-0">
             <ProgressSnapshot />
           </div>
         </div>

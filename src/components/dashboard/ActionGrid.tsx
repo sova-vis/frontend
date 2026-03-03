@@ -1,61 +1,67 @@
 import Link from "next/link";
-import { FileText, Layers, Bookmark, PieChart, ChevronRight } from "lucide-react";
+import { FileText, Layers, Bookmark, MessageCircle, ChevronRight } from "lucide-react";
 
 const actions = [
     {
         title: "Past Papers",
-        description: "Browse extensive library",
+        description: "Browse and practice from our full library of CAIE past papers.",
         icon: FileText,
         href: "/student/past-papers",
-        color: "text-blue-600",
-        bg: "bg-blue-50",
     },
     {
-        title: "Topical Practice",
-        description: "Target specific topics",
+        title: "Topicals",
+        description: "Practice questions grouped by topic for focused revision.",
         icon: Layers,
         href: "/student/topicals",
-        color: "text-purple-600",
-        bg: "bg-purple-50",
+    },
+    {
+        title: "Ask AI",
+        description: "Get instant exam-style answers from our AI tutor.",
+        icon: MessageCircle,
+        href: "/student/ask",
+        highlight: true,
     },
     {
         title: "Bookmarks",
-        description: "Saved questions & notes",
+        description: "Revisit papers you've saved for later review.",
         icon: Bookmark,
         href: "/student/bookmarks",
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-    },
-    {
-        title: "My Progress",
-        description: "Track your performance",
-        icon: PieChart,
-        href: "/student/progress",
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
     },
 ];
 
 export default function ActionGrid() {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {actions.map((action) => (
                 <Link
                     key={action.title}
                     href={action.href}
-                    className="group flex flex-col justify-between p-5 rounded-2xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all hover:-translate-y-1"
+                    className={`group flex items-start gap-4 p-5 rounded-2xl border transition-all hover:shadow-md hover:-translate-y-0.5 ${
+                        action.highlight
+                            ? "bg-primary border-primary/20 text-white"
+                            : "bg-white border-gray-100 text-gray-900 hover:border-gray-200"
+                    }`}
                 >
-                    <div className="flex justify-between items-start mb-4">
-                        <div className={`p-3 rounded-xl ${action.bg} ${action.color}`}>
-                            <action.icon size={24} />
-                        </div>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
-                            <ChevronRight size={20} />
-                        </div>
+                    <div className={`p-2.5 rounded-xl flex-shrink-0 ${
+                        action.highlight
+                            ? "bg-white/15"
+                            : "bg-gray-100 group-hover:bg-gray-200 transition-colors"
+                    }`}>
+                        <action.icon size={18} className={action.highlight ? "text-white" : "text-gray-700"} />
                     </div>
-                    <div>
-                        <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1">{action.title}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{action.description}</p>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`font-semibold text-sm ${action.highlight ? "text-white" : "text-gray-900"}`}>
+                                {action.title}
+                            </span>
+                            <ChevronRight
+                                size={15}
+                                className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${action.highlight ? "text-white/80" : "text-gray-400"}`}
+                            />
+                        </div>
+                        <p className={`text-xs mt-0.5 leading-relaxed ${action.highlight ? "text-white/75" : "text-gray-500"}`}>
+                            {action.description}
+                        </p>
                     </div>
                 </Link>
             ))}
