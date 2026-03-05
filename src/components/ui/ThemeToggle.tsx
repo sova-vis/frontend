@@ -28,7 +28,7 @@ export function ThemeToggle({
     const preferredDark =
       window.matchMedia &&
       window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const nextTheme = stored || (preferredDark ? "dark" : "light");
+    const nextTheme = stored || "light";
 
     setTheme(nextTheme);
     applyTheme(nextTheme);

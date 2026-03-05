@@ -1,20 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bookmark, Trash2, Eye, Download, FileText, FileCheck, ClipboardList, Search } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+    Bookmark,
+    Trash2,
+    Eye,
+    Download,
+    FileText,
+    FileCheck,
+    ClipboardList,
+    Search,
+    Clock3,
+    CheckCircle2,
+    Star,
+} from "lucide-react";
 import { getApiUrl } from "@/lib/api";
+import {
+    PaperStatus,
+    TrackedPaper,
+    clearTrackedPaper,
+    loadTrackedPapers,
+    saveTrackedPapers,
+    toggleTrackedStatus,
+} from "@/lib/paperTracking";
 
-interface BookmarkItem {
-    id: string;
-    name: string;
-    type: string;
-    viewUrl?: string;
-    downloadUrl?: string;
-    embedUrl?: string;
-    savedAt: string;
-}
-
-const BOOKMARKS_KEY = "propel_bookmarks";
+const STATUS_SECTIONS: Array<{
+    key: PaperStatus;
+    title: string;
+    Icon: any;
+    accent: string;
+}> = [
+    { key: "in_progress", title: "In Progress", Icon: Clock3, accent: "text-blue-600" },
+    { key: "completed", title: "Completed", Icon: CheckCircle2, accent: "text-emerald-600" },
+    { key: "important", title: "Important", Icon: Star, accent: "text-amber-600" },
+    { key: "bookmarked", title: "Bookmarked", Icon: Bookmark, accent: "text-primary" },
+];
 
 function formatDate(isoString: string): string {
     const saved = new Date(isoString);
@@ -46,29 +66,50 @@ function getTypeBadge(type: string) {
 }
 
 export default function BookmarksPage() {
-    const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
-    const [viewingItem, setViewingItem] = useState<BookmarkItem | null>(null);
+    const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
+    const [viewingItem, setViewingItem] = useState<TrackedPaper | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem(BOOKMARKS_KEY);
-            if (stored) setBookmarks(JSON.parse(stored));
-        } catch {}
+        setTrackedPapers(loadTrackedPapers());
         setMounted(true);
     }, []);
 
-    const removeBookmark = (id: string) => {
-        const updated = bookmarks.filter((b) => b.id !== id);
-        setBookmarks(updated);
-        try {
-            localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated));
-        } catch {}
+    const hasStatus = (itemId: string, status: PaperStatus) => {
+        const item = trackedPapers.find((paper) => paper.id === itemId);
+        return item?.statuses.includes(status) ?? false;
+    };
+
+    const updateTrackedPapers = (next: TrackedPaper[]) => {
+        setTrackedPapers(next);
+        saveTrackedPapers(next);
+    };
+
+    const toggleStatus = (item: TrackedPaper, status: PaperStatus) => {
+        const next = toggleTrackedStatus(
+            trackedPapers,
+            {
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                viewUrl: item.viewUrl,
+                downloadUrl: item.downloadUrl,
+                embedUrl: item.embedUrl,
+            },
+            status
+        );
+
+        updateTrackedPapers(next);
+    };
+
+    const removeTrackedPaper = (id: string) => {
+        const next = clearTrackedPaper(trackedPapers, id);
+        updateTrackedPapers(next);
         if (viewingItem?.id === id) setViewingItem(null);
     };
 
-    const handleDownload = (item: BookmarkItem) => {
+    const handleDownload = (item: TrackedPaper) => {
         if (!item.downloadUrl) return;
         const link = document.createElement("a");
         link.href = `${getApiUrl()}${item.downloadUrl}`;
@@ -78,11 +119,82 @@ export default function BookmarksPage() {
         document.body.removeChild(link);
     };
 
-    const filtered = bookmarks.filter(
+    const filtered = trackedPapers.filter(
         (b) =>
             b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             b.type.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const grouped = useMemo(() => {
+        return STATUS_SECTIONS.map((section) => ({
+            ...section,
+            items: filtered.filter((paper) => paper.statuses.includes(section.key)),
+        }));
+    }, [filtered]);
+
+    const hasVisibleResults = grouped.some((section) => section.items.length > 0);
+
+    const renderStatusButtons = (item: TrackedPaper, compact: boolean = false) => {
+        const iconSize = compact ? 14 : 15;
+        const buttonBase = compact
+            ? "p-1.5 rounded-lg border transition-colors"
+            : "p-2 rounded-lg border transition-colors";
+
+        const actions: Array<{
+            status: PaperStatus;
+            label: string;
+            icon: any;
+            active: string;
+            inactive: string;
+            fillOnActive?: boolean;
+        }> = [
+            {
+                status: "in_progress",
+                label: "in progress",
+                icon: Clock3,
+                active: "text-blue-600 bg-blue-50 border-blue-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50",
+            },
+            {
+                status: "completed",
+                label: "completed",
+                icon: CheckCircle2,
+                active: "text-emerald-600 bg-emerald-50 border-emerald-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50",
+            },
+            {
+                status: "important",
+                label: "important",
+                icon: Star,
+                active: "text-amber-600 bg-amber-50 border-amber-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50",
+                fillOnActive: true,
+            },
+            {
+                status: "bookmarked",
+                label: "bookmarked",
+                icon: Bookmark,
+                active: "text-primary bg-primary/5 border-primary/20",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-primary hover:border-primary/20 hover:bg-primary/5",
+                fillOnActive: true,
+            },
+        ];
+
+        return actions.map((action) => {
+            const active = hasStatus(item.id, action.status);
+            const Icon = action.icon;
+            return (
+                <button
+                    key={`${item.id}-${action.status}`}
+                    onClick={() => toggleStatus(item, action.status)}
+                    className={`${buttonBase} ${active ? action.active : action.inactive}`}
+                    title={active ? `Remove ${action.label}` : `Mark as ${action.label}`}
+                >
+                    <Icon size={iconSize} fill={action.fillOnActive && active ? "currentColor" : "none"} />
+                </button>
+            );
+        });
+    };
 
     if (!mounted) return null;
 
@@ -94,7 +206,8 @@ export default function BookmarksPage() {
                     <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
                         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
                             <h3 className="font-semibold text-gray-900 truncate flex-1 mr-4">{viewingItem.name}</h3>
-                            <div className="flex gap-2 flex-shrink-0">
+                            <div className="flex gap-2 flex-shrink-0 items-center flex-wrap justify-end">
+                                {renderStatusButtons(viewingItem, true)}
                                 <button
                                     onClick={() => handleDownload(viewingItem)}
                                     className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
@@ -121,19 +234,19 @@ export default function BookmarksPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900">Bookmarks</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900">Tracked Papers</h1>
                     <p className="text-gray-500 mt-1">
-                        {bookmarks.length > 0
-                            ? `${bookmarks.length} saved paper${bookmarks.length > 1 ? "s" : ""}`
-                            : "No bookmarks saved yet"}
+                        {trackedPapers.length > 0
+                            ? `${trackedPapers.length} tracked paper${trackedPapers.length > 1 ? "s" : ""}`
+                            : "No tracked papers yet"}
                     </p>
                 </div>
-                {bookmarks.length > 0 && (
+                {trackedPapers.length > 0 && (
                     <div className="relative w-full md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search bookmarks..."
+                            placeholder="Search tracked papers..."
                             className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-300 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 text-sm"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -143,14 +256,14 @@ export default function BookmarksPage() {
             </div>
 
             {/* Empty state */}
-            {bookmarks.length === 0 && (
+            {trackedPapers.length === 0 && (
                 <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
                     <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Bookmark className="text-primary" size={28} />
+                        <Clock3 className="text-primary" size={28} />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">No bookmarks yet</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">No tracked papers yet</h3>
                     <p className="text-gray-500 text-sm mb-6">
-                        Bookmark past papers while browsing to save them here.
+                        Use in-progress, completed, important, or bookmark icons on past papers to track them here.
                     </p>
                     <a
                         href="/student/past-papers"
@@ -162,72 +275,95 @@ export default function BookmarksPage() {
             )}
 
             {/* Search no results */}
-            {bookmarks.length > 0 && filtered.length === 0 && (
+            {trackedPapers.length > 0 && !hasVisibleResults && (
                 <div className="text-center py-16 text-gray-500">
-                    No bookmarks match &ldquo;{searchTerm}&rdquo;
+                    No tracked papers match &ldquo;{searchTerm}&rdquo;
                 </div>
             )}
 
-            {/* Bookmark list */}
-            {filtered.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                    {filtered.map((item, idx) => {
-                        const badge = getTypeBadge(item.type);
+            {trackedPapers.length > 0 && hasVisibleResults && (
+                <div className="space-y-6">
+                    {grouped.map((section) => {
+                        const SectionIcon = section.Icon;
                         return (
-                            <div
-                                key={item.id}
-                                className={`flex items-center justify-between p-4 gap-3 hover:bg-gray-50 transition-colors ${idx < filtered.length - 1 ? "border-b border-gray-100" : ""}`}
-                            >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className={`p-2 rounded-lg border ${badge.bg} ${badge.border} ${badge.text} flex-shrink-0`}>
-                                        {badge.icon}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${badge.bg} ${badge.border} ${badge.text}`}>
-                                                {item.type}
-                                            </span>
-                                            <span className="text-xs text-gray-400">{formatDate(item.savedAt)}</span>
-                                        </div>
-                                    </div>
+                            <section key={section.key}>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <SectionIcon size={18} className={section.accent} />
+                                    <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                        {section.items.length}
+                                    </span>
                                 </div>
-                                <div className="flex gap-2 flex-shrink-0">
-                                    {item.embedUrl && (
-                                        <button
-                                            onClick={() => setViewingItem(item)}
-                                            className="p-2 text-white bg-gray-900 hover:bg-black rounded-lg transition-colors"
-                                            title="View"
-                                        >
-                                            <Eye size={15} />
-                                        </button>
-                                    )}
-                                    {item.downloadUrl && (
-                                        <button
-                                            onClick={() => handleDownload(item)}
-                                            className="p-2 text-gray-900 bg-white hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
-                                            title="Download"
-                                        >
-                                            <Download size={15} />
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => removeBookmark(item.id)}
-                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-lg transition-colors"
-                                        title="Remove bookmark"
-                                    >
-                                        <Trash2 size={15} />
-                                    </button>
-                                </div>
-                            </div>
+
+                                {section.items.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 bg-white">
+                                        No papers marked as {section.title.toLowerCase()}.
+                                    </div>
+                                ) : (
+                                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                        {section.items.map((item, idx) => {
+                                            const badge = getTypeBadge(item.type);
+                                            return (
+                                                <div
+                                                    key={`${section.key}-${item.id}`}
+                                                    className={`flex items-center justify-between p-4 gap-3 hover:bg-gray-50 transition-colors ${idx < section.items.length - 1 ? "border-b border-gray-100" : ""}`}
+                                                >
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                        <div className={`p-2 rounded-lg border ${badge.bg} ${badge.border} ${badge.text} flex-shrink-0`}>
+                                                            {badge.icon}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${badge.bg} ${badge.border} ${badge.text}`}>
+                                                                    {item.type}
+                                                                </span>
+                                                                <span className="text-xs text-gray-400">{formatDate(item.savedAt)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 flex-shrink-0 flex-wrap items-center justify-end">
+                                                        {renderStatusButtons(item)}
+                                                        {item.embedUrl && (
+                                                            <button
+                                                                onClick={() => setViewingItem(item)}
+                                                                className="p-2 text-white bg-gray-900 hover:bg-black rounded-lg transition-colors"
+                                                                title="View"
+                                                            >
+                                                                <Eye size={15} />
+                                                            </button>
+                                                        )}
+                                                        {item.downloadUrl && (
+                                                            <button
+                                                                onClick={() => handleDownload(item)}
+                                                                className="p-2 text-gray-900 bg-white hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+                                                                title="Download"
+                                                            >
+                                                                <Download size={15} />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => removeTrackedPaper(item.id)}
+                                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-lg transition-colors"
+                                                            title="Remove from all sections"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </section>
                         );
                     })}
                 </div>
             )}
 
-            {bookmarks.length > 0 && (
+            {trackedPapers.length > 0 && (
                 <p className="text-center text-xs text-gray-400 mt-6">
-                    Bookmarks are saved in your browser and persist across sessions.
+                    Tracking states are saved in your browser and persist across sessions.
                 </p>
             )}
         </div>

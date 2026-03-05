@@ -39,22 +39,22 @@
   }
 
   .dark {
-    --background: 345 20% 4%;
+    --background: 0 0% 4%;
     --foreground: 0 0% 98%;
-    --card: 345 20% 6%;
+    --card: 0 0% 7%;
     --card-foreground: 0 0% 98%;
     --primary: 335 59% 78%;
     --primary-foreground: 345 87% 10%;
-    --secondary: 345 40% 15%;
-    --secondary-foreground: 335 59% 80%;
-    --accent: 188 77% 20%;
-    --accent-foreground: 188 77% 90%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 92%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 95%;
     --highlight: 44 100% 30%;
     --highlight-foreground: 44 100% 95%;
-    --muted: 345 20% 10%;
-    --muted-foreground: 345 10% 70%;
-    --border: 345 20% 15%;
-    --input: 345 20% 15%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 70%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 335 59% 78%;
   }
 }
@@ -88,23 +88,23 @@
 
 /* Dark mode compatibility layer for existing light-only utility classes */
 .dark .bg-white {
-  background-color: rgb(17 24 39) !important;
+  background-color: rgb(10 10 10) !important;
 }
 
 .dark .bg-white\/95,
 .dark .bg-white\/90,
 .dark .bg-white\/80 {
-  background-color: rgba(15, 23, 42, 0.88) !important;
+  background-color: rgba(0, 0, 0, 0.9) !important;
 }
 
 .dark .bg-slate-50,
 .dark .bg-gray-50 {
-  background-color: rgb(15 23 42) !important;
+  background-color: rgb(0 0 0) !important;
 }
 
 .dark .bg-slate-100,
 .dark .bg-gray-100 {
-  background-color: rgb(30 41 59) !important;
+  background-color: rgb(18 18 18) !important;
 }
 
 .dark .border-slate-100,
@@ -113,12 +113,12 @@
 .dark .border-gray-100,
 .dark .border-gray-200,
 .dark .border-gray-300 {
-  border-color: rgb(51 65 85) !important;
+  border-color: rgb(38 38 38) !important;
 }
 
 .dark .text-slate-900,
 .dark .text-gray-900 {
-  color: rgb(241 245 249) !important;
+  color: rgb(245 245 245) !important;
 }
 
 .dark .text-slate-700,
@@ -128,16 +128,16 @@
 .dark .text-gray-600,
 .dark .text-gray-500,
 .dark .text-gray-400 {
-  color: rgb(203 213 225) !important;
+  color: rgb(212 212 212) !important;
 }
 
 .dark .shadow-slate-200\/50 {
-  --tw-shadow-color: rgba(15, 23, 42, 0.7) !important;
+  --tw-shadow-color: rgba(0, 0, 0, 0.75) !important;
 }
 
 .dark .hover\:bg-gray-50:hover,
 .dark .hover\:bg-slate-50:hover,
 .dark .hover\:bg-gray-100:hover,
 .dark .hover\:bg-slate-100:hover {
-  background-color: rgb(30 41 59) !important;
+  background-color: rgb(24 24 24) !important;
 }

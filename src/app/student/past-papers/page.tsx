@@ -3,10 +3,18 @@
 import { useState, useEffect } from "react";
 import {
     FileText, Download, Eye, Search, Loader2, ChevronRight, ChevronDown,
-    Atom, Beaker, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
-    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark
+    Atom, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
+    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2, Star
 } from "lucide-react";
 import { apiCall, getApiUrl } from "@/lib/api";
+import { useUser } from "@clerk/nextjs";
+import {
+    PaperStatus,
+    TrackedPaper,
+    loadTrackedPapers,
+    saveTrackedPapers,
+    toggleTrackedStatus,
+} from "@/lib/paperTracking";
 
 interface FolderItem {
     id: string;
@@ -25,29 +33,6 @@ interface FolderCache {
     [folderId: string]: FolderItem[];
 }
 
-export interface BookmarkItem {
-    id: string;
-    name: string;
-    type: string;
-    viewUrl?: string;
-    downloadUrl?: string;
-    embedUrl?: string;
-    savedAt: string;
-}
-
-const BOOKMARKS_KEY = "propel_bookmarks";
-
-function loadBookmarkIds(): Set<string> {
-    try {
-        const stored = localStorage.getItem(BOOKMARKS_KEY);
-        if (stored) {
-            const arr: BookmarkItem[] = JSON.parse(stored);
-            return new Set(arr.map((b) => b.id));
-        }
-    } catch {}
-    return new Set();
-}
-
 function getFileBadgeLabel(name: string): string {
     const n = name.toLowerCase();
     if (n.includes("qp") || n.includes("question")) return "Question Paper";
@@ -57,6 +42,7 @@ function getFileBadgeLabel(name: string): string {
 }
 
 export default function PastPapersPage() {
+    const { user } = useUser();
     const [rootFolderId, setRootFolderId] = useState<string | null>(null);
     const [folderCache, setFolderCache] = useState<FolderCache>({});
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -65,35 +51,37 @@ export default function PastPapersPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+    const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
 
-    // Load root folder + bookmarks on mount
+    // Load root folder + tracked statuses on mount
     useEffect(() => {
         loadRootFolder();
-        setBookmarkedIds(loadBookmarkIds());
+        setTrackedPapers(loadTrackedPapers());
     }, []);
 
-    const toggleBookmark = (item: FolderItem) => {
-        try {
-            const stored = localStorage.getItem(BOOKMARKS_KEY);
-            let bookmarkList: BookmarkItem[] = stored ? JSON.parse(stored) : [];
-            const exists = bookmarkList.some((b) => b.id === item.id);
-            if (exists) {
-                bookmarkList = bookmarkList.filter((b) => b.id !== item.id);
-            } else {
-                bookmarkList.unshift({
-                    id: item.id,
-                    name: item.name,
-                    type: getFileBadgeLabel(item.name),
-                    viewUrl: item.viewUrl,
-                    downloadUrl: item.downloadUrl,
-                    embedUrl: item.embedUrl,
-                    savedAt: new Date().toISOString(),
-                });
-            }
-            localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarkList));
-            setBookmarkedIds(new Set(bookmarkList.map((b) => b.id)));
-        } catch {}
+    const hasStatus = (itemId: string, status: PaperStatus) => {
+        const item = trackedPapers.find((paper) => paper.id === itemId);
+        return item?.statuses.includes(status) ?? false;
+    };
+
+    const togglePaperStatus = (item: FolderItem, status: PaperStatus) => {
+        if (!user) return;
+
+        const next = toggleTrackedStatus(
+            trackedPapers,
+            {
+                id: item.id,
+                name: item.name,
+                type: getFileBadgeLabel(item.name),
+                viewUrl: item.viewUrl,
+                downloadUrl: item.downloadUrl,
+                embedUrl: item.embedUrl,
+            },
+            status
+        );
+
+        setTrackedPapers(next);
+        saveTrackedPapers(next);
     };
 
     const loadRootFolder = async () => {
@@ -189,6 +177,70 @@ export default function PastPapersPage() {
         return <FileText className="w-4 h-4" />;
     };
 
+    const renderStatusButtons = (item: FolderItem, compact: boolean = false) => {
+        if (!user) return null;
+
+        const iconSize = compact ? 14 : 16;
+        const baseClass = compact
+            ? "p-1.5 rounded-lg transition-colors border"
+            : "p-2 rounded-lg transition-colors border";
+
+        const statusActions: Array<{
+            status: PaperStatus;
+            label: string;
+            icon: any;
+            active: string;
+            inactive: string;
+            fillOnActive?: boolean;
+        }> = [
+            {
+                status: "in_progress",
+                label: "in progress",
+                icon: Clock3,
+                active: "text-blue-600 bg-blue-50 border-blue-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50",
+            },
+            {
+                status: "completed",
+                label: "completed",
+                icon: CheckCircle2,
+                active: "text-emerald-600 bg-emerald-50 border-emerald-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50",
+            },
+            {
+                status: "important",
+                label: "important",
+                icon: Star,
+                active: "text-amber-600 bg-amber-50 border-amber-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50",
+                fillOnActive: true,
+            },
+            {
+                status: "bookmarked",
+                label: "bookmarked",
+                icon: Bookmark,
+                active: "text-primary bg-primary/5 border-primary/20",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-primary hover:border-primary/20 hover:bg-primary/5",
+                fillOnActive: true,
+            },
+        ];
+
+        return statusActions.map((action) => {
+            const active = hasStatus(item.id, action.status);
+            const Icon = action.icon;
+            return (
+                <button
+                    key={action.status}
+                    onClick={() => togglePaperStatus(item, action.status)}
+                    className={`${baseClass} ${active ? action.active : action.inactive}`}
+                    title={active ? `Remove ${action.label}` : `Mark as ${action.label}`}
+                >
+                    <Icon size={iconSize} fill={action.fillOnActive && active ? "currentColor" : "none"} />
+                </button>
+            );
+        });
+    };
+
     const renderFolder = (item: FolderItem, depth: number = 0) => {
         const isExpanded = expandedFolders.has(item.id);
         const isLoading = loadingFolders.has(item.id);
@@ -254,7 +306,6 @@ export default function PastPapersPage() {
     const renderFile = (item: FolderItem, depth: number = 0) => {
         const paddingLeft = depth * 24;
         const fileIcon = getPaperIcon(item.name);
-        const isBookmarked = bookmarkedIds.has(item.id);
 
         const getFileBadge = () => {
             const name = item.name.toLowerCase();
@@ -284,23 +335,8 @@ export default function PastPapersPage() {
                         <span className={`text-xs ${fileBadge.text} font-medium`}>{fileBadge.label}</span>
                     </div>
                 </div>
-                <div className="flex gap-2 flex-shrink-0 ml-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    {/* Bookmark button */}
-                    <button
-                        onClick={() => toggleBookmark(item)}
-                        className={`p-2 rounded-lg transition-colors border ${
-                            isBookmarked
-                                ? "text-primary bg-primary/5 border-primary/20 opacity-100 !opacity-100"
-                                : "text-gray-400 bg-white border-gray-200 hover:text-primary hover:border-primary/20 hover:bg-primary/5"
-                        }`}
-                        title={isBookmarked ? "Remove bookmark" : "Bookmark this paper"}
-                        style={{ opacity: isBookmarked ? 1 : undefined }}
-                    >
-                        <Bookmark
-                            size={16}
-                            fill={isBookmarked ? "currentColor" : "none"}
-                        />
-                    </button>
+                <div className="flex gap-2 flex-shrink-0 ml-2 flex-wrap">
+                    {renderStatusButtons(item)}
                     <button
                         onClick={() => handleView(item)}
                         className="p-2 text-white bg-gray-900 hover:bg-black rounded-lg transition-colors"
@@ -361,21 +397,11 @@ export default function PastPapersPage() {
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
                         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-3 min-w-0 flex-1 mr-3">
                                 <h3 className="font-semibold text-gray-900 truncate">{viewingPaper.name}</h3>
-                                <button
-                                    onClick={() => toggleBookmark(viewingPaper)}
-                                    className={`flex-shrink-0 p-1.5 rounded-lg border transition-colors ${
-                                        bookmarkedIds.has(viewingPaper.id)
-                                            ? "text-primary bg-primary/5 border-primary/20"
-                                            : "text-gray-400 border-gray-200 hover:text-primary hover:border-primary/20"
-                                    }`}
-                                    title={bookmarkedIds.has(viewingPaper.id) ? "Remove bookmark" : "Bookmark"}
-                                >
-                                    <Bookmark size={15} fill={bookmarkedIds.has(viewingPaper.id) ? "currentColor" : "none"} />
-                                </button>
                             </div>
-                            <div className="flex gap-2 flex-shrink-0">
+                            <div className="flex gap-2 flex-shrink-0 items-center flex-wrap justify-end">
+                                {renderStatusButtons(viewingPaper, true)}
                                 <button
                                     onClick={() => handleDownload(viewingPaper)}
                                     className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
@@ -406,13 +432,13 @@ export default function PastPapersPage() {
                     <p className="text-gray-500 mt-1">Browse past papers organized by subject, year, and session.</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto items-center">
-                    {bookmarkedIds.size > 0 && (
+                    {user && trackedPapers.length > 0 && (
                         <a
                             href="/student/bookmarks"
                             className="flex items-center gap-1.5 px-3 py-2 bg-primary/5 border border-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/10 transition-colors flex-shrink-0"
                         >
                             <Bookmark size={14} fill="currentColor" />
-                            {bookmarkedIds.size}
+                            {trackedPapers.length}
                         </a>
                     )}
                     <div className="relative flex-1 md:w-64">

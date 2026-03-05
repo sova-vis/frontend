@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { ArrowRight, BookOpen, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import Image from "next/image";
@@ -34,12 +34,6 @@ export function DashboardHeader() {
                             ? `Studying ${subjects.slice(0, 2).join(", ")}${subjects.length > 2 ? ` +${subjects.length - 2} more` : ""}`
                             : "Let's make today productive."}
                     </p>
-                </div>
-            </div>
-            <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 border border-primary/15 rounded-full text-xs font-semibold text-primary">
-                    <Sparkles size={12} />
-                    AI-Powered Learning
                 </div>
             </div>
         </header>

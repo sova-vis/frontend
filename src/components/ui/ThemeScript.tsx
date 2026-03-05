@@ -6,7 +6,7 @@ export default function ThemeScript() {
       try {
         var stored = localStorage.getItem('${STORAGE_KEY}');
         var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var theme = stored || (prefersDark ? 'dark' : 'light');
+        var theme = stored || 'light';
         if (theme === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
       } catch (e) {}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Play, BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Facebook, Twitter, Instagram, Linkedin, X, Menu } from 'lucide-react';
@@ -24,6 +25,21 @@ export default function HomePage() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
+  const router = useRouter();
+
+  // Redirect signed-in users to their dashboard
+  useEffect(() => {
+    if (isLoaded && user) {
+      const role = (user.publicMetadata?.role as string) || profile?.role || "student";
+      if (role === "teacher") {
+        router.replace("/teacher/dashboard");
+      } else if (role === "admin") {
+        router.replace("/admin/dashboard");
+      } else {
+        router.replace("/student/dashboard");
+      }
+    }
+  }, [isLoaded, user, profile?.role, router]);
 
   // Close modal immediately when user signs in
   useEffect(() => {
@@ -164,19 +180,19 @@ export default function HomePage() {
             <div className="mb-3 flex items-center gap-2 justify-center">
               <button
                 onClick={() => setAuthModal("sign-in")}
-                className={`rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-in" ? "bg-brand-burgundy text-white shadow-lg scale-105" : "bg-white/90 text-slate-700 hover:bg-white"}`}
+                className={`rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-in" ? "bg-brand-burgundy text-white shadow-lg scale-105" : "bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700"}`}
               >
                 Log In
               </button>
               <button
                 onClick={() => setAuthModal("sign-up")}
-                className={`rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-up" ? "bg-brand-red text-white shadow-lg scale-105" : "bg-white/90 text-slate-700 hover:bg-white"}`}
+                className={`rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-up" ? "bg-brand-red text-white shadow-lg scale-105" : "bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700"}`}
               >
                 Sign Up
               </button>
             </div>
 
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden">
+            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
               {authModal === "sign-in" ? (
                 <SignIn
                   routing="hash"
@@ -195,12 +211,15 @@ export default function HomePage() {
                       identityPreviewEditButton: "hidden",
                       footerAction: "hidden",
                       formButtonPrimary: "bg-brand-burgundy hover:bg-brand-burgundy/90 text-white font-bold",
-                      formFieldInput: "rounded-lg border-2 border-slate-200 focus:border-brand-burgundy",
+                      formFieldInput: "rounded-lg border-2 border-slate-200 focus:border-brand-burgundy dark:border-slate-600 dark:bg-slate-800 dark:text-white",
                       headerTitle: "text-brand-burgundy font-black text-2xl",
-                      headerSubtitle: "text-slate-500",
-                      socialButtonsBlockButton: "border-2 border-slate-300 hover:border-brand-burgundy transition-all",
-                      dividerLine: "bg-slate-300",
-                      dividerText: "text-slate-500",
+                      headerSubtitle: "text-slate-500 dark:text-slate-400",
+                      socialButtonsBlockButton: "border-2 border-slate-300 hover:border-brand-burgundy transition-all dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-brand-burgundy",
+                      socialButtonsBlockButtonText: "dark:text-white",
+                      dividerLine: "bg-slate-300 dark:bg-slate-600",
+                      dividerText: "text-slate-500 dark:text-slate-400",
+                      formFieldLabel: "dark:text-slate-300",
+                      otpCodeFieldInput: "dark:border-slate-600 dark:bg-slate-800 dark:text-white",
                     },
                   }}
                 />
@@ -222,12 +241,15 @@ export default function HomePage() {
                       identityPreviewEditButton: "hidden",
                       footerAction: "hidden",
                       formButtonPrimary: "bg-brand-red hover:bg-brand-red/90 text-white font-bold",
-                      formFieldInput: "rounded-lg border-2 border-slate-200 focus:border-brand-red",
+                      formFieldInput: "rounded-lg border-2 border-slate-200 focus:border-brand-red dark:border-slate-600 dark:bg-slate-800 dark:text-white",
                       headerTitle: "text-brand-red font-black text-2xl",
-                      headerSubtitle: "text-slate-500",
-                      socialButtonsBlockButton: "border-2 border-slate-300 hover:border-brand-red transition-all",
-                      dividerLine: "bg-slate-300",
-                      dividerText: "text-slate-500",
+                      headerSubtitle: "text-slate-500 dark:text-slate-400",
+                      socialButtonsBlockButton: "border-2 border-slate-300 hover:border-brand-red transition-all dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-brand-red",
+                      socialButtonsBlockButtonText: "dark:text-white",
+                      dividerLine: "bg-slate-300 dark:bg-slate-600",
+                      dividerText: "text-slate-500 dark:text-slate-400",
+                      formFieldLabel: "dark:text-slate-300",
+                      otpCodeFieldInput: "dark:border-slate-600 dark:bg-slate-800 dark:text-white",
                     },
                   }}
                 />

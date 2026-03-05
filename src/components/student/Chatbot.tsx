@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
-import { apiCall } from "@/lib/api";
+import { apiCall, getApiUrl } from "@/lib/api";
+import { useUser } from "@clerk/nextjs";
+import { useClerkAuth } from "@/lib/useClerkAuth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -12,14 +14,19 @@ interface Citation {
   subjectName: string;
   year: number;
   session?: string;
+  paper?: string;
   file_type: string;
   similarity?: number;
+  paper_file_id?: string;
+  storage_path?: string;
+  paper_view_url?: string;
+  relation?: "direct" | "nearby";
 }
 
 interface RelatedQuestion {
   type: "exact" | "similar";
   text: string;
-  source: { subject: string; year: number; session: string; paper: string; file_type: string };
+  source: { subject: string; year: number; session: string; paper: string; file_type: string; paper_file_id?: string; storage_path?: string; paper_view_url?: string };
   similarity: number;
 }
 
@@ -37,6 +44,67 @@ interface Message {
   paperResults?: any[];
   availableSubjects?: Array<{ code: string; name: string; level: string }>;
   relatedQuestion?: RelatedQuestion;
+  nearbyReferences?: Citation[];
+}
+
+function toAbsoluteApiUrl(relativeOrAbsolute?: string): string | undefined {
+  if (!relativeOrAbsolute) return undefined;
+  if (/^https?:\/\//i.test(relativeOrAbsolute)) return relativeOrAbsolute;
+  const base = getApiUrl().replace(/\/$/, "");
+  const path = relativeOrAbsolute.startsWith("/") ? relativeOrAbsolute : `/${relativeOrAbsolute}`;
+  return `${base}${path}`;
+}
+
+function normalizeStoragePath(pathValue?: string): string | undefined {
+  if (!pathValue?.trim()) return undefined;
+  return pathValue.trim().replace(/^\/+/, "").replace(/^content\//i, "");
+}
+
+function buildPaperViewHref(input: {
+  paper_view_url?: string;
+  paper_file_id?: string;
+  storage_path?: string;
+}): string | undefined {
+  const apiProvidedViewUrl = input.paper_view_url;
+  if (apiProvidedViewUrl && !/\/(undefined|null)\//i.test(apiProvidedViewUrl)) {
+    return toAbsoluteApiUrl(apiProvidedViewUrl);
+  }
+
+  const normalizedStoragePath = normalizeStoragePath(input.storage_path);
+  const usablePaperFileId = input.paper_file_id?.trim();
+
+  if (usablePaperFileId && !/^(undefined|null)$/i.test(usablePaperFileId)) {
+    const storageSuffix = normalizedStoragePath
+      ? `?storagePath=${encodeURIComponent(normalizedStoragePath)}`
+      : "";
+    return toAbsoluteApiUrl(`/rag/paper-file/${encodeURIComponent(usablePaperFileId)}/view${storageSuffix}`);
+  }
+
+  if (normalizedStoragePath) {
+    return toAbsoluteApiUrl(`/rag/paper-file/by-path/view?storagePath=${encodeURIComponent(normalizedStoragePath)}`);
+  }
+
+  return undefined;
+}
+
+function dedupeCitationList(items: Citation[] = []): Citation[] {
+  const deduped = new Map<string, Citation>();
+
+  for (const item of items) {
+    const primaryKey = item.paper_file_id?.trim()
+      || normalizeStoragePath(item.storage_path)
+      || `${item.subject}-${item.year}-${item.session || ""}-${item.paper || ""}-${item.file_type}`;
+    const dedupeKey = `${primaryKey}:${item.file_type}`;
+
+    const existing = deduped.get(dedupeKey);
+    const existingScore = typeof existing?.similarity === "number" ? existing.similarity : -1;
+    const currentScore = typeof item.similarity === "number" ? item.similarity : -1;
+    if (!existing || currentScore >= existingScore) deduped.set(dedupeKey, item);
+  }
+
+  return Array.from(deduped.values()).sort(
+    (a, b) => (typeof b.similarity === "number" ? b.similarity : -1) - (typeof a.similarity === "number" ? a.similarity : -1)
+  );
 }
 
 interface Subject {
@@ -60,65 +128,141 @@ function renderInline(text: string): React.ReactNode[] {
 
 function renderMarkdown(text: string): React.ReactNode[] {
   if (!text) return [];
-  const blocks = text.split(/\n{2,}/);
-  return blocks.map((block, bi) => {
-    const lines = block.split("\n");
-    const isBullet = lines.every((l) => /^[-•*]\s/.test(l.trim()));
-    if (isBullet)
-      return (
-        <ul key={bi} className="list-disc list-inside space-y-1 my-2">
-          {lines.map((l, li) => (
-            <li key={li} className="text-[15px] leading-relaxed text-gray-700 dark:text-gray-300">
-              {renderInline(l.replace(/^[-•*]\s+/, ""))}
-            </li>
-          ))}
-        </ul>
-      );
-    const isNumbered = lines.every((l) => /^\d+[.)]\s/.test(l.trim()));
-    if (isNumbered)
-      return (
-        <ol key={bi} className="list-decimal list-inside space-y-1 my-2">
-          {lines.map((l, li) => (
-            <li key={li} className="text-[15px] leading-relaxed text-gray-700 dark:text-gray-300">
-              {renderInline(l.replace(/^\d+[.)]\s+/, ""))}
-            </li>
-          ))}
-        </ol>
-      );
-    return (
-      <p key={bi} className="text-[15px] leading-relaxed text-gray-700 dark:text-gray-300">
-        {lines.map((line, li) => (
-          <span key={li}>
+
+  const lines = text.replace(/\r/g, "").split("\n");
+  const nodes: React.ReactNode[] = [];
+  let paragraphLines: string[] = [];
+  let bulletLines: string[] = [];
+  let numberedLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    const key = `p-${nodes.length}`;
+    nodes.push(
+      <p key={key} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+        {paragraphLines.map((line, idx) => (
+          <span key={idx}>
             {renderInline(line)}
-            {li < lines.length - 1 && <br />}
+            {idx < paragraphLines.length - 1 && <br />}
           </span>
         ))}
       </p>
     );
-  });
+    paragraphLines = [];
+  };
+
+  const flushBullets = () => {
+    if (!bulletLines.length) return;
+    const key = `ul-${nodes.length}`;
+    nodes.push(
+      <ul key={key} className="list-disc list-inside space-y-1 my-2">
+        {bulletLines.map((line, idx) => (
+          <li key={idx} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+            {renderInline(line)}
+          </li>
+        ))}
+      </ul>
+    );
+    bulletLines = [];
+  };
+
+  const flushNumbered = () => {
+    if (!numberedLines.length) return;
+    const key = `ol-${nodes.length}`;
+    nodes.push(
+      <ol key={key} className="list-decimal list-inside space-y-1 my-2">
+        {numberedLines.map((line, idx) => (
+          <li key={idx} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+            {renderInline(line)}
+          </li>
+        ))}
+      </ol>
+    );
+    numberedLines = [];
+  };
+
+  const flushLists = () => {
+    flushBullets();
+    flushNumbered();
+  };
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      flushLists();
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushLists();
+
+      const level = headingMatch[1].length;
+      const headingText = headingMatch[2].trim();
+      const headingClass = level <= 2
+        ? "text-[18px] sm:text-[19px] font-semibold text-gray-900 dark:text-gray-100 mt-2"
+        : "text-[17px] sm:text-[18px] font-semibold text-gray-900 dark:text-gray-100 mt-2";
+
+      nodes.push(
+        <h3 key={`h-${nodes.length}`} className={headingClass}>
+          {renderInline(headingText)}
+        </h3>
+      );
+      continue;
+    }
+
+    const bulletMatch = trimmed.match(/^[-•*]\s+(.*)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      flushNumbered();
+      bulletLines.push(bulletMatch[1]);
+      continue;
+    }
+
+    const numberedMatch = trimmed.match(/^\d+[.)]\s+(.*)$/);
+    if (numberedMatch) {
+      flushParagraph();
+      flushBullets();
+      numberedLines.push(numberedMatch[1]);
+      continue;
+    }
+
+    paragraphLines.push(trimmed);
+  }
+
+  flushParagraph();
+  flushLists();
+
+  return nodes;
 }
 
-// ─── Welcome message ─────────────────────────────────────────────────────────
+// ─── Greeting helper ──────────────────────────────────────────────────────────
 
-const WELCOME: Message = {
-  id: "welcome",
-  type: "assistant",
-  content:
-    "Hello! I'm your O-Level AI study assistant, trained on real Cambridge past papers and mark schemes.\n\nTry asking:\n- **explain the process of osmosis**\n- **what causes acid rain in chemistry**\n- **islamiyat papers 2022**\n- **physics past papers 2019**",
-  timestamp: new Date(),
-  responseType: "smalltalk",
-};
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Chatbot() {
-  const [messages, setMessages] = useState<Message[]>([WELCOME]);
+  const { user } = useUser();
+  const { profile } = useClerkAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [showSubjects, setShowSubjects] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const userName = profile?.full_name?.split(" ")[0] || user?.firstName || "Student";
+  const isEmptyChat = messages.filter((m) => m.type === "user").length === 0;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -145,7 +289,7 @@ export default function Chatbot() {
   }, []);
 
   const handleNewChat = useCallback(() => {
-    setMessages([{ ...WELCOME, id: "welcome-" + Date.now(), timestamp: new Date() }]);
+    setMessages([]);
     setInput("");
     setSelectedSubject(null);
     setMobileSidebarOpen(false);
@@ -168,7 +312,6 @@ export default function Chatbot() {
 
     try {
       const historyMessages = messages
-        .filter((m) => !m.id.startsWith("welcome"))
         .slice(-8)
         .map((m) => ({
           role: m.type === "user" ? ("user" as const) : ("assistant" as const),
@@ -196,6 +339,7 @@ export default function Chatbot() {
       let paperResults: any[] | undefined;
       let availableSubjects: Message["availableSubjects"];
       let relatedQuestion: RelatedQuestion | undefined;
+      let nearbyReferences: Citation[] | undefined;
       const responseType: Message["responseType"] = data.type || "exam_question";
 
       if (data.type === "smalltalk") {
@@ -207,19 +351,45 @@ export default function Chatbot() {
       } else {
         if (!data?.answer) throw new Error("Invalid response");
         content = data.answer;
-        citations = data.citations?.slice(0, 5).map((c: any) => ({
+        citations = dedupeCitationList((data.citations || []).map((c: any) => ({
           subject: c.subject,
           subjectName: c.subjectName || c.subject,
           year: c.year,
           session: c.session,
+          paper: c.paper,
           file_type: c.file_type,
           similarity: c.similarity,
-        }));
+          paper_file_id: c.paper_file_id,
+          storage_path: c.storage_path,
+          paper_view_url: c.paper_view_url,
+          relation: c.relation,
+        }))).slice(0, 5);
         markingPoints = data.marking_points;
         commonMistakes = data.common_mistakes;
         confidenceScore = data.confidence_score;
         lowConfidence = data.low_confidence;
-        relatedQuestion = data.related_question;
+        relatedQuestion = data.related_question
+          ? {
+              ...data.related_question,
+              source: {
+                ...data.related_question.source,
+                storage_path: data.related_question.source?.storage_path,
+              },
+            }
+          : undefined;
+        nearbyReferences = dedupeCitationList((data.nearby_references || []).map((c: any) => ({
+          subject: c.subject,
+          subjectName: c.subjectName || c.subject,
+          year: c.year,
+          session: c.session,
+          paper: c.paper,
+          file_type: c.file_type,
+          similarity: c.similarity,
+          paper_file_id: c.paper_file_id,
+          storage_path: c.storage_path,
+          paper_view_url: c.paper_view_url,
+          relation: c.relation,
+        })));
       }
 
       setMessages((prev) => [
@@ -238,6 +408,7 @@ export default function Chatbot() {
           paperResults,
           availableSubjects,
           relatedQuestion,
+          nearbyReferences,
         },
       ]);
     } catch {
@@ -256,15 +427,113 @@ export default function Chatbot() {
   }, [input, loading, messages, selectedSubject]);
 
   const userMessages = messages.filter((m) => m.type === "user");
+  const showCenteredComposer = isEmptyChat && !loading;
+
+  const renderComposer = ({ centered = false }: { centered?: boolean } = {}) => {
+    if (centered) {
+      return (
+        <div className="w-full max-w-4xl">
+          {selectedSubject && (
+            <div className="mb-3 flex items-center justify-center gap-2">
+              <span className="text-xs text-gray-400 dark:text-gray-500">Filtering by:</span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/5 text-primary text-xs font-medium border border-primary/20">
+                {selectedSubject.name} ({selectedSubject.level})
+                <button onClick={() => setSelectedSubject(null)} className="hover:opacity-70 ml-0.5">✕</button>
+              </span>
+            </div>
+          )}
+
+          <div className="rounded-[26px] border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/90 shadow-sm px-5 sm:px-6 py-5 min-h-[150px] flex flex-col">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={selectedSubject ? `Ask about ${selectedSubject.name}…` : "How can I help you today?"}
+              className="w-full resize-none outline-none text-[17px] sm:text-[18px] text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500 bg-transparent min-h-[64px] max-h-40 leading-relaxed"
+            />
+
+            <div className="mt-4 flex items-center justify-between">
+              <button
+                type="button"
+                className="w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="More options"
+              >
+                <span className="text-[30px] leading-none">+</span>
+              </button>
+
+              <button
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-150 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:shadow-none disabled:cursor-not-allowed"
+                aria-label="Send"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22,2 15,22 11,13 2,9" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-3xl mx-auto">
+        {selectedSubject && (
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs text-gray-400 dark:text-gray-500">Filtering by:</span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/5 text-primary text-xs font-medium border border-primary/20">
+              {selectedSubject.name} ({selectedSubject.level})
+              <button onClick={() => setSelectedSubject(null)} className="hover:opacity-70 ml-0.5">✕</button>
+            </span>
+          </div>
+        )}
+        <div className="flex gap-3 items-end rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all duration-200 px-4 py-3">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder={selectedSubject ? `Ask about ${selectedSubject.name}…` : "Ask an exam question, find papers, or explore topics…"}
+            className="flex-1 resize-none outline-none text-[16px] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 bg-transparent min-h-[24px] max-h-40 leading-relaxed"
+          />
+          <button
+            onClick={handleSend}
+            disabled={loading || !input.trim()}
+            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:shadow-none disabled:cursor-not-allowed"
+            aria-label="Send"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22,2 15,22 11,13 2,9" />
+            </svg>
+          </button>
+        </div>
+        <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+          Enter to send · Shift+Enter for new line
+        </p>
+      </div>
+    );
+  };
 
   const sidebarContent = (
     <>
       {/* New chat */}
       <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-        <div className="mb-3">
-          <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">AI Study Assistant</h2>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Cambridge O-Level · Past Papers</p>
-        </div>
         <button
           onClick={handleNewChat}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 transition-colors text-sm font-medium text-white shadow-sm shadow-primary/20"
@@ -330,16 +599,14 @@ export default function Chatbot() {
           </div>
         ) : (
           <div className="space-y-0.5">
-            {userMessages.map((msg, i) => (
-              <div
-                key={msg.id}
-                className={`px-3 py-2.5 rounded-lg cursor-default transition-colors group ${i === userMessages.length - 1 ? "bg-primary/5 border border-primary/10" : "hover:bg-gray-50 dark:hover:bg-gray-800"}`}
-              >
-                <p className={`text-xs line-clamp-2 leading-relaxed ${i === userMessages.length - 1 ? "text-primary" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300"}`}>
-                  {msg.content}
-                </p>
-              </div>
-            ))}
+            <div className="px-3 py-2.5 rounded-lg cursor-default bg-primary/5 border border-primary/10">
+              <p className="text-xs line-clamp-2 leading-relaxed text-primary font-medium">
+                {userMessages[0].content}
+              </p>
+              {userMessages.length > 1 && (
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{userMessages.length} messages in chat</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -360,14 +627,17 @@ export default function Chatbot() {
   );
 
   return (
-    <div className="flex h-full bg-gray-50/30 dark:bg-gray-950 font-sans antialiased overflow-hidden">
+    <div className="relative flex h-full bg-gray-50/30 dark:bg-gray-950 font-sans antialiased overflow-hidden">
+      <button
+        onClick={() => setMobileSidebarOpen((v) => !v)}
+        className="fixed top-[88px] z-[60] p-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/5 transition-all duration-200 shadow-sm"
+        style={{ left: mobileSidebarOpen ? "calc(18rem + 0.75rem)" : "1rem" }}
+        aria-label={mobileSidebarOpen ? "Close sidebar" : "Open sidebar"}
+      >
+        {mobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+      </button>
 
-      {/* ── Desktop Sidebar ── */}
-      <aside className="hidden md:flex w-64 flex-shrink-0 flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 shadow-sm">
-        {sidebarContent}
-      </aside>
-
-      {/* ── Mobile Sidebar Overlay ── */}
+      {/* ── Sidebar Overlay ── */}
       <AnimatePresence>
         {mobileSidebarOpen && (
           <>
@@ -375,7 +645,7 @@ export default function Chatbot() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-x-0 bottom-0 top-[74px] z-40 bg-black/45 backdrop-blur-sm"
               onClick={() => setMobileSidebarOpen(false)}
             />
             <motion.aside
@@ -383,17 +653,8 @@ export default function Chatbot() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="md:hidden fixed left-0 top-0 h-full w-72 z-50 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 shadow-2xl"
+              className="fixed left-0 top-[74px] h-[calc(100vh-74px)] w-72 z-50 flex flex-col bg-white dark:bg-black border-r border-gray-100 dark:border-gray-800 shadow-2xl"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm font-bold text-gray-900 dark:text-gray-100">Study Assistant</span>
-                <button
-                  onClick={() => setMobileSidebarOpen(false)}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg"
-                >
-                  <X size={18} />
-                </button>
-              </div>
               {sidebarContent}
             </motion.aside>
           </>
@@ -403,99 +664,53 @@ export default function Chatbot() {
       {/* ── Main chat area ── */}
       <div className="flex-1 flex flex-col min-w-0">
 
-        {/* Top bar */}
-        <div className="h-12 flex items-center justify-between px-4 sm:px-6 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Mobile menu toggle */}
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="md:hidden p-1.5 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-            >
-              <Menu size={18} />
-            </button>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {selectedSubject ? `${selectedSubject.name} — Study Assistant` : "Study Assistant"}
-            </span>
-            {selectedSubject && (
-              <button
-                onClick={() => setSelectedSubject(null)}
-                className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-          <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">Cambridge · O-Level</span>
-        </div>
-
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-            {messages.map((msg) => (
-              <MessageRow key={msg.id} msg={msg} />
-            ))}
-
-            {loading && (
-              <div className="flex gap-3 items-start">
-                <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-primary">P</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm mt-0.5">
-                  <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:300ms]" />
+          {isEmptyChat && !loading ? (
+            <div className="h-full flex flex-col items-center justify-center px-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 bg-primary rounded-tr-[16px] rounded-bl-[16px] flex items-center justify-center shadow-lg shadow-primary/20">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
                 </div>
               </div>
-            )}
+              <h1 className="text-3xl sm:text-4xl font-semibold text-gray-800 dark:text-gray-100 mb-1.5">
+                {getTimeGreeting()}, {userName}
+              </h1>
+              <p className="text-gray-400 dark:text-gray-500 text-lg">How can I help you study today?</p>
+              <div className="mt-8 w-full flex justify-center">
+                {renderComposer({ centered: true })}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+              {messages.map((msg) => (
+                <MessageRow key={msg.id} msg={msg} />
+              ))}
 
-            <div ref={messagesEndRef} />
-          </div>
+              {loading && (
+                <div className="flex gap-3 items-start">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-primary">P</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm mt-0.5">
+                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
 
         {/* Input */}
-        <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 sm:px-6 py-4">
-          <div className="max-w-2xl mx-auto">
-            {selectedSubject && (
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-xs text-gray-400 dark:text-gray-500">Filtering by:</span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/5 text-primary text-xs font-medium border border-primary/20">
-                  {selectedSubject.name} ({selectedSubject.level})
-                  <button onClick={() => setSelectedSubject(null)} className="hover:opacity-70 ml-0.5">✕</button>
-                </span>
-              </div>
-            )}
-            <div className="flex gap-3 items-end rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all duration-200 px-4 py-3">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={selectedSubject ? `Ask about ${selectedSubject.name}…` : "Ask an exam question, find papers, or explore topics…"}
-                className="flex-1 resize-none outline-none text-[15px] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 bg-transparent min-h-[24px] max-h-40 leading-relaxed"
-              />
-              <button
-                onClick={handleSend}
-                disabled={loading || !input.trim()}
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:shadow-none disabled:cursor-not-allowed"
-                aria-label="Send"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22,2 15,22 11,13 2,9" />
-                </svg>
-              </button>
-            </div>
-            <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-              Enter to send · Shift+Enter for new line
-            </p>
+        {!showCenteredComposer && (
+          <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 sm:px-6 py-4">
+            {renderComposer()}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -507,8 +722,8 @@ function MessageRow({ msg }: { msg: Message }) {
   if (msg.type === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] sm:max-w-[78%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary text-white shadow-sm shadow-primary/20">
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+        <div className="max-w-[88%] sm:max-w-[85%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary text-white shadow-sm shadow-primary/20">
+          <p className="text-[16px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
           <p className="text-[10px] mt-1.5 text-white/60 text-right">
             {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
@@ -516,6 +731,12 @@ function MessageRow({ msg }: { msg: Message }) {
       </div>
     );
   }
+
+  const relatedQuestionViewHref = msg.relatedQuestion
+    ? buildPaperViewHref(msg.relatedQuestion.source)
+    : undefined;
+  const dedupedCitations = msg.citations ? dedupeCitationList(msg.citations) : [];
+  const primaryCitation = dedupedCitations[0];
 
   return (
     <div className="flex gap-2 sm:gap-3 items-start">
@@ -529,6 +750,35 @@ function MessageRow({ msg }: { msg: Message }) {
         <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3.5">
           <div className="space-y-2">{renderMarkdown(msg.content)}</div>
         </div>
+
+        {/* Past paper context */}
+        {dedupedCitations.length > 0 && primaryCitation && (
+          <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/25 p-3.5">
+            <p className="text-[13px] leading-relaxed text-emerald-900 dark:text-emerald-200">
+              This answer uses past-paper context from {primaryCitation.subjectName} · {primaryCitation.year} {primaryCitation.session} · {primaryCitation.paper || "P?"} · {primaryCitation.file_type}.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {dedupedCitations.map((c, i) => {
+                const citationViewHref = buildPaperViewHref(c);
+                return (
+                  <span key={i} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300 font-medium">
+                    <span>{c.year} {c.session} · {c.paper || "P?"} · {c.file_type}</span>
+                    {citationViewHref && (
+                      <a
+                        href={citationViewHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-primary hover:text-primary/80 underline-offset-2 hover:underline"
+                      >
+                        View
+                      </a>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Paper lookup results */}
         {msg.paperResults && msg.paperResults.length > 0 && (
@@ -563,12 +813,54 @@ function MessageRow({ msg }: { msg: Message }) {
               <span className="ml-auto text-[10px] font-medium text-gray-400 dark:text-gray-500 hidden sm:block">
                 {msg.relatedQuestion.source.subject} · {msg.relatedQuestion.source.year} {msg.relatedQuestion.source.session} · {msg.relatedQuestion.source.paper} · {msg.relatedQuestion.source.file_type}
               </span>
+              {relatedQuestionViewHref && (
+                <a
+                  href={relatedQuestionViewHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-semibold text-primary hover:text-primary/80 underline-offset-2 hover:underline"
+                >
+                  View paper
+                </a>
+              )}
             </div>
             <div className="px-4 py-3">
               <p className="text-[13px] sm:text-[14px] text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap font-mono">{msg.relatedQuestion.text}</p>
               <p className="sm:hidden mt-2 text-[10px] text-gray-400 dark:text-gray-500">
                 {msg.relatedQuestion.source.subject} · {msg.relatedQuestion.source.year} {msg.relatedQuestion.source.session}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Nearby references (low confidence) */}
+        {msg.nearbyReferences && msg.nearbyReferences.length > 0 && (
+          <div className="rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/25 p-3.5">
+            <h4 className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider mb-2">Closest related past papers</h4>
+            <div className="space-y-2">
+              {dedupeCitationList(msg.nearbyReferences).map((c, i) => {
+                const nearbyViewHref = buildPaperViewHref(c);
+                return (
+                <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-white/80 dark:bg-gray-800/70 border border-blue-100 dark:border-blue-900/40 px-3 py-2">
+                  <p className="text-[12px] text-blue-900 dark:text-blue-200 leading-snug">
+                    {c.subjectName} · {c.year} {c.session} · {c.paper} · {c.file_type}
+                    {typeof c.similarity === "number" && (
+                      <span className="text-blue-500 dark:text-blue-400"> · sim {c.similarity.toFixed(2)}</span>
+                    )}
+                  </p>
+                  {nearbyViewHref && (
+                    <a
+                      href={nearbyViewHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 text-[11px] font-semibold text-primary hover:text-primary/80 underline-offset-2 hover:underline"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -609,17 +901,6 @@ function MessageRow({ msg }: { msg: Message }) {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-
-        {/* Citations */}
-        {msg.citations && msg.citations.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {msg.citations.map((c, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
-                {c.subjectName} · {c.year} {c.session} · {c.file_type}
-              </span>
-            ))}
           </div>
         )}
 

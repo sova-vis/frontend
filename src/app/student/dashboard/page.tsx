@@ -2,7 +2,7 @@
 
 import { DashboardHeader, ContinueLearning } from "@/components/dashboard/HeaderAndContinue";
 import ProgressSnapshot from "@/components/dashboard/ProgressSnapshot";
-import ActionGrid from "@/components/dashboard/ActionGrid";
+import NotesWidget from "@/components/dashboard/NotesWidget";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { redirect } from "next/navigation";
@@ -19,7 +19,7 @@ export default function StudentDashboard() {
   // Show loading state
   if (loading || !isLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center dark:bg-black">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           <p className="mt-4 text-gray-600">Loading dashboard...</p>
@@ -34,20 +34,13 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="p-4 md:p-8 pb-16">
+    <div className="p-4 md:p-8 pb-16 min-h-full dark:bg-black">
       <div className="max-w-6xl mx-auto">
         <DashboardHeader />
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-6">
             <ContinueLearning />
-
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-bold text-gray-900">Quick Actions</h2>
-              </div>
-              <ActionGrid />
-            </section>
           </div>
 
           <div className="w-full lg:w-72 xl:w-80 flex-shrink-0">
@@ -55,6 +48,7 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+      <NotesWidget />
     </div>
   );
 }
