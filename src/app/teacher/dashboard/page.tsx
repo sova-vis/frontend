@@ -1,12 +1,16 @@
 "use client";
 
 import { Users, BookOpen, Calendar, Settings } from "lucide-react";
+import { BrandLogo } from "@/components/ui/Logo";
 
 export default function TeacherDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <nav className="bg-white border-b border-gray-100 px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-        <h1 className="text-xl font-bold font-display text-primary">Propel Teacher</h1>
+        <div className="flex items-center gap-3">
+          <BrandLogo size={36} labelClassName="text-xl text-primary" />
+          <span className="text-sm font-semibold text-gray-500">Teacher</span>
+        </div>
         <div className="flex items-center gap-4">
           <div className="text-right hidden md:block">
             <p className="text-sm font-bold text-gray-900">Teacher Account</p>

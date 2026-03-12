@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useClerk } from "@clerk/nextjs";
+import { BrandLogo } from "@/components/ui/Logo";
 
 const navItems = [
     { name: "Home", href: "/", icon: Home },
@@ -55,11 +56,9 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
 
             <aside className={`fixed left-0 top-0 h-screen w-64 bg-white/90 backdrop-blur-xl border-r border-gray-100 flex flex-col z-50 transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"
                 }`}>
-                <div className="p-8 pb-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold font-display text-primary tracking-tight">
-                        Propel
-                    </h1>
-                    <button onClick={onClose} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                <div className="p-8 pb-4 flex justify-between items-center gap-3">
+                    <BrandLogo size={40} labelClassName="text-2xl text-primary" />
+                    <button onClick={onClose} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg ml-auto">
                         <ChevronLeft size={20} />
                     </button>
                     {/* Desktop Toggle - visible only on desktop */}

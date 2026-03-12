@@ -11,6 +11,7 @@ import { useClerkAuth } from "@/lib/useClerkAuth";
 import { useUser } from "@clerk/nextjs";
 import { apiCall } from "@/lib/api";
 import { SignIn, SignUp } from "@clerk/nextjs";
+import { BrandLogo } from "@/components/ui/Logo";
 
 interface FolderItem {
     id: string;
@@ -53,7 +54,9 @@ export default function PublicPastPapersPage() {
     const Navigation = () => (
         <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
-                <Link href="/" className="text-2xl font-black text-brand-burgundy">Propel</Link>
+                <Link href="/">
+                    <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                </Link>
                 <div className="flex items-center gap-2 md:gap-4">
                     <Link href="/" className="hidden sm:flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-brand-burgundy font-semibold">
                         <Home size={18} />
@@ -393,7 +396,9 @@ export default function PublicPastPapersPage() {
                 {/* Header */}
                 <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4">
                     <div className="max-w-7xl mx-auto flex justify-between items-center">
-                        <Link href="/" className="text-2xl font-black text-brand-burgundy">Propel</Link>
+                        <Link href="/">
+                            <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                        </Link>
                         <div className="flex items-center gap-4">
                             <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-brand-burgundy font-semibold">
                                 <Home size={18} />
@@ -443,7 +448,9 @@ export default function PublicPastPapersPage() {
         <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
             <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <Link href="/" className="text-2xl font-black text-brand-burgundy">Propel</Link>
+                    <Link href="/">
+                        <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                    </Link>
                     <div className="flex items-center gap-4">
                         <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-brand-burgundy font-semibold">
                             <Home size={18} />
@@ -609,10 +616,10 @@ export default function PublicPastPapersPage() {
                             ) : (
                                 <SignUp
                                     routing="hash"
-                                    signInUrl="/"
-                                    afterSignUpUrl="/past-papers"
-                                    fallbackRedirectUrl="/past-papers"
-                                    forceRedirectUrl="/past-papers"
+                                    signInUrl="/sign-in"
+                                    afterSignUpUrl="/sign-in"
+                                    fallbackRedirectUrl="/sign-in"
+                                    forceRedirectUrl="/sign-in"
                                     appearance={{
                                         elements: {
                                             card: "shadow-none border-0 bg-transparent",

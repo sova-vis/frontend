@@ -14,13 +14,13 @@ import {
   Menu,
   X,
   ChevronDown,
-  Play,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useClerk } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { BrandLogo } from "@/components/ui/Logo";
 
 const navItems = [
   { name: "Dashboard",   href: "/student/dashboard",   icon: LayoutDashboard },
@@ -55,12 +55,18 @@ export default function StudentNavbar() {
       <nav className="sticky top-0 z-50 h-[74px] bg-white dark:bg-gray-950 border-b border-gray-200/80 dark:border-gray-800 shadow-[0_1px_0_rgba(15,23,42,0.06)]">
         <div className="max-w-[1360px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4">
 
-          {/* Logo — matches landing page */}
-          <Link href="/student/dashboard" className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-9 h-9 bg-primary rounded-tr-[14px] rounded-bl-[14px] flex items-center justify-center shadow-md shadow-primary/20">
-              <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-            </div>
-            <span className="font-black font-display text-primary text-[30px] tracking-tight hidden sm:block">Propel</span>
+          {/* Logo — circular O in burgundy */}
+          <Link href="/student/dashboard" className="flex-shrink-0">
+            <BrandLogo
+              size={36}
+              className="hidden sm:flex"
+              labelClassName="text-[26px] text-primary dark:text-white"
+            />
+            <BrandLogo
+              size={36}
+              className="sm:hidden"
+              label=""
+            />
           </Link>
 
           {/* Desktop nav links */}
@@ -174,10 +180,7 @@ export default function StudentNavbar() {
             >
               <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-800">
                 <Link href="/student/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
-                  <div className="w-9 h-9 bg-primary rounded-tr-[14px] rounded-bl-[14px] flex items-center justify-center shadow-lg shadow-primary/20">
-                    <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-                  </div>
-                  <span className="font-black font-display text-primary text-xl">Propel</span>
+                  <BrandLogo size={32} labelClassName="text-xl text-primary dark:text-white" />
                 </Link>
                 <button onClick={() => setMobileOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg">
                   <X size={20} />

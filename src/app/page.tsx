@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { Play, BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Facebook, Twitter, Instagram, Linkedin, X, Menu } from 'lucide-react';
+import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Facebook, Twitter, Instagram, Linkedin, X, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUser } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { BrandLogo } from '@/components/ui/Logo';
 
 const FloatingHero = dynamic(() => import('@/components/FloatingHero'), {
   loading: () => <div className="h-[70vh] animate-pulse bg-slate-100 dark:bg-slate-900" />,
@@ -18,7 +19,7 @@ const FloatingHero = dynamic(() => import('@/components/FloatingHero'), {
 const SignIn = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignIn })), { ssr: false });
 const SignUp = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignUp })), { ssr: false });
 
-export default function HomePage() {
+function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, signOut } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
@@ -26,6 +27,20 @@ export default function HomePage() {
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const auth = searchParams?.get("auth");
+
+    if (auth !== "sign-in" && auth !== "sign-up") {
+      return;
+    }
+
+    setAuthModal(auth);
+    url.searchParams.delete("auth");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [searchParams]);
 
   // Redirect signed-in users to their dashboard
   useEffect(() => {
@@ -75,12 +90,7 @@ export default function HomePage() {
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           className="w-full max-w-[1200px] px-4 md:px-8 py-3 md:py-4 flex justify-between items-center bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-full shadow-2xl shadow-slate-200/50 border border-slate-200 dark:border-slate-700 pointer-events-auto"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-burgundy rounded-tr-[20px] rounded-bl-[20px] flex items-center justify-center shadow-lg shadow-brand-burgundy/20">
-              <Play className="w-5 h-5 text-white fill-white ml-0.5" />
-            </div>
-            <span className="text-2xl font-black tracking-tight text-brand-burgundy font-display">Propel</span>
-          </div>
+          <BrandLogo size={40} labelClassName="text-2xl text-brand-burgundy" />
 
           <div className="flex items-center gap-3 md:gap-8">
             <div className="hidden md:flex items-center gap-8 font-semibold text-slate-600 dark:text-slate-300">
@@ -226,10 +236,10 @@ export default function HomePage() {
               ) : (
                 <SignUp
                   routing="hash"
-                  signInUrl="/"
-                  afterSignUpUrl="/"
-                  fallbackRedirectUrl="/"
-                  forceRedirectUrl="/"
+                  signInUrl="/?auth=sign-in"
+                  afterSignUpUrl="/?auth=sign-in"
+                  fallbackRedirectUrl="/?auth=sign-in"
+                  forceRedirectUrl="/?auth=sign-in"
                   appearance={{
                     elements: {
                       card: "shadow-none border-0 bg-transparent",
@@ -436,12 +446,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 mb-12">
             {/* Brand */}
             <div className="col-span-2 md:col-span-1 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-burgundy rounded-tr-[20px] rounded-bl-[20px] flex items-center justify-center">
-                  <Play className="w-5 h-5 text-white fill-white ml-0.5" />
-                </div>
-                <span className="text-2xl font-black text-white font-display">Propel</span>
-              </div>
+              <BrandLogo size={40} labelClassName="text-2xl text-white" />
               <p className="text-slate-400 leading-relaxed text-sm md:text-base">Empowering O Level students to achieve academic excellence through expert guidance and comprehensive resources.</p>
             </div>
 
@@ -450,7 +455,7 @@ export default function HomePage() {
               <h3 className="text-lg font-bold mb-4">Quick Links</h3>
               <ul className="space-y-2 text-slate-400 text-sm md:text-base">
                 <li><Link href="/login" className="hover:text-brand-pink transition-colors">Login</Link></li>
-                <li><Link href="/signup" className="hover:text-brand-pink transition-colors">Sign Up</Link></li>
+                <li><Link href="/sign-up" className="hover:text-brand-pink transition-colors">Sign Up</Link></li>
                 <li><a href="#features" className="hover:text-brand-pink transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-brand-pink transition-colors">How It Works</a></li>
               </ul>
@@ -504,5 +509,13 @@ export default function HomePage() {
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }
