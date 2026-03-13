@@ -18,6 +18,11 @@ interface Citation {
   variant?: string;
   similarity?: number;
   relation?: "direct" | "nearby";
+  questionNumber?: string;
+  subQuestion?: string;
+  marks?: number;
+  topicGeneral?: string;
+  topicSyllabus?: string;
 }
 
 interface Message {
@@ -133,8 +138,29 @@ function humanizePaperValue(value?: string): string {
     .trim();
 }
 
+function humanizeSessionValue(value?: string): string {
+  if (!value) return "Session unknown";
+  return value
+    .replace(/_/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildCitationQuestionRef(c: Citation): string {
+  const q = (c.questionNumber || "").trim();
+  const sub = (c.subQuestion || "").trim();
+  if (!q && !sub) return "";
+  if (q && sub) return `Question ${q} ${sub}`;
+  return q ? `Question ${q}` : `Question ${sub}`;
+}
+
 function formatCitationReference(c: Citation): string {
-  return `${c.subject} (${c.year} ${c.session || ""}) - Paper ${humanizePaperValue(c.paper)}, Variant ${humanizePaperValue(c.variant)}`.replace(/\s+/g, " ").trim();
+  const session = humanizeSessionValue(c.session);
+  const questionRef = buildCitationQuestionRef(c);
+  const questionSuffix = questionRef ? `, ${questionRef}` : "";
+  return `${c.subject}, ${c.year} ${session}, Paper ${humanizePaperValue(c.paper)}, Variant ${humanizePaperValue(c.variant)}${questionSuffix}`
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // ─── Markdown renderer ───────────────────────────────────────────────────────
@@ -148,6 +174,17 @@ function renderInline(text: string): React.ReactNode[] {
       return <em key={i}>{part.slice(1, -1)}</em>;
     return <span key={i}>{part}</span>;
   });
+}
+
+function parseMarkdownTableRow(rawLine: string): string[] {
+  const normalized = rawLine.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return normalized.split("|").map((cell) => cell.trim());
+}
+
+function isMarkdownSeparatorRow(rawLine: string): boolean {
+  const cells = parseMarkdownTableRow(rawLine);
+  if (!cells.length) return false;
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, "")));
 }
 
 function renderMarkdown(text: string): React.ReactNode[] {
@@ -210,12 +247,115 @@ function renderMarkdown(text: string): React.ReactNode[] {
     flushNumbered();
   };
 
-  for (const rawLine of lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const rawLine = lines[i];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
       flushParagraph();
       flushLists();
+      continue;
+    }
+
+    const codeFence = trimmed.match(/^```([a-zA-Z0-9_-]+)?\s*$/);
+    if (codeFence) {
+      flushParagraph();
+      flushLists();
+
+      const language = (codeFence[1] || "").trim();
+      const codeLines: string[] = [];
+
+      i += 1;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i += 1;
+      }
+
+      const codeText = codeLines.join("\n");
+      const looksLikeDiagram = /[+|\\/<>*]|->|<-|\^|v|\(|\)/.test(codeText);
+
+      nodes.push(
+        <div key={`code-${nodes.length}`} className="my-2">
+          {language ? (
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+              {language}
+            </p>
+          ) : null}
+          <pre
+            className={`overflow-x-auto rounded-lg border px-3 py-2 text-[12px] leading-relaxed font-mono whitespace-pre ${
+              looksLikeDiagram
+                ? "border-slate-300/70 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+            }`}
+          >
+            <code>{codeText || " "}</code>
+          </pre>
+        </div>
+      );
+      continue;
+    }
+
+    const canStartTable =
+      trimmed.startsWith("|") &&
+      i + 1 < lines.length &&
+      lines[i + 1].trim().startsWith("|") &&
+      isMarkdownSeparatorRow(lines[i + 1]);
+
+    if (canStartTable) {
+      flushParagraph();
+      flushLists();
+
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i]);
+        i += 1;
+      }
+      i -= 1;
+
+      const headerCells = parseMarkdownTableRow(tableLines[0] || "");
+      const bodyRows = tableLines
+        .slice(2)
+        .map((line) => parseMarkdownTableRow(line));
+
+      const colCount = headerCells.length;
+      const normalizedRows = bodyRows.map((row) => {
+        const next = [...row];
+        while (next.length < colCount) next.push("");
+        return next.slice(0, colCount);
+      });
+
+      nodes.push(
+        <div key={`table-${nodes.length}`} className="my-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <table className="min-w-full border-collapse text-[13px]">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr>
+                {headerCells.map((cell, idx) => (
+                  <th
+                    key={`th-${idx}`}
+                    className="px-3 py-2 text-left font-semibold text-gray-800 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700"
+                  >
+                    {renderInline(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {normalizedRows.map((row, rowIdx) => (
+                <tr key={`tr-${rowIdx}`} className="odd:bg-white even:bg-gray-50/70 dark:odd:bg-gray-900 dark:even:bg-gray-900/60">
+                  {row.map((cell, cellIdx) => (
+                    <td
+                      key={`td-${rowIdx}-${cellIdx}`}
+                      className="px-3 py-2 align-top text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800"
+                    >
+                      {renderInline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
       continue;
     }
 
@@ -491,6 +631,11 @@ export default function Chatbot() {
           variant: c.variant,
           similarity: c.similarity,
           relation: c.relation,
+          questionNumber: c.questionNumber,
+          subQuestion: c.subQuestion,
+          marks: c.marks,
+          topicGeneral: c.topicGeneral,
+          topicSyllabus: c.topicSyllabus,
         }))).slice(0, 1);
         markingPoints = data.marking_points;
         commonMistakes = data.common_mistakes;
@@ -832,8 +977,11 @@ function MessageRow({ msg }: { msg: Message }) {
   const sourceNote =
     msg.sourceNote ||
     (primaryCitation
-      ? `Primary source: ${formatCitationReference(primaryCitation)}.`
-      : "This did not come from any indexed past paper because no reliable match was found.");
+      ? `A similar question appeared in ${formatCitationReference(primaryCitation)}.`
+      : "");
+  const showSourceCard =
+    msg.responseType === "exam_question" &&
+    (Boolean(primaryCitation) || sourceType === "nearby_only");
 
   const sourceCardClass =
     sourceType === "past_paper"
@@ -860,24 +1008,33 @@ function MessageRow({ msg }: { msg: Message }) {
           <div className="space-y-2">{renderMarkdown(msg.content)}</div>
         </div>
 
-        {msg.responseType === "exam_question" && (
+        {showSourceCard && (
           <div className={`rounded-xl border p-3.5 ${sourceCardClass}`}>
             <p className={`text-[13px] leading-relaxed ${sourceTextClass}`}>{sourceNote}</p>
-
-            {msg.resolvedQuestion && (
-              <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                Follow-up interpreted as: {msg.resolvedQuestion}
-              </p>
-            )}
 
             {primaryCitation && (
               <div className="mt-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2">
                 <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Best-matched past paper
+                  Similar Past Paper
                 </p>
                 <p className="mt-1 text-[12px] text-gray-700 dark:text-gray-300 leading-snug">
-                  {primaryCitation.subject} · {primaryCitation.year} {primaryCitation.session} · Paper {humanizePaperValue(primaryCitation.paper)} · Variant {humanizePaperValue(primaryCitation.variant)}
+                  {primaryCitation.subject} · {primaryCitation.year} {humanizeSessionValue(primaryCitation.session)} · Paper {humanizePaperValue(primaryCitation.paper)} · Variant {humanizePaperValue(primaryCitation.variant)}
                 </p>
+
+                {buildCitationQuestionRef(primaryCitation) && (
+                  <p className="mt-1 text-[12px] text-gray-700 dark:text-gray-300 leading-snug">
+                    {buildCitationQuestionRef(primaryCitation)}
+                    {Number.isFinite(primaryCitation.marks)
+                      ? ` (${primaryCitation.marks} marks)`
+                      : ""}
+                  </p>
+                )}
+
+                {primaryCitation.topicSyllabus && (
+                  <p className="mt-1 text-[12px] text-gray-600 dark:text-gray-400 leading-snug">
+                    Topic: {primaryCitation.topicSyllabus}
+                  </p>
+                )}
               </div>
             )}
           </div>
