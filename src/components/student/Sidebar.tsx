@@ -12,7 +12,8 @@ import {
     LogOut,
     ChevronLeft,
     MessageCircle,
-    Home
+    Home,
+    ClipboardCheck
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useClerk } from "@clerk/nextjs";
@@ -24,6 +25,7 @@ const navItems = [
     { name: "Past Papers", href: "/student/past-papers", icon: FileText },
     { name: "Topicals", href: "/student/topicals", icon: Layers },
     { name: "Ask Question", href: "/student/ask", icon: MessageCircle },
+    { name: "Q/A Grading", href: "/student/qa-grading", icon: ClipboardCheck },
     { name: "Bookmarks", href: "/student/bookmarks", icon: Bookmark },
     { name: "Progress", href: "/student/progress", icon: PieChart },
 ];

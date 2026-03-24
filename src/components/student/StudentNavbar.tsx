@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   MessageCircle,
+  ClipboardCheck,
   Menu,
   X,
   ChevronDown,
@@ -26,6 +27,7 @@ const navItems = [
   { name: "Dashboard",   href: "/student/dashboard",   icon: LayoutDashboard },
   { name: "Past Papers", href: "/student/past-papers",  icon: FileText },
   { name: "Ask AI",      href: "/student/ask",          icon: MessageCircle },
+  { name: "Q/A Grading", href: "/student/qa-grading",   icon: ClipboardCheck },
   { name: "Bookmarks",   href: "/student/bookmarks",    icon: Bookmark },
 ];
 
