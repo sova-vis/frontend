@@ -423,7 +423,6 @@ export default function Chatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
 
   const userName = profile?.full_name?.split(" ")[0] || user?.firstName || "Student";
   const storageKey = `${CHAT_STORAGE_PREFIX}-${user?.id || "anon"}`;
@@ -432,12 +431,6 @@ export default function Chatbot() {
     [chatSessions, activeChatId]
   );
   const messages = useMemo(() => activeChat?.messages || [], [activeChat]);
-  const latestAssistantMessageId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].type === "assistant") return messages[i].id;
-    }
-    return null;
-  }, [messages]);
   const isEmptyChat = messages.filter((m) => m.type === "user").length === 0;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -546,7 +539,6 @@ export default function Chatbot() {
     setActiveChatId(next.id);
     setInput("");
     setLoading(false);
-    setTypingMessageId(null);
     setMobileSidebarOpen(false);
   }, []);
 
@@ -663,14 +655,13 @@ export default function Chatbot() {
       }
 
       const assistantTimestamp = new Date().toISOString();
-      const assistantMessageId = createId();
       updateActiveSession((session) => ({
         ...session,
         updatedAt: assistantTimestamp,
         messages: [
           ...session.messages,
           {
-            id: assistantMessageId,
+            id: createId(),
             type: "assistant",
             content,
             timestamp: assistantTimestamp,
@@ -686,24 +677,21 @@ export default function Chatbot() {
           },
         ],
       }));
-      setTypingMessageId(assistantMessageId);
     } catch {
       const assistantTimestamp = new Date().toISOString();
-      const assistantMessageId = createId();
       updateActiveSession((session) => ({
         ...session,
         updatedAt: assistantTimestamp,
         messages: [
           ...session.messages,
           {
-            id: assistantMessageId,
+            id: createId(),
             type: "assistant",
             content: "Something went wrong. Please try again.",
             timestamp: assistantTimestamp,
           },
         ],
       }));
-      setTypingMessageId(assistantMessageId);
     } finally {
       setLoading(false);
     }
@@ -939,18 +927,7 @@ export default function Chatbot() {
           ) : (
             <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
               {messages.map((msg) => (
-                <MessageRow
-                  key={msg.id}
-                  msg={msg}
-                  shouldAnimateTyping={
-                    Boolean(typingMessageId) &&
-                    typingMessageId === msg.id &&
-                    latestAssistantMessageId === msg.id
-                  }
-                  onTypingComplete={() => {
-                    if (typingMessageId === msg.id) setTypingMessageId(null);
-                  }}
-                />
+                <MessageRow key={msg.id} msg={msg} />
               ))}
 
               {loading && (
@@ -981,58 +958,7 @@ export default function Chatbot() {
   );
 }
 
-function AssistantTypedContent({
-  text,
-  animate,
-  onComplete,
-}: {
-  text: string;
-  animate: boolean;
-  onComplete?: () => void;
-}) {
-  const [visible, setVisible] = useState(animate ? "" : text);
-
-  useEffect(() => {
-    if (!animate) {
-      setVisible(text);
-      return;
-    }
-
-    let idx = 0;
-    const step = Math.max(1, Math.ceil(text.length / 120));
-    const timer = setInterval(() => {
-      idx = Math.min(text.length, idx + step);
-      setVisible(text.slice(0, idx));
-      if (idx >= text.length) {
-        clearInterval(timer);
-        onComplete?.();
-      }
-    }, 18);
-
-    return () => clearInterval(timer);
-  }, [text, animate, onComplete]);
-
-  const typingDone = visible.length >= text.length;
-
-  return (
-    <div className="space-y-2">
-      {renderMarkdown(visible)}
-      {animate && !typingDone && (
-        <span className="inline-block text-primary/80 text-sm font-medium animate-pulse">|</span>
-      )}
-    </div>
-  );
-}
-
-function MessageRow({
-  msg,
-  shouldAnimateTyping,
-  onTypingComplete,
-}: {
-  msg: Message;
-  shouldAnimateTyping?: boolean;
-  onTypingComplete?: () => void;
-}) {
+function MessageRow({ msg }: { msg: Message }) {
   if (msg.type === "user") {
     return (
       <div className="flex justify-end">
@@ -1079,11 +1005,7 @@ function MessageRow({
 
       <div className="flex-1 min-w-0 space-y-3">
         <div className="bg-gradient-to-b from-white to-slate-50/70 dark:from-slate-800 dark:to-slate-900/95 rounded-2xl rounded-tl-sm border border-slate-200/80 dark:border-slate-700 shadow-sm px-4 py-3.5">
-          <AssistantTypedContent
-            text={msg.content}
-            animate={Boolean(shouldAnimateTyping)}
-            onComplete={onTypingComplete}
-          />
+          <div className="space-y-2">{renderMarkdown(msg.content)}</div>
         </div>
 
         {showSourceCard && (
