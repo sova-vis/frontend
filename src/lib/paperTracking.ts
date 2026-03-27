@@ -1,4 +1,4 @@
-export type PaperStatus = "in_progress" | "completed" | "important" | "bookmarked";
+export type PaperStatus = "in_progress" | "completed" | "bookmarked";
 
 export interface TrackedPaper {
   id: string;
@@ -11,10 +11,12 @@ export interface TrackedPaper {
   statuses: PaperStatus[];
 }
 
+type GetTokenFn = () => Promise<string | null>;
+
 const STORAGE_KEY = "propel_paper_states";
 const LEGACY_BOOKMARKS_KEY = "propel_bookmarks";
 
-const VALID_STATUSES: PaperStatus[] = ["in_progress", "completed", "important", "bookmarked"];
+const VALID_STATUSES: PaperStatus[] = ["in_progress", "completed", "bookmarked"];
 
 function normalizeStatuses(input: unknown): PaperStatus[] {
   if (!Array.isArray(input)) return [];
@@ -44,6 +46,12 @@ function normalizeTrackedPaper(item: any): TrackedPaper | null {
     savedAt: typeof item.savedAt === "string" ? item.savedAt : new Date().toISOString(),
     statuses,
   };
+}
+
+function sanitizeTrackedPapers(items: TrackedPaper[]): TrackedPaper[] {
+  return items
+    .map(normalizeTrackedPaper)
+    .filter(Boolean) as TrackedPaper[];
 }
 
 function parseLegacyBookmarks(): TrackedPaper[] {
@@ -93,9 +101,7 @@ export function loadTrackedPapers(): TrackedPaper[] {
 export function saveTrackedPapers(items: TrackedPaper[]): void {
   if (typeof window === "undefined") return;
 
-  const sanitized = items
-    .map(normalizeTrackedPaper)
-    .filter(Boolean) as TrackedPaper[];
+  const sanitized = sanitizeTrackedPapers(items);
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
 
@@ -104,6 +110,66 @@ export function saveTrackedPapers(items: TrackedPaper[]): void {
     .map(({ statuses, ...rest }) => rest);
 
   window.localStorage.setItem(LEGACY_BOOKMARKS_KEY, JSON.stringify(legacyBookmarks));
+}
+
+export async function loadTrackedPapersForUser(getToken?: GetTokenFn): Promise<TrackedPaper[]> {
+  const local = loadTrackedPapers();
+
+  if (!getToken) return local;
+
+  try {
+    const token = await getToken();
+    if (!token) return local;
+
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const response = await fetch(`${baseUrl}/tracking/papers`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) return local;
+
+    const payload = (await response.json()) as { items?: unknown };
+    if (!Array.isArray(payload.items)) return local;
+
+    const remote = payload.items
+      .map(normalizeTrackedPaper)
+      .filter(Boolean) as TrackedPaper[];
+
+    saveTrackedPapers(remote);
+    return remote;
+  } catch {
+    return local;
+  }
+}
+
+export async function saveTrackedPapersForUser(
+  items: TrackedPaper[],
+  getToken?: GetTokenFn
+): Promise<void> {
+  const sanitized = sanitizeTrackedPapers(items);
+  saveTrackedPapers(sanitized);
+
+  if (!getToken) return;
+
+  try {
+    const token = await getToken();
+    if (!token) return;
+
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    await fetch(`${baseUrl}/tracking/papers`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ items: sanitized }),
+    });
+  } catch {
+    // Keep local state as fallback if remote persistence fails.
+  }
 }
 
 export function toggleTrackedStatus(
@@ -129,6 +195,10 @@ export function toggleTrackedStatus(
     statusSet.delete(status);
   } else {
     statusSet.add(status);
+    // Completing a paper should clear "in progress" automatically.
+    if (status === "completed") {
+      statusSet.delete("in_progress");
+    }
   }
 
   const statuses = Array.from(statusSet);

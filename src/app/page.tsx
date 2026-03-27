@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Facebook, Twitter, Instagram, Linkedin, X, Menu } from 'lucide-react';
+import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Instagram, X, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUser } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
@@ -23,6 +23,7 @@ function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, signOut } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
+  const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
@@ -76,6 +77,33 @@ function HomePageContent() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const policyContent: Record<"privacy" | "terms" | "cookies", { title: string; body: string[] }> = {
+    privacy: {
+      title: "Privacy Policy",
+      body: [
+        "We collect only the information needed to provide learning features such as progress tracking, question answering, and account personalization.",
+        "Your profile and learning data are used to improve your study experience and are not sold to third parties.",
+        "If you need data access, correction, or deletion requests, contact us at sovavis2025@gmailcom.",
+      ],
+    },
+    terms: {
+      title: "Terms of Service",
+      body: [
+        "This platform is intended for educational support and exam preparation.",
+        "Users must avoid abuse, unauthorized access attempts, and content misuse.",
+        "Service features may evolve over time, and continued use means acceptance of updated terms.",
+      ],
+    },
+    cookies: {
+      title: "Cookie Policy",
+      body: [
+        "We use essential cookies and local storage to keep sessions stable and improve platform usability.",
+        "Performance and preference data may be stored to enhance speed, personalization, and reliability.",
+        "By using this website, you agree to this cookie usage for core platform functionality.",
+      ],
+    },
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-pink selection:text-white overflow-x-hidden">
@@ -464,9 +492,6 @@ function HomePageContent() {
               <h3 className="text-lg font-bold mb-4">Resources</h3>
               <ul className="space-y-2 text-slate-400 text-sm md:text-base">
                 <li><Link href="/past-papers" className="hover:text-brand-pink transition-colors">Past Papers</Link></li>
-                <li><a href="#" className="hover:text-brand-pink transition-colors">Topical Questions</a></li>
-                <li><a href="#" className="hover:text-brand-pink transition-colors">Study Guides</a></li>
-                <li><a href="#" className="hover:text-brand-pink transition-colors">Progress Tracking</a></li>
               </ul>
             </div>
 
@@ -476,21 +501,12 @@ function HomePageContent() {
               <ul className="space-y-3 text-slate-400">
                 <li className="flex items-center gap-2 text-sm md:text-base">
                   <Mail size={18} className="text-brand-pink flex-shrink-0" />
-                  <a href="mailto:support@propel.com" className="hover:text-brand-pink transition-colors truncate">support@propel.com</a>
+                  <a href="mailto:sovavis2025@gmailcom" className="hover:text-brand-pink transition-colors truncate">sovavis2025@gmailcom</a>
                 </li>
               </ul>
               <div className="flex items-center gap-3 md:gap-4 mt-6">
                 <a href="#" className="w-9 h-9 md:w-10 md:h-10 bg-slate-800 hover:bg-brand-pink rounded-lg flex items-center justify-center transition-colors">
-                  <Facebook size={16} />
-                </a>
-                <a href="#" className="w-9 h-9 md:w-10 md:h-10 bg-slate-800 hover:bg-brand-pink rounded-lg flex items-center justify-center transition-colors">
-                  <Twitter size={16} />
-                </a>
-                <a href="#" className="w-9 h-9 md:w-10 md:h-10 bg-slate-800 hover:bg-brand-pink rounded-lg flex items-center justify-center transition-colors">
                   <Instagram size={16} />
-                </a>
-                <a href="#" className="w-9 h-9 md:w-10 md:h-10 bg-slate-800 hover:bg-brand-pink rounded-lg flex items-center justify-center transition-colors">
-                  <Linkedin size={16} />
                 </a>
               </div>
             </div>
@@ -499,13 +515,44 @@ function HomePageContent() {
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-slate-500 text-sm">&copy; 2026 Propel. All rights reserved.</p>
             <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6 text-sm text-slate-500">
-              <a href="#" className="hover:text-brand-pink transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-brand-pink transition-colors">Terms of Service</a>
-              <a href="#" className="hover:text-brand-pink transition-colors">Cookie Policy</a>
+              <button onClick={() => setPolicyModal("privacy")} className="hover:text-brand-pink transition-colors">Privacy Policy</button>
+              <button onClick={() => setPolicyModal("terms")} className="hover:text-brand-pink transition-colors">Terms of Service</button>
+              <button onClick={() => setPolicyModal("cookies")} className="hover:text-brand-pink transition-colors">Cookie Policy</button>
             </div>
           </div>
         </div>
       </footer>
+
+      {policyModal && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setPolicyModal(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPolicyModal(null)}
+              className="absolute right-4 top-4 rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-brand-red dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="Close policy modal"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="px-6 py-6 md:px-8 md:py-8">
+              <h3 className="text-2xl font-bold text-brand-burgundy mb-4">
+                {policyContent[policyModal].title}
+              </h3>
+              <div className="space-y-3 text-slate-700 dark:text-slate-300 leading-relaxed">
+                {policyContent[policyModal].body.map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
     Bookmark,
     Trash2,
@@ -12,17 +13,17 @@ import {
     Search,
     Clock3,
     CheckCircle2,
-    Star,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 import {
     PaperStatus,
     TrackedPaper,
     clearTrackedPaper,
-    loadTrackedPapers,
-    saveTrackedPapers,
+    loadTrackedPapersForUser,
+    saveTrackedPapersForUser,
     toggleTrackedStatus,
 } from "@/lib/paperTracking";
+import { useAuth } from "@clerk/nextjs";
 
 const STATUS_SECTIONS: Array<{
     key: PaperStatus;
@@ -32,7 +33,6 @@ const STATUS_SECTIONS: Array<{
 }> = [
     { key: "in_progress", title: "In Progress", Icon: Clock3, accent: "text-blue-600" },
     { key: "completed", title: "Completed", Icon: CheckCircle2, accent: "text-emerald-600" },
-    { key: "important", title: "Important", Icon: Star, accent: "text-amber-600" },
     { key: "bookmarked", title: "Bookmarked", Icon: Bookmark, accent: "text-primary" },
 ];
 
@@ -66,15 +66,28 @@ function getTypeBadge(type: string) {
 }
 
 export default function BookmarksPage() {
+    const { getToken } = useAuth();
     const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
     const [viewingItem, setViewingItem] = useState<TrackedPaper | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        setTrackedPapers(loadTrackedPapers());
-        setMounted(true);
-    }, []);
+        let active = true;
+
+        const load = async () => {
+            const items = await loadTrackedPapersForUser(getToken);
+            if (!active) return;
+            setTrackedPapers(items);
+            setMounted(true);
+        };
+
+        load();
+
+        return () => {
+            active = false;
+        };
+    }, [getToken]);
 
     const hasStatus = (itemId: string, status: PaperStatus) => {
         const item = trackedPapers.find((paper) => paper.id === itemId);
@@ -83,7 +96,7 @@ export default function BookmarksPage() {
 
     const updateTrackedPapers = (next: TrackedPaper[]) => {
         setTrackedPapers(next);
-        saveTrackedPapers(next);
+        void saveTrackedPapersForUser(next, getToken);
     };
 
     const toggleStatus = (item: TrackedPaper, status: PaperStatus) => {
@@ -163,14 +176,6 @@ export default function BookmarksPage() {
                 inactive: "text-gray-400 bg-white border-gray-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50",
             },
             {
-                status: "important",
-                label: "important",
-                icon: Star,
-                active: "text-amber-600 bg-amber-50 border-amber-200",
-                inactive: "text-gray-400 bg-white border-gray-200 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50",
-                fillOnActive: true,
-            },
-            {
                 status: "bookmarked",
                 label: "bookmarked",
                 icon: Bookmark,
@@ -201,12 +206,14 @@ export default function BookmarksPage() {
     return (
         <div className="p-4 md:p-8 max-w-5xl mx-auto">
             {/* PDF Viewer Modal */}
-            {viewingItem && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-                            <h3 className="font-semibold text-gray-900 truncate flex-1 mr-4">{viewingItem.name}</h3>
-                            <div className="flex gap-2 flex-shrink-0 items-center flex-wrap justify-end">
+            {mounted && viewingItem && createPortal(
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6">
+                    <div className="bg-white w-[min(96vw,1500px)] h-[min(94dvh,1100px)] flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-gray-200">
+                        <div className="p-4 sm:p-5 border-b border-gray-200 bg-gray-50 space-y-3 sm:space-y-4">
+                            <h3 className="font-semibold text-gray-900 text-center text-base sm:text-lg break-words leading-snug max-h-20 overflow-y-auto px-2">
+                                {viewingItem.name}
+                            </h3>
+                            <div className="flex gap-2 items-center flex-wrap justify-center sm:justify-end">
                                 {renderStatusButtons(viewingItem, true)}
                                 <button
                                     onClick={() => handleDownload(viewingItem)}
@@ -224,11 +231,12 @@ export default function BookmarksPage() {
                         </div>
                         <iframe
                             src={`${getApiUrl()}${viewingItem.embedUrl}`}
-                            className="flex-1 w-full"
+                            className="flex-1 w-full min-h-0"
                             title="PDF Viewer"
                         />
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Header */}

@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
     FileText, Download, Eye, Search, Loader2, ChevronRight, ChevronDown,
     Atom, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
-    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2, Star
+    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2
 } from "lucide-react";
 import { apiCall, getApiUrl } from "@/lib/api";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import {
     PaperStatus,
     TrackedPaper,
-    loadTrackedPapers,
-    saveTrackedPapers,
+    loadTrackedPapersForUser,
+    saveTrackedPapersForUser,
     toggleTrackedStatus,
 } from "@/lib/paperTracking";
 
@@ -43,6 +44,7 @@ function getFileBadgeLabel(name: string): string {
 
 export default function PastPapersPage() {
     const { user } = useUser();
+    const { getToken } = useAuth();
     const [rootFolderId, setRootFolderId] = useState<string | null>(null);
     const [folderCache, setFolderCache] = useState<FolderCache>({});
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -52,12 +54,26 @@ export default function PastPapersPage() {
     const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
+    const [mounted, setMounted] = useState(false);
 
     // Load root folder + tracked statuses on mount
     useEffect(() => {
+        setMounted(true);
         loadRootFolder();
-        setTrackedPapers(loadTrackedPapers());
-    }, []);
+        let active = true;
+
+        const load = async () => {
+            const items = await loadTrackedPapersForUser(getToken);
+            if (!active) return;
+            setTrackedPapers(items);
+        };
+
+        load();
+
+        return () => {
+            active = false;
+        };
+    }, [getToken]);
 
     const hasStatus = (itemId: string, status: PaperStatus) => {
         const item = trackedPapers.find((paper) => paper.id === itemId);
@@ -81,7 +97,7 @@ export default function PastPapersPage() {
         );
 
         setTrackedPapers(next);
-        saveTrackedPapers(next);
+        void saveTrackedPapersForUser(next, getToken);
     };
 
     const loadRootFolder = async () => {
@@ -206,14 +222,6 @@ export default function PastPapersPage() {
                 icon: CheckCircle2,
                 active: "text-emerald-600 bg-emerald-50 border-emerald-200",
                 inactive: "text-gray-400 bg-white border-gray-200 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50",
-            },
-            {
-                status: "important",
-                label: "important",
-                icon: Star,
-                active: "text-amber-600 bg-amber-50 border-amber-200",
-                inactive: "text-gray-400 bg-white border-gray-200 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50",
-                fillOnActive: true,
             },
             {
                 status: "bookmarked",
@@ -393,14 +401,14 @@ export default function PastPapersPage() {
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {/* PDF Viewer Modal */}
-            {viewingPaper && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-                            <div className="flex items-center gap-3 min-w-0 flex-1 mr-3">
-                                <h3 className="font-semibold text-gray-900 truncate">{viewingPaper.name}</h3>
-                            </div>
-                            <div className="flex gap-2 flex-shrink-0 items-center flex-wrap justify-end">
+            {mounted && viewingPaper && createPortal(
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6">
+                    <div className="bg-white w-[min(96vw,1500px)] h-[min(94dvh,1100px)] flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-gray-200">
+                        <div className="p-4 sm:p-5 border-b border-gray-200 bg-gray-50 space-y-3 sm:space-y-4">
+                            <h3 className="font-semibold text-gray-900 text-center text-base sm:text-lg break-words leading-snug max-h-20 overflow-y-auto px-2">
+                                {viewingPaper.name}
+                            </h3>
+                            <div className="flex gap-2 items-center flex-wrap justify-center sm:justify-end">
                                 {renderStatusButtons(viewingPaper, true)}
                                 <button
                                     onClick={() => handleDownload(viewingPaper)}
@@ -418,11 +426,12 @@ export default function PastPapersPage() {
                         </div>
                         <iframe
                             src={`${getApiUrl()}${viewingPaper.embedUrl}`}
-                            className="flex-1 w-full"
+                            className="flex-1 w-full min-h-0"
                             title="PDF Viewer"
                         />
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Header */}

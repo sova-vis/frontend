@@ -3,14 +3,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, ArrowRight, FileText } from "lucide-react";
 import Link from "next/link";
-import { loadTrackedPapers, TrackedPaper } from "@/lib/paperTracking";
+import { loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
+import { useAuth } from "@clerk/nextjs";
 
 export default function ProgressSnapshot() {
+    const { getToken } = useAuth();
     const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
 
     useEffect(() => {
-        setTrackedPapers(loadTrackedPapers());
-    }, []);
+        let active = true;
+
+        const load = async () => {
+            const items = await loadTrackedPapersForUser(getToken);
+            if (!active) return;
+            setTrackedPapers(items);
+        };
+
+        load();
+
+        return () => {
+            active = false;
+        };
+    }, [getToken]);
 
     const inProgressPapers = useMemo(
         () => trackedPapers.filter((paper) => paper.statuses.includes("in_progress")),
