@@ -979,6 +979,9 @@ function MessageRow({ msg }: { msg: Message }) {
     (primaryCitation
       ? `A similar question appeared in ${formatCitationReference(primaryCitation)}.`
       : "");
+  const shouldShowSourceNoteText =
+    Boolean(sourceNote) &&
+    (!primaryCitation || sourceType === "none");
   const showSourceCard =
     msg.responseType === "exam_question" &&
     (Boolean(primaryCitation) || Boolean(sourceNote));
@@ -1010,10 +1013,12 @@ function MessageRow({ msg }: { msg: Message }) {
 
         {showSourceCard && (
           <div className={`rounded-xl border p-3.5 ${sourceCardClass}`}>
-            <p className={`text-[13px] leading-relaxed ${sourceTextClass}`}>{sourceNote}</p>
+            {shouldShowSourceNoteText && (
+              <p className={`text-[13px] leading-relaxed ${sourceTextClass}`}>{sourceNote}</p>
+            )}
 
             {primaryCitation && (
-              <div className="mt-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2">
+              <div className={`${shouldShowSourceNoteText ? "mt-2" : "mt-0"} rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2`}>
                 <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Similar Past Paper
                 </p>

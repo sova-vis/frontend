@@ -21,8 +21,8 @@ export default function RootLayout({
     <ClerkProvider
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      signUpForceRedirectUrl="/?auth=sign-in"
-      signUpFallbackRedirectUrl="/?auth=sign-in"
+      signUpForceRedirectUrl="/sign-in"
+      signUpFallbackRedirectUrl="/sign-in"
     >
       <html lang="en" className={`${inter.variable} ${outfit.variable}`} suppressHydrationWarning>
         <head>

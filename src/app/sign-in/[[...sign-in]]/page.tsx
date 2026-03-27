@@ -10,7 +10,10 @@ export default function SignInPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <SignIn 
-          routing="hash"
+          routing="path"
+          path="/sign-in"
+          forceRedirectUrl="/"
+          fallbackRedirectUrl="/"
           appearance={{
             elements: {
               formButtonPrimary:

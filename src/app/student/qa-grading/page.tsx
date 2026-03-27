@@ -44,17 +44,17 @@ const SAMPLE_FORM: FormState = {
 };
 
 function statusPillClass(status?: string): string {
-  if (status === "accepted") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (status === "review_required") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (status === "failed") return "bg-rose-50 text-rose-700 border-rose-200";
-  return "bg-gray-50 text-gray-700 border-gray-200";
+  if (status === "accepted") return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800";
+  if (status === "review_required") return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800";
+  if (status === "failed") return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800";
+  return "bg-gray-50 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
 }
 
 function gradePillClass(grade?: string): string {
-  if (grade === "fully_correct") return "bg-emerald-100 text-emerald-800";
-  if (grade === "partially_correct") return "bg-amber-100 text-amber-800";
-  if (grade === "weak") return "bg-rose-100 text-rose-800";
-  return "bg-gray-100 text-gray-700";
+  if (grade === "fully_correct") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300";
+  if (grade === "partially_correct") return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
+  if (grade === "weak") return "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300";
+  return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
 }
 
 export default function QaGradingPage() {
@@ -207,18 +207,18 @@ export default function QaGradingPage() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-rose-50/70 via-white to-slate-50 p-4 md:p-8">
+    <div className="min-h-full bg-gradient-to-b from-rose-50/70 via-white to-slate-50 p-4 md:p-8 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-3xl border border-rose-100/80 bg-white/90 p-6 shadow-sm backdrop-blur md:p-8">
+        <section className="rounded-3xl border border-rose-100/80 bg-white/90 p-6 shadow-sm backdrop-blur md:p-8 dark:border-slate-800 dark:bg-slate-900/90">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Q/A Grading</h1>
-              <p className="mt-2 max-w-2xl text-sm text-gray-600 md:text-base">
-                Submit a question, the student answer, and the marking scheme answer to get instant grading with
-                feedback, expected points, and missing points.
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl dark:text-slate-100">Q/A Grading</h1>
+              <p className="mt-2 max-w-2xl text-sm text-gray-600 md:text-base dark:text-slate-300">
+                Submit a question and the student answer to get instant grading with feedback, expected points,
+                and missing points.
               </p>
             </div>
-            <div className="hidden rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 md:block">
+            <div className="hidden rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 md:block dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
               Student Tool
             </div>
           </div>
@@ -233,7 +233,7 @@ export default function QaGradingPage() {
               className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                 mode === "typed"
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               }`}
             >
               Typed Question (Mode B)
@@ -247,7 +247,7 @@ export default function QaGradingPage() {
               className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                 mode === "upload"
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               }`}
             >
               Upload Image/PDF (Mode A)
@@ -255,73 +255,10 @@ export default function QaGradingPage() {
           </div>
 
           <form className="space-y-4" onSubmit={onSubmit}>
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">Subject (optional)</label>
-              <Input
-                value={form.subject}
-                onChange={(event) => setForm((prev) => ({ ...prev, subject: event.target.value }))}
-                placeholder="e.g., Physics 1016"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Year (optional)</label>
-                <Input
-                  value={form.year}
-                  onChange={(event) => setForm((prev) => ({ ...prev, year: event.target.value }))}
-                  placeholder="e.g., 2023"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Session (optional)</label>
-                <Input
-                  value={form.session}
-                  onChange={(event) => setForm((prev) => ({ ...prev, session: event.target.value }))}
-                  placeholder="e.g., May/June"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Paper (optional)</label>
-                <Input
-                  value={form.paper}
-                  onChange={(event) => setForm((prev) => ({ ...prev, paper: event.target.value }))}
-                  placeholder="e.g., 1"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Variant (optional)</label>
-                <Input
-                  value={form.variant}
-                  onChange={(event) => setForm((prev) => ({ ...prev, variant: event.target.value }))}
-                  placeholder="e.g., 2"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">Question ID (optional)</label>
-              <Input
-                value={form.questionId}
-                onChange={(event) => setForm((prev) => ({ ...prev, questionId: event.target.value }))}
-                placeholder="Dataset question ID"
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.debug}
-                onChange={(event) => setForm((prev) => ({ ...prev, debug: event.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              Enable debug information
-            </label>
-
             {mode === "typed" ? (
               <>
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Question</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Question</label>
                   <Textarea
                     value={form.question}
                     onChange={(event) => setForm((prev) => ({ ...prev, question: event.target.value }))}
@@ -331,7 +268,7 @@ export default function QaGradingPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Student Answer</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Student Answer</label>
                   <Textarea
                     value={form.studentAnswer}
                     onChange={(event) => setForm((prev) => ({ ...prev, studentAnswer: event.target.value }))}
@@ -339,24 +276,12 @@ export default function QaGradingPage() {
                     placeholder="Write your answer here"
                   />
                 </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                    Marking Scheme Answer (optional when pipeline service is running)
-                  </label>
-                  <Textarea
-                    value={form.markingSchemeAnswer}
-                    onChange={(event) => setForm((prev) => ({ ...prev, markingSchemeAnswer: event.target.value }))}
-                    rows={5}
-                    placeholder="Paste official marking points (optional for full dataset-based pipeline grading)"
-                  />
-                </div>
               </>
             ) : (
-              <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Upload file (PDF/Image)</label>
+              <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Upload file (PDF/Image)</label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                     <Upload className="h-4 w-4" />
                     Choose File
                     <input
@@ -366,13 +291,13 @@ export default function QaGradingPage() {
                       onChange={onFileChange}
                     />
                   </label>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-slate-300">
                     {uploadFile ? uploadFile.name : "No file selected"}
                   </span>
                 </div>
 
                 <div className="max-w-[180px]">
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Page Number</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Page Number</label>
                   <Input
                     value={uploadPageNumber}
                     onChange={(event) => setUploadPageNumber(event.target.value)}
@@ -380,7 +305,7 @@ export default function QaGradingPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
                   {uploadFile?.type === "application/pdf" ? (
                     <FileText className="h-4 w-4" />
                   ) : (
@@ -415,7 +340,7 @@ export default function QaGradingPage() {
             </div>
 
             {mode === "upload" && preview && (
-              <div className="space-y-3 rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+              <div className="space-y-3 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900/70 dark:bg-sky-950/40">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-sky-800">Preview Extracted Content</h3>
                   <span className="text-xs font-semibold text-sky-700">
@@ -424,7 +349,7 @@ export default function QaGradingPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Question (editable)</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Question (editable)</label>
                   <Textarea
                     value={previewQuestion}
                     onChange={(event) => setPreviewQuestion(event.target.value)}
@@ -433,7 +358,7 @@ export default function QaGradingPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Student Answer (editable)</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Student Answer (editable)</label>
                   <Textarea
                     value={previewStudentAnswer}
                     onChange={(event) => setPreviewStudentAnswer(event.target.value)}
@@ -462,43 +387,43 @@ export default function QaGradingPage() {
           </form>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-bold text-gray-900">Result</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Result</h2>
           </div>
 
           {!result ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center text-sm text-gray-500">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center text-sm text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
               Submit the form to see grading details.
             </div>
           ) : (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Score</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900">{result.score_percent.toFixed(1)}%</p>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Score</p>
+                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-slate-100">{result.score_percent.toFixed(1)}%</p>
                 </div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</p>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Status</p>
                   <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusPillClass(result.status)}`}>
                     {result.status.replace("_", " ")}
                   </span>
                 </div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Grade</p>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Grade</p>
                   <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${gradePillClass(result.grade_label)}`}>
                     {result.grade_label.replace("_", " ")}
                   </span>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-white p-4">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
                 <div className="mb-2 flex items-center gap-2">
                   <Award className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold text-gray-900">Feedback</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Feedback</h3>
                 </div>
-                <p className="text-sm leading-6 text-gray-700">{result.feedback}</p>
+                <p className="text-sm leading-6 text-gray-700 dark:text-slate-300">{result.feedback}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -535,13 +460,13 @@ export default function QaGradingPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs text-gray-600">
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 <p>
-                  Grading source: <span className="font-semibold text-gray-800">{result.grading_source}</span>
+                  Grading source: <span className="font-semibold text-gray-800 dark:text-slate-100">{result.grading_source}</span>
                 </p>
                 {result.grading_model && (
                   <p className="mt-1">
-                    Model: <span className="font-semibold text-gray-800">{result.grading_model}</span>
+                    Model: <span className="font-semibold text-gray-800 dark:text-slate-100">{result.grading_model}</span>
                   </p>
                 )}
               </div>

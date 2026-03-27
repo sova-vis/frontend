@@ -429,12 +429,11 @@ function HomePageContent() {
             <>
               <h2 className="text-3xl md:text-5xl lg:text-6xl font-black mb-6">Ready to <span className="text-brand-pink">Propel</span> Your Success?</h2>
               <p className="text-lg md:text-xl text-slate-400 mb-8 md:mb-10 max-w-2xl mx-auto">Join thousands of students achieving their dream grades</p>
-              <Button
-                onClick={() => setAuthModal("sign-up")}
-                className="bg-brand-pink hover:bg-brand-pink/90 text-white font-bold rounded-none px-8 md:px-12 h-12 md:h-16 shadow-xl shadow-brand-pink/30 text-lg md:text-xl transition-all hover:scale-105"
-              >
-                Start Learning Today <ArrowRight className="ml-2" size={20} />
-              </Button>
+              <Link href="/past-papers">
+                <Button className="bg-brand-pink hover:bg-brand-pink/90 text-white font-bold rounded-none px-8 md:px-12 h-12 md:h-16 shadow-xl shadow-brand-pink/30 text-lg md:text-xl transition-all hover:scale-105">
+                  Explore Past Papers <ArrowRight className="ml-2" size={20} />
+                </Button>
+              </Link>
             </>
           )}
         </motion.div>
@@ -454,10 +453,9 @@ function HomePageContent() {
             <div>
               <h3 className="text-lg font-bold mb-4">Quick Links</h3>
               <ul className="space-y-2 text-slate-400 text-sm md:text-base">
-                <li><Link href="/login" className="hover:text-brand-pink transition-colors">Login</Link></li>
-                <li><Link href="/sign-up" className="hover:text-brand-pink transition-colors">Sign Up</Link></li>
                 <li><a href="#features" className="hover:text-brand-pink transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-brand-pink transition-colors">How It Works</a></li>
+                <li><Link href="/past-papers" className="hover:text-brand-pink transition-colors">Past Papers</Link></li>
               </ul>
             </div>
 
