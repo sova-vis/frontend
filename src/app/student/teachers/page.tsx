@@ -70,6 +70,16 @@ export default function StudentTeachersPage() {
     return map;
   }, [conversations]);
 
+  const eligibleTeacherIds = useMemo(() => {
+    const ids = new Set<string>();
+    meetings.forEach((meeting) => {
+      if (["pending", "accepted", "scheduled", "completed"].includes(meeting.status)) {
+        ids.add(meeting.teacher_clerk_id);
+      }
+    });
+    return ids;
+  }, [meetings]);
+
   const refreshData = async () => {
     const token = await getToken();
     if (!token) {
@@ -163,6 +173,11 @@ export default function StudentTeachersPage() {
   };
 
   const handleOpenChat = async (teacherClerkId: string) => {
+    if (!eligibleTeacherIds.has(teacherClerkId)) {
+      setError("Chat opens only after you request a 1:1 meeting with this teacher.");
+      return;
+    }
+
     try {
       const token = await getToken();
       if (!token) {
@@ -325,13 +340,19 @@ export default function StudentTeachersPage() {
                   <p className="text-sm text-gray-500">{teacher.email || "No email"}</p>
                   {teacher.headline && <p className="text-sm text-gray-700 mt-2">{teacher.headline}</p>}
                 </div>
-                <button
-                  onClick={() => void handleOpenChat(teacher.clerk_id)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <MessageCircle size={14} />
-                  Chat
-                </button>
+                {eligibleTeacherIds.has(teacher.clerk_id) ? (
+                  <button
+                    onClick={() => void handleOpenChat(teacher.clerk_id)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    <MessageCircle size={14} />
+                    Chat
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                    Request meeting to chat
+                  </span>
+                )}
               </div>
               {teacher.bio && <p className="mt-3 text-sm text-gray-600 line-clamp-3">{teacher.bio}</p>}
               {teacher.subjects.length > 0 && (

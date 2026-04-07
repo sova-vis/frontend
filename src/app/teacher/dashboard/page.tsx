@@ -184,6 +184,12 @@ export default function TeacherDashboard() {
 
   const pendingMeetings = meetings.filter((meeting) => meeting.status === "pending" || meeting.status === "accepted");
   const scheduledMeetings = meetings.filter((meeting) => meeting.status === "scheduled");
+  const eligibleStudentIds = new Set(
+    meetings
+      .filter((meeting) => ["pending", "accepted", "scheduled", "completed"].includes(meeting.status))
+      .map((meeting) => meeting.student_clerk_id)
+  );
+  const chatEligibleConversations = conversations.filter((conversation) => eligibleStudentIds.has(conversation.student_clerk_id));
 
   if (loading) {
     return (
@@ -232,7 +238,7 @@ export default function TeacherDashboard() {
             </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800">
               <p className="text-xs uppercase font-semibold text-slate-500">Active Chats</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">{conversations.length}</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">{chatEligibleConversations.length}</p>
             </div>
           </div>
         </section>
@@ -386,8 +392,8 @@ export default function TeacherDashboard() {
         <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-4">Chat Inbox</h2>
           <div className="space-y-3">
-            {conversations.length === 0 && <p className="text-sm text-slate-500">No conversations yet. Students can start chats from their teacher page.</p>}
-            {conversations.map((conversation) => {
+            {chatEligibleConversations.length === 0 && <p className="text-sm text-slate-500">No conversations yet. Students can start chats after requesting a 1:1 meeting.</p>}
+            {chatEligibleConversations.map((conversation) => {
               const studentName = conversation.student_profile?.full_name || conversation.student_profile?.email || "Student";
               return (
                 <div key={conversation.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-800/60 flex items-center justify-between gap-3">

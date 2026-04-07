@@ -17,6 +17,7 @@ import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function AdminDashboard() {
+  type AdminView = "overview" | "teacher-accounts" | "users" | "meetings";
   const { getToken } = useAuth();
   const { signOut } = useClerkAuth();
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
@@ -33,6 +34,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [meetings, setMeetings] = useState<MentoringMeeting[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [activeView, setActiveView] = useState<AdminView>("overview");
 
   const students = useMemo(() => users.filter((user) => user.role === "student"), [users]);
   const confirmedMeetings = useMemo(
@@ -210,9 +212,81 @@ export default function AdminDashboard() {
               <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{confirmedMeetings.length}</p>
             </div>
           </div>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveView("overview")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "overview"
+                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
+                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("teacher-accounts")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "teacher-accounts"
+                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
+                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+              }`}
+            >
+              Teacher Accounts
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("users")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "users"
+                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
+                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+              }`}
+            >
+              Users
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("meetings")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "meetings"
+                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
+                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+              }`}
+            >
+              Meetings
+            </button>
+          </div>
         </header>
 
-        <div className="grid xl:grid-cols-2 gap-6">
+        {activeView === "overview" && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Overview</h3>
+            <p className="text-sm text-slate-500 mb-4">Quick summary of your admin workspace.</p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs uppercase text-slate-500">Total Users</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{users.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs uppercase text-slate-500">Teachers</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{teachers.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs uppercase text-slate-500">Students</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{students.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs uppercase text-slate-500">Confirmed Meetings</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{confirmedMeetings.length}</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeView === "teacher-accounts" && <div className="grid xl:grid-cols-2 gap-6">
           <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -374,8 +448,9 @@ export default function AdminDashboard() {
               </button>
             </form>
           </section>
-        </div>
-        <section className="grid xl:grid-cols-2 gap-6">
+        </div>}
+
+        {activeView === "users" && <section className="grid xl:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><Users size={18} /> Registered Users</h3>
             <p className="text-sm text-slate-500 mb-4">Current profiles in Supabase (schema-safe view).</p>
@@ -431,9 +506,9 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+        {activeView === "meetings" && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">All Meeting Records</h3>
           <p className="text-sm text-slate-500 mb-4">Full history of meetings between teachers and students.</p>
           {loadingData ? (
@@ -466,7 +541,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           )}
-        </section>
+        </section>}
       </div>
     </div>
   );
