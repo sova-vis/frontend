@@ -21,7 +21,7 @@ const SignUp = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.Sig
 
 function HomePageContent() {
   const { user, isLoaded } = useUser();
-  const { profile, signOut } = useClerkAuth();
+  const { profile, signOut, loading: profileLoading } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -45,18 +45,32 @@ function HomePageContent() {
 
   // Redirect signed-in users to their dashboard
   useEffect(() => {
-    if (isLoaded && user) {
-      const email = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
-      const role = profile?.role || (user.publicMetadata?.role as string) || (email === "sovavis2025@gmail.com" ? "admin" : "student");
-      if (role === "teacher") {
-        router.replace("/teacher/dashboard");
-      } else if (role === "admin") {
-        router.replace("/admin/dashboard");
-      } else {
-        router.replace("/student/dashboard");
-      }
+    if (!isLoaded || !user || profileLoading) {
+      return;
     }
-  }, [isLoaded, user, profile?.role, router]);
+
+    const email = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
+    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    const isAdminByEmail = adminEmails.includes(email);
+    const metadataRole = typeof user.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
+    const role = profile?.role || metadataRole || (isAdminByEmail ? "admin" : null);
+
+    // Avoid forcing student redirects when role data has not been resolved yet.
+    if (!role) {
+      return;
+    }
+
+    if (role === "teacher") {
+      router.replace("/teacher/dashboard");
+    } else if (role === "admin") {
+      router.replace("/admin/dashboard");
+    } else {
+      router.replace("/student/dashboard");
+    }
+  }, [isLoaded, user, profile?.role, profileLoading, router]);
 
   // Close modal immediately when user signs in
   useEffect(() => {

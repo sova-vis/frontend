@@ -20,7 +20,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         const email = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
-        const isAdminByEmail = email === "sovavis2025@gmail.com";
+        const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
+            .split(",")
+            .map((item) => item.trim().toLowerCase())
+            .filter(Boolean);
+        const isAdminByEmail = adminEmails.includes(email);
 
         if (!isAdminByEmail && (!profile || profile.role !== "admin")) {
             router.replace("/");
