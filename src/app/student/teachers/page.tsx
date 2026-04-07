@@ -383,24 +383,26 @@ export default function StudentTeachersPage() {
                     Join Meeting Link
                   </a>
                 )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {meeting.status !== "cancelled" && meeting.status !== "completed" && (
+                {meeting.status !== "scheduled" && meeting.status !== "completed" && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {meeting.status !== "cancelled" && (
+                      <button
+                        type="button"
+                        onClick={() => void handleAbortMeeting(meeting.id)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
+                      >
+                        Abort
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => void handleAbortMeeting(meeting.id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
+                      onClick={() => void handleDeleteMeeting(meeting.id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
                     >
-                      Abort
+                      Delete
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteMeeting(meeting.id)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
-                  >
-                    Delete
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
