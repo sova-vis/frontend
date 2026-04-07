@@ -14,11 +14,13 @@ import {
   MentoringConversation,
   MentoringMeeting,
   MentoringTeacher,
+  deleteMeeting,
   ensureConversation,
   getConversations,
   getMeetings,
   getTeachers,
   requestMeeting,
+  updateMeeting,
 } from "@/lib/api";
 import ChatModal from "@/components/mentoring/ChatModal";
 
@@ -43,7 +45,6 @@ export default function StudentTeachersPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
 
-  const [authToken, setAuthToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teachers, setTeachers] = useState<MentoringTeacher[]>([]);
@@ -74,7 +75,6 @@ export default function StudentTeachersPage() {
     if (!token) {
       throw new Error("Missing auth token");
     }
-    setAuthToken(token);
 
     const [teacherRows, meetingRows, conversationRows] = await Promise.all([
       getTeachers(token),
@@ -86,9 +86,6 @@ export default function StudentTeachersPage() {
     setMeetings(meetingRows);
     setConversations(conversationRows);
 
-    if (!form.teacher_clerk_id && teacherRows.length > 0) {
-      setForm((current) => ({ ...current, teacher_clerk_id: teacherRows[0].clerk_id }));
-    }
   };
 
   useEffect(() => {
@@ -176,6 +173,37 @@ export default function StudentTeachersPage() {
     }
   };
 
+  const handleAbortMeeting = async (meetingId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+      await updateMeeting(token, meetingId, { status: "cancelled" });
+      await refreshData();
+      setSuccess("Meeting request aborted.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to abort meeting");
+    }
+  };
+
+  const handleDeleteMeeting = async (meetingId: string) => {
+    const confirmed = window.confirm("Delete this meeting record?");
+    if (!confirmed) return;
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+      await deleteMeeting(token, meetingId);
+      await refreshData();
+      setSuccess("Meeting deleted.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete meeting");
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -212,6 +240,9 @@ export default function StudentTeachersPage() {
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
                 required
               >
+                <option value="" disabled>
+                  Select a teacher
+                </option>
                 {teachers.map((teacher) => (
                   <option value={teacher.clerk_id} key={teacher.clerk_id}>
                     {teacher.full_name || teacher.email || "Teacher"}
@@ -342,6 +373,24 @@ export default function StudentTeachersPage() {
                     Join Meeting Link
                   </a>
                 )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {meeting.status !== "cancelled" && meeting.status !== "completed" && (
+                    <button
+                      type="button"
+                      onClick={() => void handleAbortMeeting(meeting.id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
+                    >
+                      Abort
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteMeeting(meeting.id)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -351,7 +400,6 @@ export default function StudentTeachersPage() {
       {selectedConversation && user && (
         <ChatModal
           isOpen={!!selectedConversation}
-          token={authToken}
           currentClerkId={user.id}
           conversation={selectedConversation}
           onClose={() => setSelectedConversation(null)}

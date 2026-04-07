@@ -6,6 +6,7 @@ import { Calendar, CheckCircle2, Clock3, MessageCircle, XCircle, LogOut, UserCir
 import {
   MentoringConversation,
   MentoringMeeting,
+  deleteMeeting,
   ensureConversation,
   getConversations,
   getMeetings,
@@ -22,7 +23,6 @@ export default function TeacherDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [savingMeetingId, setSavingMeetingId] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [meetings, setMeetings] = useState<MentoringMeeting[]>([]);
@@ -46,7 +46,6 @@ export default function TeacherDashboard() {
     if (!token) {
       throw new Error("Missing auth token");
     }
-    setAuthToken(token);
 
     const [meetingRows, conversationRows] = await Promise.all([
       getMeetings(token),
@@ -154,6 +153,30 @@ export default function TeacherDashboard() {
       setSuccess(`Meeting ${status}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update meeting status");
+    } finally {
+      setSavingMeetingId(null);
+    }
+  };
+
+  const handleDeleteMeeting = async (meetingId: string) => {
+    const confirmed = window.confirm("Delete this meeting record?");
+    if (!confirmed) return;
+
+    setSavingMeetingId(meetingId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      await deleteMeeting(token, meetingId);
+      await refreshData();
+      setSuccess("Meeting deleted");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete meeting");
     } finally {
       setSavingMeetingId(null);
     }
@@ -304,6 +327,22 @@ export default function TeacherDashboard() {
                     <XCircle size={14} />
                     Decline
                   </button>
+                  <button
+                    onClick={() => void handleStatusOnly(meeting.id, "cancelled")}
+                    disabled={savingMeetingId === meeting.id}
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:text-amber-300 px-3 py-2 text-xs font-semibold text-amber-700"
+                  >
+                    <XCircle size={14} />
+                    Abort
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteMeeting(meeting.id)}
+                    disabled={savingMeetingId === meeting.id}
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-950 dark:text-rose-300 px-3 py-2 text-xs font-semibold text-rose-700"
+                  >
+                    <XCircle size={14} />
+                    Delete
+                  </button>
                 </div>
               </article>
             ))}
@@ -373,7 +412,6 @@ export default function TeacherDashboard() {
       {selectedConversation && user && (
         <ChatModal
           isOpen={!!selectedConversation}
-          token={authToken}
           currentClerkId={user.id}
           conversation={selectedConversation}
           onClose={() => setSelectedConversation(null)}

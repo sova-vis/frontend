@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Send, Trash2 } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import { X, Send } from "lucide-react";
 import {
   MentoringConversation,
   MentoringMessage,
-  deleteConversationMessage,
   getConversationMessages,
   sendConversationMessage,
 } from "@/lib/api";
 
 interface ChatModalProps {
   isOpen: boolean;
-  token: string;
   currentClerkId: string;
   conversation: MentoringConversation | null;
   onClose: () => void;
@@ -20,11 +19,11 @@ interface ChatModalProps {
 
 export default function ChatModal({
   isOpen,
-  token,
   currentClerkId,
   conversation,
   onClose,
 }: ChatModalProps) {
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<MentoringMessage[]>([]);
@@ -50,6 +49,10 @@ export default function ChatModal({
 
     const fetchMessages = async (isInitial = false) => {
       try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Session expired. Please sign in again.");
+        }
         const rows = await getConversationMessages(token, conversation.id);
         if (!cancelled) {
           setMessages((current) => {
@@ -88,7 +91,7 @@ export default function ChatModal({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [isOpen, conversation?.id, token]);
+  }, [isOpen, conversation?.id, getToken]);
 
   const handleSend = async () => {
     if (!conversation?.id) return;
@@ -99,6 +102,10 @@ export default function ChatModal({
     setError("");
 
     try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Session expired. Please sign in again.");
+      }
       const created = await sendConversationMessage(token, conversation.id, text);
       setMessages((current) => [...current, created]);
       setDraft("");
@@ -106,21 +113,6 @@ export default function ChatModal({
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
-    }
-  };
-
-  const handleDelete = async (messageId: string) => {
-    if (!conversation?.id) return;
-
-    const confirmed = window.confirm("Delete this message?");
-    if (!confirmed) return;
-
-    setError("");
-    try {
-      await deleteConversationMessage(token, conversation.id, messageId);
-      setMessages((current) => current.filter((message) => message.id !== messageId));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to delete message");
     }
   };
 
@@ -158,18 +150,6 @@ export default function ChatModal({
                     mine ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-800"
                   }`}
                 >
-                  {mine && (
-                    <div className="flex justify-end mb-1">
-                      <button
-                        onClick={() => void handleDelete(message.id)}
-                        className={`inline-flex items-center gap-1 text-[11px] ${mine ? "text-gray-300 hover:text-white" : "text-gray-400"}`}
-                        title="Delete message"
-                      >
-                        <Trash2 size={11} />
-                        Delete
-                      </button>
-                    </div>
-                  )}
                   <p>{message.body}</p>
                   <p className={`mt-1 text-[11px] ${mine ? "text-gray-300" : "text-gray-400"}`}>
                     {new Date(message.created_at).toLocaleString()}

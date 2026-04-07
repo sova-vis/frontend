@@ -323,6 +323,19 @@ export async function updateMeeting(
   return body.meeting as MentoringMeeting;
 }
 
+export async function deleteMeeting(token: string, meetingId: string): Promise<void> {
+  const response = await apiCall(`/mentoring/meetings/${meetingId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    await parseApiError(response, "Failed to delete meeting");
+  }
+}
+
 export async function getConversations(token: string): Promise<MentoringConversation[]> {
   const response = await apiCall("/mentoring/conversations", {
     headers: { Authorization: `Bearer ${token}` },

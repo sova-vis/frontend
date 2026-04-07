@@ -64,17 +64,6 @@ export default function AdminDashboard() {
     setTeachers(teacherRows);
     setUsers(userRows as AdminUserRecord[]);
     setMeetings(meetingRows);
-
-    if (!teacherEdit.clerk_id && teacherRows.length > 0) {
-      setTeacherEdit((current) => ({
-        ...current,
-        clerk_id: teacherRows[0].clerk_id,
-        headline: teacherRows[0].headline || "",
-        bio: teacherRows[0].bio || "",
-        subjects: teacherRows[0].subjects.join(", "),
-        meeting_provider: teacherRows[0].meeting_provider || "google_meet",
-      }));
-    }
   };
 
   const generateStrongPassword = () => {
@@ -324,6 +313,9 @@ export default function AdminDashboard() {
                   }}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
                 >
+                  <option value="" disabled>
+                    Select teacher account
+                  </option>
                   {teachers.map((teacher) => (
                     <option key={teacher.clerk_id} value={teacher.clerk_id}>
                       {teacher.full_name || teacher.email || teacher.clerk_id}
