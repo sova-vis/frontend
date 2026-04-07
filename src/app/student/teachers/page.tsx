@@ -53,6 +53,7 @@ export default function StudentTeachersPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [selectedConversation, setSelectedConversation] = useState<MentoringConversation | null>(null);
+  const [selectedTeacherClerkId, setSelectedTeacherClerkId] = useState("");
 
   const [form, setForm] = useState<RequestFormState>({
     teacher_clerk_id: "",
@@ -79,6 +80,11 @@ export default function StudentTeachersPage() {
     });
     return ids;
   }, [meetings]);
+
+  const selectedTeacher = useMemo(
+    () => teachers.find((teacher) => teacher.clerk_id === selectedTeacherClerkId) || null,
+    [teachers, selectedTeacherClerkId]
+  );
 
   const refreshData = async () => {
     const token = await getToken();
@@ -123,6 +129,18 @@ export default function StudentTeachersPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (teachers.length === 0) {
+      setSelectedTeacherClerkId("");
+      return;
+    }
+
+    const exists = teachers.some((teacher) => teacher.clerk_id === selectedTeacherClerkId);
+    if (!selectedTeacherClerkId || !exists) {
+      setSelectedTeacherClerkId(teachers[0].clerk_id);
+    }
+  }, [teachers, selectedTeacherClerkId]);
 
   const handleMeetingRequest = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -259,7 +277,11 @@ export default function StudentTeachersPage() {
               <label className="text-sm font-semibold text-gray-700">Teacher</label>
               <select
                 value={form.teacher_clerk_id}
-                onChange={(event) => setForm((current) => ({ ...current, teacher_clerk_id: event.target.value }))}
+                onChange={(event) => {
+                  const nextTeacherId = event.target.value;
+                  setForm((current) => ({ ...current, teacher_clerk_id: nextTeacherId }));
+                  setSelectedTeacherClerkId(nextTeacherId);
+                }}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
                 required
               >
@@ -331,41 +353,75 @@ export default function StudentTeachersPage() {
           </form>
         </section>
 
-        <section className="grid lg:grid-cols-2 gap-5">
-          {teachers.map((teacher) => (
-            <article key={teacher.clerk_id} className="rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
-              <div className="flex justify-between items-start gap-3">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{teacher.full_name || "Teacher"}</h2>
-                  <p className="text-sm text-gray-500">{teacher.email || "No email"}</p>
-                  {teacher.headline && <p className="text-sm text-gray-700 mt-2">{teacher.headline}</p>}
-                </div>
-                {eligibleTeacherIds.has(teacher.clerk_id) ? (
+        <section className="grid lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Teachers List</h2>
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              {teachers.map((teacher) => {
+                const isActive = teacher.clerk_id === selectedTeacherClerkId;
+                return (
                   <button
-                    onClick={() => void handleOpenChat(teacher.clerk_id)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    key={teacher.clerk_id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeacherClerkId(teacher.clerk_id);
+                      setForm((current) => ({ ...current, teacher_clerk_id: teacher.clerk_id }));
+                    }}
+                    className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                      isActive
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
+                    }`}
                   >
-                    <MessageCircle size={14} />
-                    Chat
+                    <p className="text-sm font-semibold">{teacher.full_name || "Teacher"}</p>
+                    <p className={`text-xs ${isActive ? "text-gray-200" : "text-gray-500"}`}>{teacher.email || "No email"}</p>
                   </button>
-                ) : (
-                  <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
-                    Request meeting to chat
-                  </span>
-                )}
-              </div>
-              {teacher.bio && <p className="mt-3 text-sm text-gray-600 line-clamp-3">{teacher.bio}</p>}
-              {teacher.subjects.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {teacher.subjects.map((subject) => (
-                    <span key={subject} className="text-xs rounded-full bg-gray-100 px-3 py-1 text-gray-700">
-                      {subject}
+                );
+              })}
+              {teachers.length === 0 && <p className="text-sm text-gray-500">No teachers available.</p>}
+            </div>
+          </div>
+
+          <div className="lg:col-span-8 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Teacher Details</h2>
+            {!selectedTeacher ? (
+              <p className="text-sm text-gray-500">Select a teacher to view details.</p>
+            ) : (
+              <>
+                <div className="flex justify-between items-start gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">{selectedTeacher.full_name || "Teacher"}</h3>
+                    <p className="text-sm text-gray-500">{selectedTeacher.email || "No email"}</p>
+                    {selectedTeacher.headline && <p className="text-sm text-gray-700 mt-2">{selectedTeacher.headline}</p>}
+                  </div>
+                  {eligibleTeacherIds.has(selectedTeacher.clerk_id) ? (
+                    <button
+                      onClick={() => void handleOpenChat(selectedTeacher.clerk_id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      <MessageCircle size={14} />
+                      Chat
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                      Request meeting to chat
                     </span>
-                  ))}
+                  )}
                 </div>
-              )}
-            </article>
-          ))}
+
+                {selectedTeacher.bio && <p className="mt-3 text-sm text-gray-600">{selectedTeacher.bio}</p>}
+                {selectedTeacher.subjects.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedTeacher.subjects.map((subject) => (
+                      <span key={subject} className="text-xs rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                        {subject}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </section>
 
         <section className="rounded-3xl bg-white border border-gray-200 shadow-sm p-6 md:p-8">
