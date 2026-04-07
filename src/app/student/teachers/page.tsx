@@ -126,6 +126,14 @@ export default function StudentTeachersPage() {
         throw new Error("Missing auth token");
       }
 
+      if (!form.preferred_start_time || !form.preferred_end_time) {
+        throw new Error("Preferred start and end time are required");
+      }
+
+      if (new Date(form.preferred_start_time) >= new Date(form.preferred_end_time)) {
+        throw new Error("Preferred end time must be after preferred start time");
+      }
+
       await requestMeeting(token, {
         teacher_clerk_id: form.teacher_clerk_id,
         agenda: form.agenda,
@@ -269,6 +277,7 @@ export default function StudentTeachersPage() {
                 value={form.preferred_start_time}
                 onChange={(event) => setForm((current) => ({ ...current, preferred_start_time: event.target.value }))}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                required
               />
             </div>
 
@@ -279,6 +288,7 @@ export default function StudentTeachersPage() {
                 value={form.preferred_end_time}
                 onChange={(event) => setForm((current) => ({ ...current, preferred_end_time: event.target.value }))}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                required
               />
             </div>
 
