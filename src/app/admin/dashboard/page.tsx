@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Shield, Check, AlertCircle, LogOut, CalendarRange, Users, UserCog } from "lucide-react";
+import { UserPlus, Shield, Check, AlertCircle, LogOut, Users, UserCog } from "lucide-react";
 import {
   AdminUserRecord,
   MentoringMeeting,
@@ -194,25 +194,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
-              <p className="text-xs uppercase font-semibold text-slate-500">Admins</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.admin}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
-              <p className="text-xs uppercase font-semibold text-slate-500">Teachers</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.teacher}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
-              <p className="text-xs uppercase font-semibold text-slate-500">Students</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.student}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
-              <p className="text-xs uppercase font-semibold text-slate-500">Meetings (confirmed)</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{confirmedMeetings.length}</p>
-            </div>
-          </div>
-
           <div className="mt-6 flex flex-wrap gap-2">
             <button
               type="button"
@@ -286,7 +267,8 @@ export default function AdminDashboard() {
           </section>
         )}
 
-        {activeView === "teacher-accounts" && <div className="grid xl:grid-cols-2 gap-6">
+        {activeView === "teacher-accounts" && <div className="space-y-6">
+          <div className="grid xl:grid-cols-2 gap-6">
           <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -448,14 +430,50 @@ export default function AdminDashboard() {
               </button>
             </form>
           </section>
+        </div>
+
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Teacher Details</h3>
+            <p className="text-sm text-slate-500 mb-4">Complete list of teachers and profile details.</p>
+            {loadingData ? (
+              <p className="text-sm text-slate-500">Loading teachers...</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                      <th className="py-2 pr-3">Name</th>
+                      <th className="py-2 pr-3">Email</th>
+                      <th className="py-2 pr-3">Headline</th>
+                      <th className="py-2 pr-3">Subjects</th>
+                      <th className="py-2 pr-3">Provider</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teachers.map((teacher) => (
+                      <tr key={teacher.clerk_id} className="border-b border-slate-100 dark:border-slate-800">
+                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{teacher.full_name || "-"}</td>
+                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.email || "-"}</td>
+                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300 max-w-[260px] truncate">{teacher.headline || "-"}</td>
+                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.subjects.length ? teacher.subjects.join(", ") : "-"}</td>
+                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.meeting_provider || "google_meet"}</td>
+                        <td className="py-2 text-slate-600 dark:text-slate-300">{teacher.is_active ? "Active" : "Inactive"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>}
 
-        {activeView === "users" && <section className="grid xl:grid-cols-2 gap-6">
+        {activeView === "users" && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><Users size={18} /> Registered Users</h3>
-            <p className="text-sm text-slate-500 mb-4">Current profiles in Supabase (schema-safe view).</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><Users size={18} /> Students</h3>
+            <p className="text-sm text-slate-500 mb-4">Student records only.</p>
             {loadingData ? (
-              <p className="text-sm text-slate-500">Loading users...</p>
+              <p className="text-sm text-slate-500">Loading students...</p>
             ) : (
               <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
                 <table className="w-full text-sm">
@@ -468,41 +486,25 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((user) => (
+                    {students.map((user) => (
                       <tr key={String(user.clerk_id || user.email || Math.random())} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{String(user.full_name || "User")}</td>
+                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{String(user.full_name || "Student")}</td>
                         <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{String(user.email || "-")}</td>
                         <td className="py-2 pr-3">
                           <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                            {String(user.role || "-")}
+                            student
                           </span>
                         </td>
                         <td className="py-2 text-slate-600 dark:text-slate-300">{user.onboarding_complete ? "Onboarded" : "Pending"}</td>
                       </tr>
                     ))}
+                    {students.length === 0 && (
+                      <tr>
+                        <td className="py-3 text-slate-500" colSpan={4}>No students found.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><CalendarRange size={18} /> Confirmed Meetings</h3>
-            <p className="text-sm text-slate-500 mb-4">Accepted, scheduled and completed sessions.</p>
-            {loadingData ? (
-              <p className="text-sm text-slate-500">Loading meetings...</p>
-            ) : (
-              <div className="space-y-3 max-h-[420px] overflow-y-auto">
-                {confirmedMeetings.map((meeting) => (
-                  <div key={meeting.id} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                    <div className="flex justify-between items-center gap-3">
-                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "Teacher"} with {meeting.student_profile?.full_name || meeting.student_profile?.email || "Student"}</p>
-                      <span className="text-xs rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 font-semibold">{meeting.status}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{meeting.agenda}</p>
-                  </div>
-                ))}
-                {confirmedMeetings.length === 0 && <p className="text-sm text-slate-500">No confirmed meetings yet.</p>}
               </div>
             )}
           </div>
