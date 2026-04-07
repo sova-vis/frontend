@@ -266,9 +266,9 @@ function HomePageContent() {
                 <SignUp
                   routing="hash"
                   signInUrl="/?auth=sign-in"
-                  afterSignUpUrl="/?auth=sign-in"
-                  fallbackRedirectUrl="/?auth=sign-in"
-                  forceRedirectUrl="/?auth=sign-in"
+                  afterSignUpUrl="/"
+                  fallbackRedirectUrl="/"
+                  forceRedirectUrl="/"
                   appearance={{
                     elements: {
                       card: "shadow-none border-0 bg-transparent",

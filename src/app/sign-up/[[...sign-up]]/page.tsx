@@ -13,8 +13,8 @@ export default function SignUpPage() {
           routing="path"
           path="/sign-up"
           signInUrl="/sign-in"
-          forceRedirectUrl="/sign-in"
-          fallbackRedirectUrl="/sign-in"
+          forceRedirectUrl="/"
+          fallbackRedirectUrl="/"
           appearance={{
             elements: {
               formButtonPrimary:
