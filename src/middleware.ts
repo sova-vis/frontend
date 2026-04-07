@@ -14,13 +14,8 @@ export default clerkMiddleware(async (auth, req) => {
   const userId = authState?.userId;
 
   if (req.nextUrl.pathname === "/" && userId) {
-    const role = (authState?.sessionClaims as any)?.public_metadata?.role;
-    const dashboardPath = role === "teacher"
-      ? "/teacher/dashboard"
-      : role === "admin"
-        ? "/admin/dashboard"
-        : "/student/dashboard";
-    return NextResponse.redirect(new URL(dashboardPath, req.url));
+    // Let the app route with backend profile data to avoid stale session-claim redirects.
+    return NextResponse.next();
   }
 
   if (!isPublicRoute(req)) {

@@ -46,7 +46,8 @@ function HomePageContent() {
   // Redirect signed-in users to their dashboard
   useEffect(() => {
     if (isLoaded && user) {
-      const role = (user.publicMetadata?.role as string) || profile?.role || "student";
+      const email = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
+      const role = profile?.role || (user.publicMetadata?.role as string) || (email === "sovavis2025@gmail.com" ? "admin" : "student");
       if (role === "teacher") {
         router.replace("/teacher/dashboard");
       } else if (role === "admin") {

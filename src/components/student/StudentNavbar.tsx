@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageCircle,
   ClipboardCheck,
+  GraduationCap,
   Menu,
   X,
   ChevronDown,
@@ -28,6 +29,7 @@ const navItems = [
   { name: "Past Papers", href: "/student/past-papers",  icon: FileText },
   { name: "Ask AI",      href: "/student/ask",          icon: MessageCircle },
   { name: "Q/A Grading", href: "/student/qa-grading",   icon: ClipboardCheck },
+  { name: "Teachers",    href: "/student/teachers",     icon: GraduationCap },
   { name: "Bookmarks",   href: "/student/bookmarks",    icon: Bookmark },
 ];
 

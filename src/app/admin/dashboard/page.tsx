@@ -1,15 +1,116 @@
 "use client";
 
-import { useState } from "react";
-import { UserPlus, Shield, Check, AlertCircle } from "lucide-react";
-import { apiCall } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { UserPlus, Shield, Check, AlertCircle, LogOut, CalendarRange, Users, UserCog } from "lucide-react";
+import {
+  AdminUserRecord,
+  MentoringMeeting,
+  MentoringTeacher,
+  apiCall,
+  getAdminMeetings,
+  getAdminTeachers,
+  getAdminUsers,
+  updateAdminTeacherProfile,
+} from "@/lib/api";
 import { useAuth } from "@clerk/nextjs";
+import { useClerkAuth } from "@/lib/useClerkAuth";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
+  const { signOut } = useClerkAuth();
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+  const [teacherEdit, setTeacherEdit] = useState({
+    clerk_id: "",
+    headline: "",
+    bio: "",
+    subjects: "",
+    meeting_provider: "google_meet",
+  });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [teachers, setTeachers] = useState<MentoringTeacher[]>([]);
+  const [users, setUsers] = useState<AdminUserRecord[]>([]);
+  const [meetings, setMeetings] = useState<MentoringMeeting[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const students = useMemo(() => users.filter((user) => user.role === "student"), [users]);
+  const confirmedMeetings = useMemo(
+    () => meetings.filter((meeting) => ["accepted", "scheduled", "completed"].includes(meeting.status)),
+    [meetings]
+  );
+
+  const usersByRole = useMemo(
+    () => ({
+      admin: users.filter((user) => user.role === "admin").length,
+      teacher: users.filter((user) => user.role === "teacher").length,
+      student: users.filter((user) => user.role === "student").length,
+    }),
+    [users]
+  );
+
+  const refreshData = async () => {
+    const token = await getToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const [teacherRows, userRows, meetingRows] = await Promise.all([
+      getAdminTeachers(token),
+      getAdminUsers(token),
+      getAdminMeetings(token),
+    ]);
+
+    setTeachers(teacherRows);
+    setUsers(userRows as AdminUserRecord[]);
+    setMeetings(meetingRows);
+
+    if (!teacherEdit.clerk_id && teacherRows.length > 0) {
+      setTeacherEdit((current) => ({
+        ...current,
+        clerk_id: teacherRows[0].clerk_id,
+        headline: teacherRows[0].headline || "",
+        bio: teacherRows[0].bio || "",
+        subjects: teacherRows[0].subjects.join(", "),
+        meeting_provider: teacherRows[0].meeting_provider || "google_meet",
+      }));
+    }
+  };
+
+  const generateStrongPassword = () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+    let result = "";
+    for (let i = 0; i < 18; i += 1) {
+      result += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    setFormData((current) => ({ ...current, password: result }));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoadingData(true);
+        await refreshData();
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setStatus("error");
+          setMessage(err instanceof Error ? err.message : "Failed to load admin data");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingData(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,94 +140,341 @@ export default function AdminDashboard() {
       setStatus("success");
       setMessage("Teacher account created successfully!");
       setFormData({ name: "", email: "", password: "" });
+      await refreshData();
     } catch (err: any) {
       setStatus("error");
       setMessage(err.message);
     }
   };
 
+  const handleTeacherProfileSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setStatus("loading");
+    setMessage("");
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
+      await updateAdminTeacherProfile(token, teacherEdit.clerk_id, {
+        headline: teacherEdit.headline,
+        bio: teacherEdit.bio,
+        meeting_provider: teacherEdit.meeting_provider,
+        subjects: teacherEdit.subjects
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+
+      await refreshData();
+      setStatus("success");
+      setMessage("Teacher profile updated.");
+    } catch (err: any) {
+      setStatus("error");
+      setMessage(err.message || "Failed to save teacher profile");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-20 px-4">
-      <div className="w-full max-w-2xl">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center p-4 bg-red-100 rounded-full mb-4">
-            <Shield size={40} className="text-red-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 font-display">Admin Dashboard</h1>
-          <p className="text-gray-500">Manage users and platform settings.</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-          <div className="p-8 border-b border-gray-50">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <UserPlus size={24} className="text-primary" />
-              Create Teacher Account
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              This will create a new Clerk user with the &apos;teacher&apos; role.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-8 space-y-6">
-            {status === "success" && (
-              <div className="p-4 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 text-sm font-medium">
-                <Check size={18} /> {message}
-              </div>
-            )}
-            {status === "error" && (
-              <div className="p-4 bg-red-50 text-red-700 rounded-xl flex items-center gap-2 text-sm font-medium">
-                <AlertCircle size={18} /> {message}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Teacher Name</label>
-              <input
-                type="text"
-                required
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                placeholder="e.g. Sarah Williams"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                  placeholder="teacher@school.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-white dark:from-slate-950 dark:to-black px-4 py-10 md:px-8">
+      <div className="w-full max-w-7xl mx-auto space-y-8">
+        <header className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur p-5 md:p-8 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="inline-flex items-center justify-center p-3 bg-red-100 dark:bg-red-950 rounded-2xl">
+                <Shield size={30} className="text-red-600" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
+                <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-display">Admin Control Center</h1>
+                <p className="text-slate-500 dark:text-slate-400">Teachers, user profiles, and full meeting records</p>
               </div>
             </div>
-
-            <div className="pt-4">
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
               <button
-                type="submit"
-                disabled={status === "loading"}
-                className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                onClick={() => void signOut()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
               >
-                {status === "loading" ? "Creating Account..." : "Create Teacher Account"}
+                <LogOut size={15} />
+                Logout
               </button>
             </div>
-          </form>
+          </div>
+
+          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
+              <p className="text-xs uppercase font-semibold text-slate-500">Admins</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.admin}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
+              <p className="text-xs uppercase font-semibold text-slate-500">Teachers</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.teacher}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
+              <p className="text-xs uppercase font-semibold text-slate-500">Students</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{usersByRole.student}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
+              <p className="text-xs uppercase font-semibold text-slate-500">Meetings (confirmed)</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{confirmedMeetings.length}</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid xl:grid-cols-2 gap-6">
+          <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <UserPlus size={24} className="text-primary" />
+                Create Teacher Account
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">Creates Clerk user + Supabase profile + teacher role metadata.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {status === "success" && (
+                <div className="p-3 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 rounded-xl flex items-center gap-2 text-sm font-medium">
+                  <Check size={18} /> {message}
+                </div>
+              )}
+              {status === "error" && (
+                <div className="p-3 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 rounded-xl flex items-center gap-2 text-sm font-medium">
+                  <AlertCircle size={18} /> {message}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Teacher Name</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                  placeholder="e.g. Sarah Williams"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                    placeholder="teacher@school.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Password</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                    placeholder="Strong password required by Clerk"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={generateStrongPassword}
+                  className="px-4 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                >
+                  Generate Strong Password
+                </button>
+                <button
+                  type="submit"
+                  disabled={status === "loading"}
+                  className="px-5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold disabled:opacity-60"
+                >
+                  {status === "loading" ? "Creating..." : "Create Teacher"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2">
+              <UserCog size={20} /> Teacher Profiles
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">Manage subjects, bio, and provider shown to students.</p>
+
+            <form onSubmit={handleTeacherProfileSave} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Teacher Account</label>
+                <select
+                  value={teacherEdit.clerk_id}
+                  onChange={(event) => {
+                    const selected = teachers.find((teacher) => teacher.clerk_id === event.target.value);
+                    setTeacherEdit({
+                      clerk_id: event.target.value,
+                      headline: selected?.headline || "",
+                      bio: selected?.bio || "",
+                      subjects: (selected?.subjects || []).join(", "),
+                      meeting_provider: selected?.meeting_provider || "google_meet",
+                    });
+                  }}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                >
+                  {teachers.map((teacher) => (
+                    <option key={teacher.clerk_id} value={teacher.clerk_id}>
+                      {teacher.full_name || teacher.email || teacher.clerk_id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Headline</label>
+                <input
+                  value={teacherEdit.headline}
+                  onChange={(event) => setTeacherEdit((current) => ({ ...current, headline: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Bio</label>
+                <textarea
+                  rows={3}
+                  value={teacherEdit.bio}
+                  onChange={(event) => setTeacherEdit((current) => ({ ...current, bio: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Subjects (comma separated)</label>
+                <input
+                  value={teacherEdit.subjects}
+                  onChange={(event) => setTeacherEdit((current) => ({ ...current, subjects: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Meeting Provider</label>
+                <select
+                  value={teacherEdit.meeting_provider}
+                  onChange={(event) => setTeacherEdit((current) => ({ ...current, meeting_provider: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                >
+                  <option value="google_meet">Google Meet</option>
+                  <option value="zoom">Zoom</option>
+                  <option value="platform_link">Platform Link</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={status === "loading" || !teacherEdit.clerk_id}
+                className="w-full py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold disabled:opacity-60"
+              >
+                {status === "loading" ? "Saving..." : "Save Teacher Profile"}
+              </button>
+            </form>
+          </section>
         </div>
+        <section className="grid xl:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><Users size={18} /> Registered Users</h3>
+            <p className="text-sm text-slate-500 mb-4">Current profiles in Supabase (schema-safe view).</p>
+            {loadingData ? (
+              <p className="text-sm text-slate-500">Loading users...</p>
+            ) : (
+              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                      <th className="py-2 pr-3">Name</th>
+                      <th className="py-2 pr-3">Email</th>
+                      <th className="py-2 pr-3">Role</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={String(user.clerk_id || user.email || Math.random())} className="border-b border-slate-100 dark:border-slate-800">
+                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{String(user.full_name || "User")}</td>
+                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{String(user.email || "-")}</td>
+                        <td className="py-2 pr-3">
+                          <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            {String(user.role || "-")}
+                          </span>
+                        </td>
+                        <td className="py-2 text-slate-600 dark:text-slate-300">{user.onboarding_complete ? "Onboarded" : "Pending"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><CalendarRange size={18} /> Confirmed Meetings</h3>
+            <p className="text-sm text-slate-500 mb-4">Accepted, scheduled and completed sessions.</p>
+            {loadingData ? (
+              <p className="text-sm text-slate-500">Loading meetings...</p>
+            ) : (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto">
+                {confirmedMeetings.map((meeting) => (
+                  <div key={meeting.id} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                    <div className="flex justify-between items-center gap-3">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "Teacher"} with {meeting.student_profile?.full_name || meeting.student_profile?.email || "Student"}</p>
+                      <span className="text-xs rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 font-semibold">{meeting.status}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{meeting.agenda}</p>
+                  </div>
+                ))}
+                {confirmedMeetings.length === 0 && <p className="text-sm text-slate-500">No confirmed meetings yet.</p>}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">All Meeting Records</h3>
+          <p className="text-sm text-slate-500 mb-4">Full history of meetings between teachers and students.</p>
+          {loadingData ? (
+            <p className="text-sm text-slate-500">Loading meetings...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                    <th className="py-2 pr-3">Teacher</th>
+                    <th className="py-2 pr-3">Student</th>
+                    <th className="py-2 pr-3">Agenda</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meetings.map((meeting) => (
+                    <tr key={meeting.id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "-"}</td>
+                      <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{meeting.student_profile?.full_name || meeting.student_profile?.email || "-"}</td>
+                      <td className="py-2 pr-3 text-slate-600 dark:text-slate-300 max-w-[260px] truncate">{meeting.agenda}</td>
+                      <td className="py-2 pr-3">
+                        <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">{meeting.status}</span>
+                      </td>
+                      <td className="py-2 text-slate-600 dark:text-slate-300">{meeting.start_time ? new Date(meeting.start_time).toLocaleString() : new Date(meeting.requested_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
