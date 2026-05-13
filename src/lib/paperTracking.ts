@@ -1,4 +1,4 @@
-export type PaperStatus = "in_progress" | "completed" | "bookmarked";
+export type PaperStatus = "goal" | "in_progress" | "completed" | "bookmarked";
 
 export interface TrackedPaper {
   id: string;
@@ -16,7 +16,7 @@ type GetTokenFn = () => Promise<string | null>;
 const STORAGE_KEY = "propel_paper_states";
 const LEGACY_BOOKMARKS_KEY = "propel_bookmarks";
 
-const VALID_STATUSES: PaperStatus[] = ["in_progress", "completed", "bookmarked"];
+const VALID_STATUSES: PaperStatus[] = ["goal", "in_progress", "completed", "bookmarked"];
 
 function normalizeStatuses(input: unknown): PaperStatus[] {
   if (!Array.isArray(input)) return [];

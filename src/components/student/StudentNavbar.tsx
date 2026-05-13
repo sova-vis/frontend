@@ -13,6 +13,8 @@ import {
   MessageCircle,
   ClipboardCheck,
   GraduationCap,
+  LibraryBig,
+  Braces,
   Menu,
   X,
   ChevronDown,
@@ -26,7 +28,9 @@ import { BrandLogo } from "@/components/ui/Logo";
 
 const navItems = [
   { name: "Dashboard",   href: "/student/dashboard",   icon: LayoutDashboard },
+  { name: "Subjects",    href: "/student/subjects",     icon: LibraryBig },
   { name: "Past Papers", href: "/student/past-papers",  icon: FileText },
+  { name: "Paper Parser", href: "/student/paper-parser", icon: Braces },
   { name: "Ask AI",      href: "/student/ask",          icon: MessageCircle },
   { name: "Q/A Grading", href: "/student/qa-grading",   icon: ClipboardCheck },
   { name: "Teachers",    href: "/student/teachers",     icon: GraduationCap },
@@ -56,7 +60,7 @@ export default function StudentNavbar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 h-[74px] bg-white dark:bg-gray-950 border-b border-gray-200/80 dark:border-gray-800 shadow-[0_1px_0_rgba(15,23,42,0.06)]">
+      <nav className="sticky top-0 z-50 h-[76px] bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-gray-800 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
         <div className="max-w-[1360px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4">
 
           {/* Logo — circular O in burgundy */}
@@ -74,24 +78,26 @@ export default function StudentNavbar() {
           </Link>
 
           {/* Desktop nav links */}
-          <div className="hidden lg:flex items-center gap-7 flex-1 justify-center">
+          <div className="hidden lg:flex items-center gap-1.5 flex-1 justify-center">
             {navItems.map((item) => {
               const active = isActive(item.href);
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`relative px-1 py-1.5 text-[17px] font-semibold transition-colors duration-150 ${
+                  className={`relative inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-semibold transition-all duration-150 ${
                     active
-                      ? "text-gray-900 dark:text-gray-100"
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                      ? "text-gray-950 bg-gray-100 dark:text-gray-100 dark:bg-gray-800 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 hover:bg-gray-50 dark:hover:text-gray-100 dark:hover:bg-gray-900"
                   }`}
                 >
+                  <Icon size={15} />
                   <span>{item.name}</span>
                   {active && (
                     <motion.div
                       layoutId="navActive"
-                      className="absolute -bottom-[6px] left-0 right-0 h-0.5 bg-primary rounded-full"
+                      className="absolute left-1/2 -bottom-[9px] h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
                     />
                   )}
                 </Link>
@@ -109,7 +115,7 @@ export default function StudentNavbar() {
             <div className="relative">
               <button
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-full border border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-full border border-gray-200 bg-white shadow-sm hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-primary/20 shadow-sm">
                   <Image src={photoUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />

@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import {
     FileText, Download, Eye, Search, Loader2, ChevronRight, ChevronDown,
     Atom, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
-    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2
+    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2,
+    Target, SlidersHorizontal
 } from "lucide-react";
 import { apiCall, getApiUrl } from "@/lib/api";
 import { useAuth, useUser } from "@clerk/nextjs";
@@ -16,6 +17,9 @@ import {
     saveTrackedPapersForUser,
     toggleTrackedStatus,
 } from "@/lib/paperTracking";
+import { hydrateSubjectsFromProfile, StudentSubject } from "@/lib/studentPersonalization";
+import { useClerkAuth } from "@/lib/useClerkAuth";
+import StudentPageLoading from "@/components/student/StudentPageLoading";
 
 interface FolderItem {
     id: string;
@@ -45,6 +49,7 @@ function getFileBadgeLabel(name: string): string {
 export default function PastPapersPage() {
     const { user } = useUser();
     const { getToken } = useAuth();
+    const { profile } = useClerkAuth();
     const [rootFolderId, setRootFolderId] = useState<string | null>(null);
     const [folderCache, setFolderCache] = useState<FolderCache>({});
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -54,6 +59,7 @@ export default function PastPapersPage() {
     const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
+    const [selectedSubjects, setSelectedSubjects] = useState<StudentSubject[]>([]);
     const [mounted, setMounted] = useState(false);
 
     // Load root folder + tracked statuses on mount
@@ -74,6 +80,18 @@ export default function PastPapersPage() {
             active = false;
         };
     }, [getToken]);
+
+    useEffect(() => {
+        setSelectedSubjects(hydrateSubjectsFromProfile(profile));
+
+        const onChange = (event: Event) => {
+            const customEvent = event as CustomEvent<StudentSubject[]>;
+            setSelectedSubjects(customEvent.detail ?? []);
+        };
+
+        window.addEventListener("propel:selected-subjects-change", onChange);
+        return () => window.removeEventListener("propel:selected-subjects-change", onChange);
+    }, [profile]);
 
     const hasStatus = (itemId: string, status: PaperStatus) => {
         const item = trackedPapers.find((paper) => paper.id === itemId);
@@ -209,6 +227,13 @@ export default function PastPapersPage() {
             inactive: string;
             fillOnActive?: boolean;
         }> = [
+            {
+                status: "goal",
+                label: "goal",
+                icon: Target,
+                active: "text-amber-700 bg-amber-50 border-amber-200",
+                inactive: "text-gray-400 bg-white border-gray-200 hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50",
+            },
             {
                 status: "in_progress",
                 label: "in progress",
@@ -366,21 +391,22 @@ export default function PastPapersPage() {
 
     const getFilteredItems = () => {
         if (!rootFolderId || !folderCache[rootFolderId]) return [];
-        if (!searchTerm) return folderCache[rootFolderId];
-        return folderCache[rootFolderId].filter(item =>
+        const selectedIds = new Set(selectedSubjects.map((subject) => subject.id));
+        const selectedNames = new Set(selectedSubjects.map((subject) => subject.name.toLowerCase()));
+        const scopedItems = selectedIds.size === 0
+            ? folderCache[rootFolderId]
+            : folderCache[rootFolderId].filter((item) => {
+                if (!item.isFolder) return true;
+                return selectedIds.has(item.id) || selectedNames.has(item.name.toLowerCase());
+            });
+        if (!searchTerm) return scopedItems;
+        return scopedItems.filter(item =>
             item.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
     };
 
     if (initialLoading) {
-        return (
-            <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-                    <p className="text-gray-600">Loading past papers...</p>
-                </div>
-            </div>
-        );
+        return <StudentPageLoading label="Loading past papers..." />;
     }
 
     if (error) {
@@ -438,9 +464,27 @@ export default function PastPapersPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900">Past Papers Library</h1>
-                    <p className="text-gray-500 mt-1">Browse past papers organized by subject, year, and session.</p>
+                    <p className="text-gray-500 mt-1">
+                        {selectedSubjects.length > 0
+                            ? `Showing ${selectedSubjects.length} selected subject${selectedSubjects.length > 1 ? "s" : ""}.`
+                            : "Browse past papers organized by subject, year, and session."}
+                    </p>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto items-center">
+                <div className="flex gap-2 w-full md:w-auto items-center flex-wrap">
+                    <a
+                        href="/student/subjects"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors flex-shrink-0"
+                    >
+                        <SlidersHorizontal size={14} />
+                        Subjects
+                    </a>
+                    <a
+                        href="/student/goals"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors flex-shrink-0"
+                    >
+                        <Target size={14} />
+                        Goals
+                    </a>
                     {user && trackedPapers.length > 0 && (
                         <a
                             href="/student/bookmarks"

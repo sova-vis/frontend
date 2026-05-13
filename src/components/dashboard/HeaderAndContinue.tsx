@@ -1,16 +1,22 @@
 "use client";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import Image from "next/image";
+import { hydrateSubjectsFromProfile, StudentSubject } from "@/lib/studentPersonalization";
 
 export function DashboardHeader() {
     const { user } = useUser();
     const { profile } = useClerkAuth();
     const name = profile?.full_name || user?.firstName || "Student";
     const photoUrl = user?.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
-    const subjects: string[] = profile?.selected_subjects || [];
+    const [selectedSubjects, setSelectedSubjects] = useState<StudentSubject[]>([]);
+    const subjects = selectedSubjects.map((subject) => subject.name);
+
+    useEffect(() => {
+        setSelectedSubjects(hydrateSubjectsFromProfile(profile));
+    }, [profile]);
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -42,8 +48,13 @@ export function DashboardHeader() {
 
 export function ContinueLearning() {
     const { profile } = useClerkAuth();
-    const subjects: string[] = profile?.selected_subjects || [];
+    const [selectedSubjects, setSelectedSubjects] = useState<StudentSubject[]>([]);
+    const subjects = selectedSubjects.map((subject) => subject.name);
     const hasActivity = subjects.length > 0;
+
+    useEffect(() => {
+        setSelectedSubjects(hydrateSubjectsFromProfile(profile));
+    }, [profile]);
 
     if (!hasActivity) {
         return (
@@ -57,13 +68,13 @@ export function ContinueLearning() {
                                 <span>Get started</span>
                             </div>
                             <h3 className="text-xl font-bold mb-1">Start Your Exam Prep</h3>
-                            <p className="text-white/70 max-w-md text-sm">Browse past papers and topical practice questions to begin preparing.</p>
+                            <p className="text-white/70 max-w-md text-sm">Choose your subjects, then build past paper goals around them.</p>
                         </div>
                         <a
-                            href="/student/past-papers"
+                            href="/student/subjects"
                             className="flex-shrink-0 bg-white text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-gray-100 transition-colors"
                         >
-                            Browse Papers <ArrowRight size={15} />
+                            Choose Subjects <ArrowRight size={15} />
                         </a>
                     </div>
                 </div>
@@ -85,7 +96,9 @@ export function ContinueLearning() {
                         </div>
                         <h3 className="text-xl font-bold mb-1">Continue Practicing</h3>
                         <p className="text-white/70 max-w-md text-sm">
-                            Practice past papers and topicals for {firstSubject} and {subjects.length - 1} other {subjects.length - 1 === 1 ? "subject" : "subjects"}.
+                            {subjects.length > 1
+                                ? `Practice past papers and topicals for ${firstSubject} and ${subjects.length - 1} other ${subjects.length - 1 === 1 ? "subject" : "subjects"}.`
+                                : `Practice past papers and topicals for ${firstSubject}.`}
                         </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">

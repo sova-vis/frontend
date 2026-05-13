@@ -109,8 +109,7 @@ export default function NotesWidget() {
   };
 
   const removeNote = (id: string) => {
-    const next = notes.filter((note) => note.id !== id);
-    persist(next);
+    persist(notes.filter((note) => note.id !== id));
   };
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
@@ -124,7 +123,6 @@ export default function NotesWidget() {
     try {
       localStorage.setItem(positionStorageKey, JSON.stringify(next));
     } catch {
-      // Ignore storage write errors and keep runtime position.
     }
   };
 
@@ -137,15 +135,13 @@ export default function NotesWidget() {
         style={{ x: fabPosition.x, y: fabPosition.y }}
         className="fixed right-6 bottom-6 z-[70] cursor-grab active:cursor-grabbing"
       >
-        <div className="h-16 w-16 rounded-full p-[2px] bg-[conic-gradient(from_0deg,_#ff3b3b,_#ff8a00,_#ffe600,_#00e676,_#00b0ff,_#7c4dff,_#ff3b3b)] animate-[spin_3s_linear_infinite] shadow-[0_0_20px_rgba(255,0,120,0.35)]">
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="h-full w-full rounded-full bg-black text-white hover:bg-neutral-900 transition-colors flex items-center justify-center"
-            aria-label={open ? "Close notes" : "Open notes"}
-          >
-            <StickyNote size={22} />
-          </button>
-        </div>
+        <button
+          onClick={() => setOpen((value) => !value)}
+          className="h-14 w-14 rounded-2xl bg-gray-950 text-white shadow-xl shadow-gray-900/20 hover:bg-black transition-colors flex items-center justify-center border border-white/10"
+          aria-label={open ? "Close notes" : "Open notes"}
+        >
+          <StickyNote size={21} />
+        </button>
       </motion.div>
 
       <AnimatePresence>
@@ -155,7 +151,7 @@ export default function NotesWidget() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[69] bg-black/35"
+              className="fixed inset-0 z-[69] bg-gray-950/20 backdrop-blur-[2px]"
               onClick={() => setOpen(false)}
             />
 
@@ -164,40 +160,40 @@ export default function NotesWidget() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="fixed right-6 bottom-24 z-[70] w-[min(94vw,420px)] rounded-2xl border border-neutral-800 bg-black text-white shadow-2xl"
+              className="fixed right-6 bottom-24 z-[70] w-[min(94vw,420px)] rounded-2xl border border-gray-200 bg-white text-gray-950 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/80">
                 <div>
-                  <h3 className="text-sm font-semibold">My Notes</h3>
-                  <p className="text-[11px] text-neutral-400">Saved permanently on this device</p>
+                  <h3 className="text-sm font-bold">My Notes</h3>
+                  <p className="text-[11px] text-gray-500">Saved on this device</p>
                 </div>
                 <button
                   onClick={() => setOpen(false)}
-                  className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   aria-label="Close notes panel"
                 >
                   <X size={16} />
                 </button>
               </div>
 
-              <div className="p-4 border-b border-neutral-800">
+              <div className="p-4 border-b border-gray-100">
                 <div className="flex gap-2">
                   <textarea
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
                         addNote();
                       }
                     }}
                     placeholder="Write a quick note..."
-                    className="flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-white placeholder:text-neutral-500 outline-none focus:border-primary/60"
+                    className="flex-1 resize-none rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     rows={2}
                   />
                   <button
                     onClick={addNote}
-                    className="h-10 w-10 mt-auto rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors flex items-center justify-center"
+                    className="h-10 w-10 mt-auto rounded-xl bg-gray-950 text-white hover:bg-black transition-colors flex items-center justify-center"
                     title="Add note"
                   >
                     <Plus size={16} />
@@ -207,23 +203,23 @@ export default function NotesWidget() {
 
               <div className="max-h-[340px] overflow-y-auto p-4 space-y-2.5">
                 {notes.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950 p-4 text-center">
-                    <p className="text-sm text-neutral-400">No notes yet. Add your first note.</p>
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
+                    <p className="text-sm text-gray-500">No notes yet. Add your first note.</p>
                   </div>
                 ) : (
                   notes.map((note) => (
-                    <div key={note.id} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
+                    <div key={note.id} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
                       <div className="flex justify-between items-start gap-2">
-                        <p className="text-sm text-neutral-100 whitespace-pre-wrap break-words">{note.text}</p>
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{note.text}</p>
                         <button
                           onClick={() => removeNote(note.id)}
-                          className="p-1.5 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-neutral-900 transition-colors"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                           title="Delete note"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <p className="mt-1 text-[11px] text-neutral-500">{formatCreatedAt(note.createdAt)}</p>
+                      <p className="mt-1 text-[11px] text-gray-400">{formatCreatedAt(note.createdAt)}</p>
                     </div>
                   ))
                 )}

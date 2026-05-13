@@ -13,7 +13,9 @@ import {
     ChevronLeft,
     MessageCircle,
     Home,
-    ClipboardCheck
+    ClipboardCheck,
+    LibraryBig,
+    Braces
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useClerk } from "@clerk/nextjs";
@@ -22,7 +24,9 @@ import { BrandLogo } from "@/components/ui/Logo";
 const navItems = [
     { name: "Home", href: "/", icon: Home },
     { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
+    { name: "Subjects", href: "/student/subjects", icon: LibraryBig },
     { name: "Past Papers", href: "/student/past-papers", icon: FileText },
+    { name: "Paper Parser", href: "/student/paper-parser", icon: Braces },
     { name: "Topicals", href: "/student/topicals", icon: Layers },
     { name: "Ask Question", href: "/student/ask", icon: MessageCircle },
     { name: "Q/A Grading", href: "/student/qa-grading", icon: ClipboardCheck },
