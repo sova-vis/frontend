@@ -86,7 +86,7 @@ export default function StudentDashboard() {
               </Link>
 
               <Link
-                href="/student/paper-parser"
+                href="/student/practise"
                 className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300 md:col-span-2"
               >
                 <div className="flex items-center gap-4">
@@ -95,10 +95,10 @@ export default function StudentDashboard() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-gray-950">Paper Parser</h2>
-                      <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">JSON</span>
+                      <h2 className="text-lg font-bold text-gray-950">Practise</h2>
+                      <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">QP</span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-500 leading-relaxed">Upload a past paper and structure every question into clean frontend-ready JSON.</p>
+                    <p className="mt-1 text-sm text-gray-500 leading-relaxed">Pick a question paper and practise it as a clean interactive sheet.</p>
                   </div>
                 </div>
               </Link>
