@@ -15,26 +15,27 @@ import {
   GraduationCap,
   LibraryBig,
   Braces,
+  BookOpenCheck,
   Menu,
   X,
   ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useClerk } from "@clerk/nextjs";
-import { useUser } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandLogo } from "@/components/ui/Logo";
 
 const navItems = [
-  { name: "Dashboard",   href: "/student/dashboard",   icon: LayoutDashboard },
-  { name: "Subjects",    href: "/student/subjects",     icon: LibraryBig },
-  { name: "Past Papers", href: "/student/past-papers",  icon: FileText },
+  { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
+  { name: "Subjects", href: "/student/subjects", icon: LibraryBig },
+  { name: "Past Papers", href: "/student/past-papers", icon: FileText },
+  { name: "Paper Practice", href: "/student/paper-practice", icon: BookOpenCheck },
   { name: "Practise", href: "/student/practise", icon: Braces },
-  { name: "Ask AI",      href: "/student/ask",          icon: MessageCircle },
-  { name: "Q/A Grading", href: "/student/qa-grading",   icon: ClipboardCheck },
-  { name: "Teachers",    href: "/student/teachers",     icon: GraduationCap },
-  { name: "Bookmarks",   href: "/student/bookmarks",    icon: Bookmark },
+  { name: "Ask AI", href: "/student/ask", icon: MessageCircle },
+  { name: "Q/A Grading", href: "/student/qa-grading", icon: ClipboardCheck },
+  { name: "Teachers", href: "/student/teachers", icon: GraduationCap },
+  { name: "Bookmarks", href: "/student/bookmarks", icon: Bookmark },
 ];
 
 export default function StudentNavbar() {
@@ -43,7 +44,7 @@ export default function StudentNavbar() {
   const { user } = useUser();
   const { profile } = useClerkAuth();
 
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const name = profile?.full_name || user?.firstName || "Student";
@@ -58,69 +59,52 @@ export default function StudentNavbar() {
     return (pathname || "").startsWith(href);
   };
 
+  const activeItem = navItems.find((item) => isActive(item.href));
+
   return (
     <>
       <nav className="sticky top-0 z-50 h-[76px] bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-gray-800 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
         <div className="max-w-[1360px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-primary dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Open student menu"
+            >
+              <Menu size={20} />
+            </button>
 
-          {/* Logo — circular O in burgundy */}
-          <Link href="/student/dashboard" className="flex-shrink-0">
-            <BrandLogo
-              size={36}
-              className="hidden sm:flex"
-              labelClassName="text-[26px] text-primary dark:text-white"
-            />
-            <BrandLogo
-              size={36}
-              className="sm:hidden"
-              label=""
-            />
-          </Link>
-
-          {/* Desktop nav links */}
-          <div className="hidden lg:flex items-center gap-1.5 flex-1 justify-center">
-            {navItems.map((item) => {
-              const active = isActive(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`relative inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-semibold transition-all duration-150 ${
-                    active
-                      ? "text-gray-950 bg-gray-100 dark:text-gray-100 dark:bg-gray-800 shadow-sm"
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 hover:bg-gray-50 dark:hover:text-gray-100 dark:hover:bg-gray-900"
-                  }`}
-                >
-                  <Icon size={15} />
-                  <span>{item.name}</span>
-                  {active && (
-                    <motion.div
-                      layoutId="navActive"
-                      className="absolute left-1/2 -bottom-[9px] h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
-                    />
-                  )}
-                </Link>
-              );
-            })}
+            <Link href="/student/dashboard" className="flex-shrink-0">
+              <BrandLogo
+                size={36}
+                className="hidden sm:flex"
+                labelClassName="text-[26px] text-primary dark:text-white"
+              />
+              <BrandLogo size={36} className="sm:hidden" label="" />
+            </Link>
           </div>
 
-          {/* Right side */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="hidden min-w-0 flex-1 items-center justify-center sm:flex">
+            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-bold text-gray-700 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+              {activeItem && <activeItem.icon size={15} className="text-primary" />}
+              <span className="truncate">{activeItem?.name ?? "Student"}</span>
+            </div>
+          </div>
 
-            {/* Dark/Light toggle */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <ThemeToggle className="hidden sm:block shrink-0 h-9 w-9" />
 
-            {/* Profile dropdown */}
             <div className="relative">
               <button
-                onClick={() => setProfileOpen((v) => !v)}
+                onClick={() => setProfileOpen((value) => !value)}
                 className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-full border border-gray-200 bg-white shadow-sm hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-primary/20 shadow-sm">
                   <Image src={photoUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
                 </div>
-                <span className="hidden sm:block text-sm font-semibold text-gray-700 dark:text-gray-200 max-w-[100px] truncate">{name}</span>
+                <span className="hidden sm:block text-sm font-semibold text-gray-700 dark:text-gray-200 max-w-[100px] truncate">
+                  {name}
+                </span>
                 <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`} />
               </button>
 
@@ -158,41 +142,36 @@ export default function StudentNavbar() {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMobileOpen((v) => !v)}
-              className="lg:hidden p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-            >
-              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
           </div>
         </div>
       </nav>
 
-      {/* Mobile menu */}
       <AnimatePresence>
-        {mobileOpen && (
+        {menuOpen && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+              onClick={() => setMenuOpen(false)}
             />
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="lg:hidden fixed left-0 top-0 h-full w-72 bg-white dark:bg-gray-900 z-50 shadow-2xl flex flex-col"
+              className="fixed left-0 top-0 h-full w-[min(320px,85vw)] bg-white dark:bg-gray-900 z-50 shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-800">
-                <Link href="/student/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+                <Link href="/student/dashboard" className="flex items-center gap-2.5" onClick={() => setMenuOpen(false)}>
                   <BrandLogo size={32} labelClassName="text-xl text-primary dark:text-white" />
                 </Link>
-                <button onClick={() => setMobileOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg">
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg"
+                  aria-label="Close student menu"
+                >
                   <X size={20} />
                 </button>
               </div>
@@ -204,9 +183,11 @@ export default function StudentNavbar() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setMobileOpen(false)}
+                      onClick={() => setMenuOpen(false)}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
-                        active ? "text-primary bg-primary/10" : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        active
+                          ? "text-primary bg-primary/10"
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800"
                       }`}
                     >
                       <item.icon size={18} />
@@ -219,7 +200,7 @@ export default function StudentNavbar() {
               <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-0.5">
                 <Link
                   href="/student/settings"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => setMenuOpen(false)}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <Settings size={18} />
@@ -238,10 +219,7 @@ export default function StudentNavbar() {
         )}
       </AnimatePresence>
 
-      {/* Backdrop for profile dropdown */}
-      {profileOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-      )}
+      {profileOpen && <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />}
     </>
   );
 }
