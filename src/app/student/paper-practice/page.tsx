@@ -117,6 +117,19 @@ function sortQuestionsByPaperOrder(questions: PracticeQuestion[]) {
   });
 }
 
+function sortMcqQuestions(questions: PracticeQuestion[]) {
+  return [...questions].sort((a, b) => {
+    return (
+      questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+      a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }) ||
+      a.session.localeCompare(b.session, undefined, { numeric: true }) ||
+      a.paper.localeCompare(b.paper, undefined, { numeric: true }) ||
+      a.variant.localeCompare(b.variant, undefined, { numeric: true }) ||
+      a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
+    );
+  });
+}
+
 function optionImages(images: PracticeImage[], label: string) {
   return images.filter((image) => {
     const option = image.option?.toUpperCase();
@@ -415,7 +428,7 @@ export default function PaperPracticePage() {
             if (question.sourceType && question.sourceType !== expectedSource) return false;
             return true;
           });
-          setQuestions(sortQuestionsByPaperOrder(scopedQuestions));
+          setQuestions(questionSource === "mcq" ? sortMcqQuestions(scopedQuestions) : sortQuestionsByPaperOrder(scopedQuestions));
           setSelectedPaperKey("all");
         }
       } catch (loadError) {
@@ -442,7 +455,7 @@ export default function PaperPracticePage() {
       return true;
     });
 
-    if (questionSource === "mcq") return yearQuestions;
+    if (questionSource === "mcq") return sortMcqQuestions(yearQuestions);
 
     if (practiceMode === "topic") {
       if (selectedTopic === "all") return yearQuestions;

@@ -460,6 +460,19 @@ function sortPracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>>
   });
 }
 
+function sortMcqQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(questions: T[]) {
+  return [...questions].sort((a, b) => {
+    return (
+      questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+      a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }) ||
+      a.session.localeCompare(b.session, undefined, { numeric: true }) ||
+      a.paper.localeCompare(b.paper, undefined, { numeric: true }) ||
+      a.variant.localeCompare(b.variant, undefined, { numeric: true }) ||
+      a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
+    );
+  });
+}
+
 function mergePracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(questions: T[]) {
   const merged = new Map<string, T>();
 
@@ -668,11 +681,12 @@ async function getDbSubjectQuestions(
   });
 
   const questions = mergePracticeQuestions(filtered.map((question, index) => normalizeDbQuestion(question, index)));
+  const orderedQuestions = sourceFilter === "mcq" ? sortMcqQuestions(questions) : questions;
   const topics = Array.from(
     new Set(rows.map((question) => cleanText(question.topic_syllabus) || cleanText(question.topic_general) || "Uncategorised")),
   ).sort((a, b) => a.localeCompare(b));
 
-  return { questions, topics };
+  return { questions: orderedQuestions, topics };
 }
 
 async function buildSubjectMeta(dataRoot: string, subject: string) {
