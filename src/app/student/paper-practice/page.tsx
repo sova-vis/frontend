@@ -50,6 +50,8 @@ type PracticeQuestion = {
   markingScheme: string;
   correctOption: string | null;
   requiresDiagram: boolean;
+  questionKind?: string;
+  sourceType?: string;
   images: PracticeImage[];
   syllabusRef: {
     syllabus_code?: string;
@@ -82,6 +84,7 @@ type SubjectMeta = {
 };
 
 const preferredSubjects = ["Chemistry", "Mathematics", "Physics"];
+type QuestionSource = "batch" | "mcq";
 
 function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -260,6 +263,7 @@ export default function PaperPracticePage() {
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("all");
+  const [questionSource, setQuestionSource] = useState<QuestionSource>("batch");
   const [practiceMode, setPracticeMode] = useState<"topic" | "paper">("topic");
   const [selectedPaperKey, setSelectedPaperKey] = useState("all");
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
@@ -312,15 +316,20 @@ export default function PaperPracticePage() {
     [selectedSubject, subjects],
   );
 
-  const selectedYearMeta = useMemo(
-    () => currentSubject?.years.find((year) => year.year === selectedYear) ?? null,
-    [currentSubject, selectedYear],
-  );
-
   const availableTopics = useMemo(() => {
-    if (!currentSubject || !selectedYear) return [];
-    return currentSubject.topics.filter((topic) => topic.years.includes(selectedYear));
-  }, [currentSubject, selectedYear]);
+    const topics = new Map<string, { name: string; general: string; count: number }>();
+
+    for (const question of questions) {
+      const name = question.topicSyllabus || question.topicGeneral || "Uncategorised";
+      const key = name.toLowerCase();
+      const current = topics.get(key) ?? { name, general: question.topicGeneral, count: 0 };
+      current.count += 1;
+      if (!current.general) current.general = question.topicGeneral;
+      topics.set(key, current);
+    }
+
+    return Array.from(topics.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [questions]);
 
   const paperOptions = useMemo(() => {
     const options = new Map<string, { key: string; label: string; count: number }>();
@@ -362,6 +371,7 @@ export default function PaperPracticePage() {
           subject: selectedSubject,
           year: selectedYear,
           topic: "all",
+          source: questionSource,
         });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load questions.");
@@ -384,7 +394,7 @@ export default function PaperPracticePage() {
     return () => {
       mounted = false;
     };
-  }, [selectedSubject, selectedYear]);
+  }, [questionSource, selectedSubject, selectedYear]);
 
   const activeQuestions = useMemo(() => {
     if (practiceMode === "topic") {
@@ -429,6 +439,7 @@ export default function PaperPracticePage() {
     setSelectedSubject(subjectName);
     setSelectedYear("");
     setSelectedTopic("all");
+    setQuestionSource("batch");
     setPracticeMode("topic");
     setSelectedPaperKey("all");
     setQuery("");
@@ -440,6 +451,17 @@ export default function PaperPracticePage() {
 
   function handleYearChange(year: string) {
     setSelectedYear(year);
+    setSelectedTopic("all");
+    setSelectedPaperKey("all");
+    setQuery("");
+    setQuestions([]);
+    setAnswers({});
+    setChecked(false);
+    setShowScheme(false);
+  }
+
+  function handleQuestionSourceChange(source: QuestionSource) {
+    setQuestionSource(source);
     setSelectedTopic("all");
     setSelectedPaperKey("all");
     setQuery("");
@@ -501,7 +523,7 @@ export default function PaperPracticePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[220px_180px_180px_minmax(220px,1fr)_minmax(220px,1fr)]">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[210px_150px_190px_160px_minmax(210px,1fr)_minmax(210px,1fr)]">
                 <label className="block">
                   <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Subject</span>
                   <select
@@ -534,6 +556,19 @@ export default function PaperPracticePage() {
                     ))}
                   </select>
                 </label>
+
+                <div className="block">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Question Type</span>
+                  <select
+                    value={questionSource}
+                    onChange={(event) => handleQuestionSourceChange(event.target.value as QuestionSource)}
+                    disabled={!hasSelection || loadingQuestions}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <option value="batch">Paper questions</option>
+                    <option value="mcq">MCQs</option>
+                  </select>
+                </div>
 
                 <div className="block">
                   <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Mode</span>
@@ -570,7 +605,7 @@ export default function PaperPracticePage() {
                       disabled={!hasSelection || loadingQuestions}
                       className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                     >
-                      <option value="all">All topics ({selectedYearMeta?.count ?? 0})</option>
+                      <option value="all">All topics ({questions.length})</option>
                       {availableTopics.map((topic) => (
                         <option key={topic.name} value={topic.name}>
                           {topic.name} ({topic.count})
@@ -620,7 +655,7 @@ export default function PaperPracticePage() {
               {hasSelection && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
                   <p className="text-sm font-semibold text-gray-500">
-                    {selectedSubject} / {selectedYear}
+                    {selectedSubject} / {selectedYear} / {questionSource === "mcq" ? "MCQs" : "Paper questions"}
                     {activeQuestions.length > 0 && <span> / {activeQuestions.length} question{activeQuestions.length === 1 ? "" : "s"}</span>}
                   </p>
 

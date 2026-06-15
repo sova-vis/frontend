@@ -61,6 +61,7 @@ type DbQuestion = {
   question_text: string;
   stem: string | null;
   question_kind: string;
+  source_type: string;
   options: PracticeOption[];
   marking_scheme: string | null;
   correct_option: string | null;
@@ -75,6 +76,8 @@ type PracticeOption = {
   label: string;
   text: string;
 };
+
+type SourceFilter = "batch" | "mcq" | null;
 
 type YearFile = {
   subject?: string;
@@ -399,6 +402,8 @@ function normalizeQuestion(question: RawQuestion, subject: string, fallbackYear:
     images: normalizedImages,
     syllabusRef: question.syllabus_ref ?? null,
     reference: question.reference ?? null,
+    questionKind: "mcq",
+    sourceType: "mcqs_by_year",
   };
 }
 
@@ -432,6 +437,7 @@ function normalizeDbQuestion(question: DbQuestion, index: number) {
     syllabusRef: question.syllabus_ref ?? null,
     reference: question.reference ?? null,
     questionKind: question.question_kind,
+    sourceType: question.source_type,
   };
 }
 
@@ -578,11 +584,17 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function getDbSubjectQuestions(supabase: PaperPracticeSupabaseClient, subjectSlug: string, year: string, topic: string | null) {
+async function getDbSubjectQuestions(
+  supabase: PaperPracticeSupabaseClient,
+  subjectSlug: string,
+  year: string,
+  topic: string | null,
+  sourceFilter: SourceFilter,
+) {
   let query = supabase
     .from("o_level_questions")
     .select(
-      "id,subject,subject_slug,year,session,paper,variant,question_number,sub_question,marks,topic_syllabus,topic_general,question_text,stem,question_kind,options,marking_scheme,correct_option,requires_diagram,images,syllabus_ref,reference,source",
+      "id,subject,subject_slug,year,session,paper,variant,question_number,sub_question,marks,topic_syllabus,topic_general,question_text,stem,question_kind,source_type,options,marking_scheme,correct_option,requires_diagram,images,syllabus_ref,reference,source",
     )
     .eq("subject_slug", subjectSlug)
     .eq("year", Number.parseInt(year, 10))
@@ -590,6 +602,12 @@ async function getDbSubjectQuestions(supabase: PaperPracticeSupabaseClient, subj
     .order("paper", { ascending: true })
     .order("variant", { ascending: true })
     .order("question_number", { ascending: true });
+
+  if (sourceFilter === "batch") {
+    query = query.eq("source_type", "batch");
+  } else if (sourceFilter === "mcq") {
+    query = query.eq("source_type", "mcqs_by_year");
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -689,7 +707,9 @@ export async function GET(request: Request) {
           }
 
           const topic = searchParams.get("topic");
-          const result = await getDbSubjectQuestions(supabase, subjectMeta.slug, year, topic);
+          const sourceParam = searchParams.get("source");
+          const sourceFilter: SourceFilter = sourceParam === "mcq" ? "mcq" : sourceParam === "batch" ? "batch" : null;
+          const result = await getDbSubjectQuestions(supabase, subjectMeta.slug, year, topic, sourceFilter);
 
           return NextResponse.json({
             subject: subjectMeta.name,
@@ -727,9 +747,10 @@ export async function GET(request: Request) {
     }
 
     const topic = searchParams.get("topic");
+    const sourceParam = searchParams.get("source");
     const data = await loadYearFile(dataRoot, subject, year);
     const questions = (Array.isArray(data.mcqs) ? data.mcqs : [])
-      .filter((question) => !topic || topic === "all" || topicName(question).toLowerCase() === topic.toLowerCase())
+      .filter((question) => (!sourceParam || sourceParam === "mcq") && (!topic || topic === "all" || topicName(question).toLowerCase() === topic.toLowerCase()))
       .map((question, index) => normalizeQuestion(question, subject, year, index));
 
     const topics = Array.from(new Set((data.mcqs ?? []).map(topicName))).sort((a, b) => a.localeCompare(b));
