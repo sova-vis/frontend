@@ -78,8 +78,16 @@ type SubjectMeta = {
   name: string;
   slug: string;
   years: { year: string; count: number }[];
+  sourceYears?: {
+    batch: { year: string; count: number }[];
+    mcq: { year: string; count: number }[];
+  };
   topics: TopicMeta[];
   totalQuestions: number;
+  sourceTotals?: {
+    batch: number;
+    mcq: number;
+  };
   imageQuestions: number;
 };
 
@@ -316,6 +324,11 @@ export default function PaperPracticePage() {
     [selectedSubject, subjects],
   );
 
+  const currentYears = useMemo(() => {
+    if (!currentSubject) return [];
+    return currentSubject.sourceYears?.[questionSource] ?? currentSubject.years;
+  }, [currentSubject, questionSource]);
+
   const availableTopics = useMemo(() => {
     const topics = new Map<string, { name: string; general: string; count: number }>();
 
@@ -397,6 +410,8 @@ export default function PaperPracticePage() {
   }, [questionSource, selectedSubject, selectedYear]);
 
   const activeQuestions = useMemo(() => {
+    if (questionSource === "mcq") return questions;
+
     if (practiceMode === "topic") {
       if (selectedTopic === "all") return questions;
       return questions.filter((question) => {
@@ -411,7 +426,7 @@ export default function PaperPracticePage() {
       const key = [question.session, question.paper, question.variant].filter(Boolean).join("|");
       return key === selectedPaperKey;
     });
-  }, [practiceMode, questions, selectedPaperKey, selectedTopic]);
+  }, [practiceMode, questionSource, questions, selectedPaperKey, selectedTopic]);
 
   const filteredQuestions = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -462,7 +477,9 @@ export default function PaperPracticePage() {
 
   function handleQuestionSourceChange(source: QuestionSource) {
     setQuestionSource(source);
+    setSelectedYear("");
     setSelectedTopic("all");
+    setPracticeMode("topic");
     setSelectedPaperKey("all");
     setQuery("");
     setQuestions([]);
@@ -523,7 +540,14 @@ export default function PaperPracticePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[210px_150px_190px_160px_minmax(210px,1fr)_minmax(210px,1fr)]">
+              <div
+                className={classNames(
+                  "grid grid-cols-1 gap-3 md:grid-cols-2",
+                  questionSource === "mcq"
+                    ? "xl:grid-cols-[240px_190px_180px_minmax(240px,1fr)]"
+                    : "xl:grid-cols-[210px_150px_190px_160px_minmax(210px,1fr)_minmax(210px,1fr)]",
+                )}
+              >
                 <label className="block">
                   <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Subject</span>
                   <select
@@ -534,24 +558,7 @@ export default function PaperPracticePage() {
                     <option value="">Select subject</option>
                     {subjects.map((subject) => (
                       <option key={subject.name} value={subject.name}>
-                        {subject.name} ({subject.totalQuestions})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Year</span>
-                  <select
-                    value={selectedYear}
-                    onChange={(event) => handleYearChange(event.target.value)}
-                    disabled={!currentSubject}
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <option value="">Select year</option>
-                    {currentSubject?.years.map((year) => (
-                      <option key={year.year} value={year.year}>
-                        {year.year} ({year.count})
+                        {subject.name} ({subject.sourceTotals?.[questionSource] ?? subject.totalQuestions})
                       </option>
                     ))}
                   </select>
@@ -562,7 +569,7 @@ export default function PaperPracticePage() {
                   <select
                     value={questionSource}
                     onChange={(event) => handleQuestionSourceChange(event.target.value as QuestionSource)}
-                    disabled={!hasSelection || loadingQuestions}
+                    disabled={!currentSubject || loadingQuestions}
                     className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                   >
                     <option value="batch">Paper questions</option>
@@ -570,66 +577,87 @@ export default function PaperPracticePage() {
                   </select>
                 </div>
 
-                <div className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Mode</span>
-                  <div className={classNames("grid h-11 grid-cols-2 rounded-lg border border-gray-200 bg-gray-50 p-1", !hasSelection && "opacity-60")}>
-                    <button
-                      onClick={() => setPracticeMode("topic")}
-                      disabled={!hasSelection}
-                      className={classNames(
-                        "rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
-                        practiceMode === "topic" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-800",
-                      )}
-                    >
-                      Topic
-                    </button>
-                    <button
-                      onClick={() => setPracticeMode("paper")}
-                      disabled={!hasSelection}
-                      className={classNames(
-                        "rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
-                        practiceMode === "paper" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-800",
-                      )}
-                    >
-                      Paper
-                    </button>
-                  </div>
-                </div>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Year</span>
+                  <select
+                    value={selectedYear}
+                    onChange={(event) => handleYearChange(event.target.value)}
+                    disabled={!currentSubject}
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <option value="">Select year</option>
+                    {currentYears.map((year) => (
+                      <option key={year.year} value={year.year}>
+                        {year.year} ({year.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                {practiceMode === "topic" ? (
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Topic</span>
-                    <select
-                      value={selectedTopic}
-                      onChange={(event) => setSelectedTopic(event.target.value)}
-                      disabled={!hasSelection || loadingQuestions}
-                      className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                    >
-                      <option value="all">All topics ({questions.length})</option>
-                      {availableTopics.map((topic) => (
-                        <option key={topic.name} value={topic.name}>
-                          {topic.name} ({topic.count})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Full Paper</span>
-                    <select
-                      value={selectedPaperKey}
-                      onChange={(event) => setSelectedPaperKey(event.target.value)}
-                      disabled={!hasSelection || loadingQuestions}
-                      className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                    >
-                      <option value="all">Whole year ({questions.length})</option>
-                      {paperOptions.map((paper) => (
-                        <option key={paper.key} value={paper.key}>
-                          {paper.label} ({paper.count})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                {questionSource === "batch" && (
+                  <>
+                    <div className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Mode</span>
+                      <div className={classNames("grid h-11 grid-cols-2 rounded-lg border border-gray-200 bg-gray-50 p-1", !hasSelection && "opacity-60")}>
+                        <button
+                          onClick={() => setPracticeMode("topic")}
+                          disabled={!hasSelection}
+                          className={classNames(
+                            "rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
+                            practiceMode === "topic" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-800",
+                          )}
+                        >
+                          Topic
+                        </button>
+                        <button
+                          onClick={() => setPracticeMode("paper")}
+                          disabled={!hasSelection}
+                          className={classNames(
+                            "rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
+                            practiceMode === "paper" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-800",
+                          )}
+                        >
+                          Paper
+                        </button>
+                      </div>
+                    </div>
+
+                    {practiceMode === "topic" ? (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Topic</span>
+                        <select
+                          value={selectedTopic}
+                          onChange={(event) => setSelectedTopic(event.target.value)}
+                          disabled={!hasSelection || loadingQuestions}
+                          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                        >
+                          <option value="all">All topics ({questions.length})</option>
+                          {availableTopics.map((topic) => (
+                            <option key={topic.name} value={topic.name}>
+                              {topic.name} ({topic.count})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Full Paper</span>
+                        <select
+                          value={selectedPaperKey}
+                          onChange={(event) => setSelectedPaperKey(event.target.value)}
+                          disabled={!hasSelection || loadingQuestions}
+                          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                        >
+                          <option value="all">Whole year ({questions.length})</option>
+                          {paperOptions.map((paper) => (
+                            <option key={paper.key} value={paper.key}>
+                              {paper.label} ({paper.count})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </>
                 )}
 
                 <label className="block">

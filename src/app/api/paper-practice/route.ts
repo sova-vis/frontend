@@ -489,6 +489,7 @@ async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient)
     subject: string;
     subject_slug: string;
     year: number;
+    source_type: string;
     topic_syllabus: string | null;
     topic_general: string | null;
     requires_diagram: boolean;
@@ -500,7 +501,7 @@ async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient)
   while (true) {
     const { data, error } = await supabase
       .from("o_level_questions")
-      .select("subject,subject_slug,year,topic_syllabus,topic_general,requires_diagram,syllabus_ref")
+      .select("subject,subject_slug,year,source_type,topic_syllabus,topic_general,requires_diagram,syllabus_ref")
       .range(from, from + pageSize - 1);
 
     if (error) throw error;
@@ -524,8 +525,16 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
       name: string;
       slug: string;
       years: Map<string, number>;
+      sourceYears: {
+        batch: Map<string, number>;
+        mcq: Map<string, number>;
+      };
       topics: Map<string, { name: string; general: string; count: number; years: Set<string>; syllabusRef: unknown }>;
       totalQuestions: number;
+      sourceTotals: {
+        batch: number;
+        mcq: number;
+      };
       imageQuestions: number;
     }
   >();
@@ -535,11 +544,20 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
       name: row.subject,
       slug: row.subject_slug,
       years: new Map<string, number>(),
+      sourceYears: {
+        batch: new Map<string, number>(),
+        mcq: new Map<string, number>(),
+      },
       topics: new Map<string, { name: string; general: string; count: number; years: Set<string>; syllabusRef: unknown }>(),
       totalQuestions: 0,
+      sourceTotals: {
+        batch: 0,
+        mcq: 0,
+      },
       imageQuestions: 0,
     };
     const year = String(row.year);
+    const sourceKey = row.source_type === "mcqs_by_year" ? "mcq" : "batch";
     const name = cleanText(row.topic_syllabus) || cleanText(row.topic_general) || "Uncategorised";
     const topicKey = name.toLowerCase();
     const topic = subject.topics.get(topicKey) ?? {
@@ -557,7 +575,9 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
 
     subject.topics.set(topicKey, topic);
     subject.years.set(year, (subject.years.get(year) ?? 0) + 1);
+    subject.sourceYears[sourceKey].set(year, (subject.sourceYears[sourceKey].get(year) ?? 0) + 1);
     subject.totalQuestions += 1;
+    subject.sourceTotals[sourceKey] += 1;
     if (row.requires_diagram) subject.imageQuestions += 1;
     subjects.set(row.subject_slug, subject);
   }
@@ -569,6 +589,14 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
       years: Array.from(subject.years.entries())
         .map(([year, count]) => ({ year, count }))
         .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
+      sourceYears: {
+        batch: Array.from(subject.sourceYears.batch.entries())
+          .map(([year, count]) => ({ year, count }))
+          .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
+        mcq: Array.from(subject.sourceYears.mcq.entries())
+          .map(([year, count]) => ({ year, count }))
+          .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
+      },
       topics: Array.from(subject.topics.values())
         .map((topic) => ({
           name: topic.name,
@@ -579,6 +607,7 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
       totalQuestions: subject.totalQuestions,
+      sourceTotals: subject.sourceTotals,
       imageQuestions: subject.imageQuestions,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -667,6 +696,10 @@ async function buildSubjectMeta(dataRoot: string, subject: string) {
     name: subject,
     slug: slugify(subject),
     years,
+    sourceYears: {
+      batch: [],
+      mcq: years,
+    },
     topics: Array.from(topics.values())
       .map((topic) => ({
         name: topic.name,
@@ -677,6 +710,10 @@ async function buildSubjectMeta(dataRoot: string, subject: string) {
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     totalQuestions,
+    sourceTotals: {
+      batch: 0,
+      mcq: totalQuestions,
+    },
     imageQuestions,
   };
 }
