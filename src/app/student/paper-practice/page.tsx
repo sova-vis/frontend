@@ -98,6 +98,25 @@ function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+function questionNumberValue(value: string) {
+  const match = value.match(/\d+/);
+  return match ? Number.parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+function sortQuestionsByPaperOrder(questions: PracticeQuestion[]) {
+  return [...questions].sort((a, b) => {
+    return (
+      a.year.localeCompare(b.year, undefined, { numeric: true }) ||
+      a.session.localeCompare(b.session, undefined, { numeric: true }) ||
+      a.paper.localeCompare(b.paper, undefined, { numeric: true }) ||
+      a.variant.localeCompare(b.variant, undefined, { numeric: true }) ||
+      questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+      a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }) ||
+      a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
+    );
+  });
+}
+
 function optionImages(images: PracticeImage[], label: string) {
   return images.filter((image) => {
     const option = image.option?.toUpperCase();
@@ -390,7 +409,13 @@ export default function PaperPracticePage() {
         if (!response.ok) throw new Error("Could not load questions.");
         const data = (await response.json()) as { questions: PracticeQuestion[] };
         if (mounted) {
-          setQuestions(data.questions);
+          const expectedSource = questionSource === "mcq" ? "mcqs_by_year" : "batch";
+          const scopedQuestions = data.questions.filter((question) => {
+            if (question.year !== selectedYear) return false;
+            if (question.sourceType && question.sourceType !== expectedSource) return false;
+            return true;
+          });
+          setQuestions(sortQuestionsByPaperOrder(scopedQuestions));
           setSelectedPaperKey("all");
         }
       } catch (loadError) {
@@ -410,23 +435,30 @@ export default function PaperPracticePage() {
   }, [questionSource, selectedSubject, selectedYear]);
 
   const activeQuestions = useMemo(() => {
-    if (questionSource === "mcq") return questions;
+    const expectedSource = questionSource === "mcq" ? "mcqs_by_year" : "batch";
+    const yearQuestions = questions.filter((question) => {
+      if (question.year !== selectedYear) return false;
+      if (question.sourceType && question.sourceType !== expectedSource) return false;
+      return true;
+    });
+
+    if (questionSource === "mcq") return yearQuestions;
 
     if (practiceMode === "topic") {
-      if (selectedTopic === "all") return questions;
-      return questions.filter((question) => {
+      if (selectedTopic === "all") return yearQuestions;
+      return yearQuestions.filter((question) => {
         const topic = question.topicSyllabus || question.topicGeneral || "Uncategorised";
         return topic.toLowerCase() === selectedTopic.toLowerCase();
       });
     }
 
-    if (selectedPaperKey === "all") return questions;
+    if (selectedPaperKey === "all") return yearQuestions;
 
-    return questions.filter((question) => {
+    return yearQuestions.filter((question) => {
       const key = [question.session, question.paper, question.variant].filter(Boolean).join("|");
       return key === selectedPaperKey;
     });
-  }, [practiceMode, questionSource, questions, selectedPaperKey, selectedTopic]);
+  }, [practiceMode, questionSource, questions, selectedPaperKey, selectedTopic, selectedYear]);
 
   const filteredQuestions = useMemo(() => {
     const trimmed = query.trim().toLowerCase();

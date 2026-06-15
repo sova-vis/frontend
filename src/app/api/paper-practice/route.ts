@@ -441,6 +441,25 @@ function normalizeDbQuestion(question: DbQuestion, index: number) {
   };
 }
 
+function questionNumberValue(value: string) {
+  const match = value.match(/\d+/);
+  return match ? Number.parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+function sortPracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(questions: T[]) {
+  return [...questions].sort((a, b) => {
+    return (
+      a.year.localeCompare(b.year, undefined, { numeric: true }) ||
+      a.session.localeCompare(b.session, undefined, { numeric: true }) ||
+      a.paper.localeCompare(b.paper, undefined, { numeric: true }) ||
+      a.variant.localeCompare(b.variant, undefined, { numeric: true }) ||
+      questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+      a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }) ||
+      a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
+    );
+  });
+}
+
 function mergePracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(questions: T[]) {
   const merged = new Map<string, T>();
 
@@ -481,7 +500,7 @@ function mergePracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>
     current.requiresDiagram = current.requiresDiagram || question.requiresDiagram;
   }
 
-  return Array.from(merged.values());
+  return sortPracticeQuestions(Array.from(merged.values()));
 }
 
 async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient) {
@@ -789,6 +808,13 @@ export async function GET(request: Request) {
     const questions = (Array.isArray(data.mcqs) ? data.mcqs : [])
       .filter((question) => (!sourceParam || sourceParam === "mcq") && (!topic || topic === "all" || topicName(question).toLowerCase() === topic.toLowerCase()))
       .map((question, index) => normalizeQuestion(question, subject, year, index));
+    const sortedQuestions = [...questions].sort((a, b) => {
+      return (
+        questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+        a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }) ||
+        a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
+      );
+    });
 
     const topics = Array.from(new Set((data.mcqs ?? []).map(topicName))).sort((a, b) => a.localeCompare(b));
 
@@ -796,8 +822,8 @@ export async function GET(request: Request) {
       subject,
       year,
       topics,
-      questions,
-      total: questions.length,
+      questions: sortedQuestions,
+      total: sortedQuestions.length,
     });
   } catch (error) {
     console.error("Paper practice API error:", error);
