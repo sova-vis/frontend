@@ -668,7 +668,7 @@ function mergePracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>
   return sortPracticeQuestions(Array.from(merged.values()));
 }
 
-async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient) {
+async function fetchDbQuestionsForMetaBySource(supabase: PaperPracticeSupabaseClient, sourceType: string) {
   const rows: Array<{
     subject: string;
     subject_slug: string;
@@ -686,6 +686,9 @@ async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient)
     const { data, error } = await supabase
       .from("o_level_questions")
       .select("subject,subject_slug,year,source_type,topic_syllabus,topic_general,requires_diagram,syllabus_ref")
+      .eq("source_type", sourceType)
+      .order("year", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
 
     if (error) throw error;
@@ -697,6 +700,12 @@ async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient)
   }
 
   return rows;
+}
+
+async function fetchAllDbQuestionsForMeta(supabase: PaperPracticeSupabaseClient) {
+  const sourceTypes = ["batch", "mcqs_by_year", "mcq"];
+  const results = await Promise.all(sourceTypes.map((sourceType) => fetchDbQuestionsForMetaBySource(supabase, sourceType)));
+  return results.flat();
 }
 
 async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
@@ -741,7 +750,7 @@ async function buildDbMeta(supabase: PaperPracticeSupabaseClient) {
       imageQuestions: 0,
     };
     const year = String(row.year);
-    const sourceKey = row.source_type === "mcqs_by_year" ? "mcq" : "batch";
+    const sourceKey = row.source_type === "mcqs_by_year" || row.source_type === "mcq" ? "mcq" : "batch";
     const name = cleanText(row.topic_syllabus) || cleanText(row.topic_general) || "Uncategorised";
     const topicKey = name.toLowerCase();
     const topic = subject.topics.get(topicKey) ?? {
@@ -819,7 +828,7 @@ async function getDbSubjectQuestions(
   if (sourceFilter === "batch") {
     query = query.eq("source_type", "batch");
   } else if (sourceFilter === "mcq") {
-    query = query.eq("source_type", "mcqs_by_year");
+    query = query.in("source_type", ["mcqs_by_year", "mcq"]);
   }
 
   const { data, error } = await query;
