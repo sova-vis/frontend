@@ -32,7 +32,14 @@ type RawQuestion = {
   variant?: string;
   question_number?: string;
   sub_question?: string | null;
+  intro_text?: string;
   marks?: number;
+  total_marks?: number;
+  parts?: Array<{
+    part?: string;
+    question_text?: string;
+    marks?: number;
+  }>;
   topic_syllabus?: string | null;
   topic_general?: string | null;
   question_text?: string;
@@ -84,6 +91,12 @@ type YearFile = {
   year?: string;
   total_mcqs?: number;
   mcqs?: RawQuestion[];
+};
+
+type BatchFile = {
+  subject?: string;
+  batch?: string;
+  papers?: Record<string, Record<string, Record<string, Record<string, RawQuestion[]>>>>;
 };
 
 const SUBJECT_ALIASES: Record<string, string> = {
@@ -160,6 +173,36 @@ function topicName(question: RawQuestion) {
   return cleanText(question.topic_syllabus) || cleanText(question.topic_general) || "Uncategorised";
 }
 
+function numericValue(...values: unknown[]) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+
+  return null;
+}
+
+function composeWrittenQuestionText(question: RawQuestion) {
+  const lines = [];
+  const intro = cleanText(question.question_text) || cleanText(question.intro_text);
+
+  if (intro) lines.push(intro);
+
+  if (Array.isArray(question.parts)) {
+    for (const part of question.parts) {
+      const label = cleanText(part.part);
+      const text = cleanText(part.question_text);
+      const marks = numericValue(part.marks);
+      const suffix = marks === null ? "" : ` [${marks} mark${marks === 1 ? "" : "s"}]`;
+      const line = [label, text].filter(Boolean).join(" ");
+
+      if (line) lines.push(`${line}${suffix}`);
+    }
+  }
+
+  return lines.join("\n\n");
+}
+
 async function getSubjects(dataRoot: string) {
   const entries = await readdir(dataRoot, { withFileTypes: true });
   const subjects: string[] = [];
@@ -181,10 +224,22 @@ async function getYearFiles(dataRoot: string, subject: string) {
     .sort((a, b) => Number.parseInt(b) - Number.parseInt(a));
 }
 
+async function getBatchFiles(dataRoot: string, subject: string) {
+  const subjectDir = path.join(dataRoot, subject);
+  const files = await readdir(subjectDir);
+  return files.filter((file) => /^\d{4}-\d{4}\.json$|^\d{4}-onwards\.json$/.test(file)).sort();
+}
+
 async function loadYearFile(dataRoot: string, subject: string, year: string): Promise<YearFile> {
   const filePath = path.join(dataRoot, subject, "mcqs_by_year", `${year}.json`);
   const raw = await readFile(filePath, "utf8");
   return JSON.parse(raw) as YearFile;
+}
+
+async function loadBatchFile(dataRoot: string, subject: string, file: string): Promise<BatchFile> {
+  const filePath = path.join(dataRoot, subject, file);
+  const raw = await readFile(filePath, "utf8");
+  return JSON.parse(raw) as BatchFile;
 }
 
 function optionArrayFromUnknown(options: unknown) {
@@ -407,6 +462,51 @@ function normalizeQuestion(question: RawQuestion, subject: string, fallbackYear:
   };
 }
 
+function normalizeBatchQuestion(question: RawQuestion, subject: string, fallbackYear: string, index: number) {
+  const text = composeWrittenQuestionText(question);
+  const parsed = parseMcqText(text, question.options);
+  const images = Array.isArray(question.images) ? question.images : [];
+  const normalizedImages = images
+    .map((image) => normalizeImageRecord(image, question, index))
+    .filter((image) => image.src);
+
+  return {
+    id: [
+      subject,
+      question.year ?? fallbackYear,
+      question.session,
+      question.paper,
+      question.variant,
+      question.question_number,
+      question.sub_question,
+      index,
+    ]
+      .filter(Boolean)
+      .join("-"),
+    subject,
+    year: cleanText(question.year) || fallbackYear,
+    session: cleanText(question.session),
+    paper: cleanText(question.paper),
+    variant: cleanText(question.variant),
+    questionNumber: cleanText(question.question_number) || String(index + 1),
+    subQuestion: cleanText(question.sub_question),
+    marks: numericValue(question.marks, question.total_marks),
+    topicSyllabus: cleanText(question.topic_syllabus),
+    topicGeneral: cleanText(question.topic_general),
+    questionText: text,
+    stem: parsed.stem || text,
+    options: parsed.options,
+    markingScheme: cleanText(question.marking_scheme),
+    correctOption: cleanText(question.correct_option).toUpperCase() || null,
+    requiresDiagram: Boolean(question.requires_diagram || normalizedImages.length),
+    images: normalizedImages,
+    syllabusRef: question.syllabus_ref ?? null,
+    reference: question.reference ?? null,
+    questionKind: "structured",
+    sourceType: "batch",
+  };
+}
+
 function normalizeDbQuestion(question: DbQuestion, index: number) {
   const fallbackParsed = parseMcqText(cleanText(question.question_text), question.options);
   const images = Array.isArray(question.images) ? question.images : [];
@@ -471,6 +571,51 @@ function sortMcqQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(ques
       a.subQuestion.localeCompare(b.subQuestion, undefined, { numeric: true })
     );
   });
+}
+
+function paperRank(paper: string) {
+  const match = paper.match(/paper[_\s-]*(\d+)/i);
+  return match ? Number.parseInt(match[1], 10) : 99;
+}
+
+function flattenBatchQuestions(batchData: BatchFile, subject: string) {
+  const rows: RawQuestion[] = [];
+  const papersByYear = batchData.papers ?? {};
+
+  for (const year of Object.keys(papersByYear).sort()) {
+    const sessions = papersByYear[year] ?? {};
+
+    for (const session of Object.keys(sessions).sort()) {
+      const papers = sessions[session] ?? {};
+
+      for (const paper of Object.keys(papers).sort((a, b) => paperRank(a) - paperRank(b) || a.localeCompare(b))) {
+        const variants = papers[paper] ?? {};
+
+        for (const variant of Object.keys(variants).sort()) {
+          const questions = Array.isArray(variants[variant]) ? variants[variant] : [];
+          const sortedQuestions = [...questions].sort((a, b) => {
+            return (
+              questionNumberValue(cleanText(a.question_number)) - questionNumberValue(cleanText(b.question_number)) ||
+              cleanText(a.question_number).localeCompare(cleanText(b.question_number), undefined, { numeric: true })
+            );
+          });
+
+          for (const question of sortedQuestions) {
+            rows.push({
+              ...question,
+              subject,
+              year,
+              session,
+              paper,
+              variant,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return rows;
 }
 
 function mergePracticeQuestions<T extends ReturnType<typeof normalizeDbQuestion>>(questions: T[]) {
@@ -690,18 +835,48 @@ async function getDbSubjectQuestions(
 }
 
 async function buildSubjectMeta(dataRoot: string, subject: string) {
-  const files = await getYearFiles(dataRoot, subject);
-  const years = [];
+  const mcqFiles = await getYearFiles(dataRoot, subject);
+  const batchFiles = await getBatchFiles(dataRoot, subject);
+  const years = new Map<string, number>();
+  const sourceYears = {
+    batch: new Map<string, number>(),
+    mcq: new Map<string, number>(),
+  };
   const topics = new Map<string, { name: string; general: string; count: number; years: Set<string>; syllabusRef: unknown }>();
   let totalQuestions = 0;
+  const sourceTotals = {
+    batch: 0,
+    mcq: 0,
+  };
   let imageQuestions = 0;
 
-  for (const file of files) {
+  for (const file of batchFiles) {
+    const data = await loadBatchFile(dataRoot, subject, file);
+    const questions = flattenBatchQuestions(data, subject);
+
+    for (const question of questions) {
+      const year = cleanText(question.year);
+      if (!year) continue;
+
+      totalQuestions += 1;
+      sourceTotals.batch += 1;
+      years.set(year, (years.get(year) ?? 0) + 1);
+      sourceYears.batch.set(year, (sourceYears.batch.get(year) ?? 0) + 1);
+
+      if (question.requires_diagram || (Array.isArray(question.images) && question.images.length > 0)) {
+        imageQuestions += 1;
+      }
+    }
+  }
+
+  for (const file of mcqFiles) {
     const year = file.replace(".json", "");
     const data = await loadYearFile(dataRoot, subject, year);
     const questions = Array.isArray(data.mcqs) ? data.mcqs : [];
     totalQuestions += questions.length;
-    years.push({ year, count: questions.length });
+    sourceTotals.mcq += questions.length;
+    years.set(year, (years.get(year) ?? 0) + questions.length);
+    sourceYears.mcq.set(year, (sourceYears.mcq.get(year) ?? 0) + questions.length);
 
     for (const question of questions) {
       const name = topicName(question);
@@ -728,10 +903,16 @@ async function buildSubjectMeta(dataRoot: string, subject: string) {
   return {
     name: subject,
     slug: slugify(subject),
-    years,
+    years: Array.from(years.entries())
+      .map(([year, count]) => ({ year, count }))
+      .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
     sourceYears: {
-      batch: [],
-      mcq: years,
+      batch: Array.from(sourceYears.batch.entries())
+        .map(([year, count]) => ({ year, count }))
+        .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
+      mcq: Array.from(sourceYears.mcq.entries())
+        .map(([year, count]) => ({ year, count }))
+        .sort((a, b) => Number.parseInt(b.year) - Number.parseInt(a.year)),
     },
     topics: Array.from(topics.values())
       .map((topic) => ({
@@ -743,10 +924,7 @@ async function buildSubjectMeta(dataRoot: string, subject: string) {
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     totalQuestions,
-    sourceTotals: {
-      batch: 0,
-      mcq: totalQuestions,
-    },
+    sourceTotals,
     imageQuestions,
   };
 }
@@ -818,6 +996,34 @@ export async function GET(request: Request) {
 
     const topic = searchParams.get("topic");
     const sourceParam = searchParams.get("source");
+    if (sourceParam === "batch") {
+      const batchFiles = await getBatchFiles(dataRoot, subject);
+      const batchQuestions: RawQuestion[] = [];
+
+      for (const file of batchFiles) {
+        const data = await loadBatchFile(dataRoot, subject, file);
+        batchQuestions.push(...flattenBatchQuestions(data, subject));
+      }
+
+      const questions = batchQuestions
+        .filter((question) => cleanText(question.year) === year)
+        .filter((question) => !topic || topic === "all" || topicName(question).toLowerCase() === topic.toLowerCase())
+        .map((question, index) => normalizeBatchQuestion(question, subject, year, index));
+      const sortedQuestions = sortPracticeQuestions(questions);
+      const topics = Array.from(
+        new Set(batchQuestions.filter((question) => cleanText(question.year) === year).map(topicName)),
+      ).sort((a, b) => a.localeCompare(b));
+
+      return NextResponse.json({
+        subject,
+        year,
+        topics,
+        questions: sortedQuestions,
+        total: sortedQuestions.length,
+        source: "local-json",
+      });
+    }
+
     const data = await loadYearFile(dataRoot, subject, year);
     const questions = (Array.isArray(data.mcqs) ? data.mcqs : [])
       .filter((question) => (!sourceParam || sourceParam === "mcq") && (!topic || topic === "all" || topicName(question).toLowerCase() === topic.toLowerCase()))
