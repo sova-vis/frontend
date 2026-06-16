@@ -107,17 +107,24 @@ const SUBJECT_ALIASES: Record<string, string> = {
   physics: "Physics",
 };
 
-function getSupabaseClient() {
+function getSupabaseClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  const keys = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  ].filter((key): key is string => Boolean(key));
 
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  if (!url || keys.length === 0) return [];
+
+  return Array.from(new Set(keys)).map((key) =>
+    createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+  );
 }
 
-type PaperPracticeSupabaseClient = NonNullable<ReturnType<typeof getSupabaseClient>>;
+type PaperPracticeSupabaseClient = ReturnType<typeof getSupabaseClients>[number];
 
 async function pathExists(candidate: string) {
   try {
@@ -931,14 +938,14 @@ async function buildSubjectMeta(dataRoot: string, subject: string) {
 
 export async function GET(request: Request) {
   try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
+    const { searchParams } = new URL(request.url);
+    const rawSubject = searchParams.get("subject");
+    const supabaseClients = getSupabaseClients();
+
+    for (const supabase of supabaseClients) {
       try {
         const dbSubjects = await buildDbMeta(supabase);
         if (dbSubjects && dbSubjects.length > 0) {
-          const { searchParams } = new URL(request.url);
-          const rawSubject = searchParams.get("subject");
-
           if (!rawSubject) {
             return NextResponse.json({ subjects: dbSubjects, source: "supabase" });
           }
@@ -969,14 +976,12 @@ export async function GET(request: Request) {
           });
         }
       } catch (dbError) {
-        console.warn("Paper practice Supabase fallback:", dbError);
+        console.warn("Paper practice Supabase client failed:", dbError);
       }
     }
 
     const dataRoot = await getDataRoot();
     const subjects = await getSubjects(dataRoot);
-    const { searchParams } = new URL(request.url);
-    const rawSubject = searchParams.get("subject");
 
     if (!rawSubject) {
       const subjectMeta = await Promise.all(subjects.map((subject) => buildSubjectMeta(dataRoot, subject)));
