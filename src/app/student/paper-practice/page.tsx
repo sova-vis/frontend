@@ -11,11 +11,12 @@ import {
   Loader2,
   RefreshCcw,
   Search,
-  X,
+  Sparkles,
   XCircle,
 } from "lucide-react";
 
 type QuestionType = "mcq" | "structured";
+type PracticeMode = "topic" | "paper";
 
 type PracticeImage = {
   role: string;
@@ -28,7 +29,6 @@ type PracticeImage = {
 };
 
 type PracticeOption = { label: string; text: string };
-
 type PracticePart = { label: string; body: string; marks: number | null; answer: string | null };
 
 type PracticeQuestion = {
@@ -50,6 +50,7 @@ type PracticeQuestion = {
   requiresDiagram: boolean;
   images: PracticeImage[];
   reference: Record<string, unknown> | null;
+  dedupGroup: string | null;
   parts: PracticePart[];
 };
 
@@ -60,10 +61,7 @@ type TypeMeta = {
   topics: { name: string; count: number }[];
 };
 
-type SubjectMeta = {
-  name: string;
-  types: { mcq: TypeMeta; structured: TypeMeta };
-};
+type SubjectMeta = { name: string; types: { mcq: TypeMeta; structured: TypeMeta } };
 
 type AvailablePaper = {
   key: string;
@@ -87,26 +85,13 @@ function questionNumberValue(value: string) {
   return match ? Number.parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
 }
 
-function sortQuestions(questions: PracticeQuestion[]) {
-  return [...questions].sort(
-    (a, b) =>
-      a.session.localeCompare(b.session, undefined, { numeric: true }) ||
-      a.paper.localeCompare(b.paper, undefined, { numeric: true }) ||
-      a.variant.localeCompare(b.variant, undefined, { numeric: true }) ||
-      questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
-      a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true }),
-  );
-}
-
 function matchesQuery(question: PracticeQuestion, trimmed: string) {
   if (!trimmed) return true;
-  return [question.questionText, question.topic, question.theme, question.session, question.paper, question.variant, question.questionNumber]
+  return [question.questionText, question.topic, question.theme, question.session, question.paper, question.variant, question.questionNumber, question.year]
     .concat(question.parts.map((part) => part.body))
     .some((value) => value.toLowerCase().includes(trimmed));
 }
 
-// ---------------------------------------------------------------------------
-// Presentational pieces
 // ---------------------------------------------------------------------------
 function QuestionImage({ image }: { image: PracticeImage }) {
   if (!image.src) return null;
@@ -277,6 +262,7 @@ function StructuredBody({
 
 function QuestionCard(props: {
   question: PracticeQuestion;
+  showYear: boolean;
   mcqAnswer?: string;
   partAnswers: Record<string, string>;
   checked: boolean;
@@ -290,6 +276,7 @@ function QuestionCard(props: {
       <div className="border-b border-[#1C1714]/[.07] p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9A8D83]">
           <span className="rounded-full bg-[#1C1714]/[.06] px-2.5 py-1 font-bold text-[#1C1714]">Q{question.questionNumber}</span>
+          {props.showYear && question.year && <span className="font-bold text-[#A8123C]">{question.year}</span>}
           {question.marks !== null && (
             <span>
               {question.marks} mark{question.marks === 1 ? "" : "s"}
@@ -323,30 +310,28 @@ export default function PaperPracticePage() {
   const [subjects, setSubjects] = useState<SubjectMeta[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [questionType, setQuestionType] = useState<QuestionType>("mcq");
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>("topic");
+
+  const [selectedTopic, setSelectedTopic] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [selectedVariant, setSelectedVariant] = useState("all");
-  const [selectedTopic, setSelectedTopic] = useState("all");
+  const [papers, setPapers] = useState<AvailablePaper[]>([]);
+  const [selectedPaperKey, setSelectedPaperKey] = useState("");
   const [query, setQuery] = useState("");
 
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
-  const [papers, setPapers] = useState<AvailablePaper[]>([]);
-  const [selectedPaperKey, setSelectedPaperKey] = useState("");
-  const [paperQuestions, setPaperQuestions] = useState<PracticeQuestion[]>([]);
-
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({});
   const [partAnswers, setPartAnswers] = useState<Record<string, string>>({});
 
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
-  const [loadingPaper, setLoadingPaper] = useState(false);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState(false);
   const [showScheme, setShowScheme] = useState(false);
 
-  // ---- load subjects metadata ------------------------------------------
+  // ---- subjects metadata ----
   useEffect(() => {
     let mounted = true;
-    async function loadMeta() {
+    (async () => {
       setLoadingMeta(true);
       setError("");
       try {
@@ -366,8 +351,7 @@ export default function PaperPracticePage() {
       } finally {
         if (mounted) setLoadingMeta(false);
       }
-    }
-    loadMeta();
+    })();
     return () => {
       mounted = false;
     };
@@ -376,123 +360,112 @@ export default function PaperPracticePage() {
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
   const currentTypeMeta = currentSubject?.types[questionType] ?? null;
   const availableYears = currentTypeMeta?.years ?? [];
-  const hasSelection = Boolean(selectedSubject && selectedYear);
-  const isPaperMode = Boolean(selectedPaperKey);
+  const availableTopics = currentTypeMeta?.topics ?? [];
 
-  // ---- load questions for the selected year ----------------------------
+  function clearQuestions() {
+    setQuestions([]);
+    setMcqAnswers({});
+    setPartAnswers({});
+    setChecked(false);
+    setShowScheme(false);
+  }
+
+  // ---- TOPIC mode: load deduped questions for subject+type+topic ----
   useEffect(() => {
-    if (!selectedSubject || !selectedYear) {
-      setQuestions([]);
-      setPapers([]);
-      setSelectedPaperKey("");
-      setPaperQuestions([]);
-      setMcqAnswers({});
-      setPartAnswers({});
-      setChecked(false);
-      return;
-    }
-
+    if (practiceMode !== "topic" || !selectedSubject || !selectedTopic) return;
     let mounted = true;
-    async function loadYear() {
+    (async () => {
       setLoadingQuestions(true);
       setError("");
-      setChecked(false);
-      setMcqAnswers({});
-      setPartAnswers({});
+      clearQuestions();
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, year: selectedYear });
-        const papersParams = new URLSearchParams({ subject: selectedSubject, type: questionType, year: selectedYear, papers: "1" });
-        const [questionsRes, papersRes] = await Promise.all([
-          fetch(`/api/paper-practice?${params.toString()}`),
-          fetch(`/api/paper-practice?${papersParams.toString()}`),
-        ]);
-        if (!questionsRes.ok) throw new Error("Could not load questions.");
-        const data = (await questionsRes.json()) as { questions: PracticeQuestion[] };
-        const papersData = papersRes.ok ? ((await papersRes.json()) as { papers: AvailablePaper[] }) : { papers: [] };
-        if (!mounted) return;
-        setQuestions(sortQuestions(data.questions ?? []));
-        setPapers(papersData.papers ?? []);
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic" });
+        const response = await fetch(`/api/paper-practice?${params.toString()}`);
+        if (!response.ok) throw new Error("Could not load topic questions.");
+        const data = (await response.json()) as { questions: PracticeQuestion[] };
+        if (mounted) setQuestions(data.questions ?? []);
       } catch (loadError) {
-        if (mounted) {
-          setQuestions([]);
-          setError(loadError instanceof Error ? loadError.message : "Could not load questions.");
-        }
+        if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load topic questions.");
       } finally {
         if (mounted) setLoadingQuestions(false);
       }
-    }
-    loadYear();
+    })();
     return () => {
       mounted = false;
     };
-  }, [questionType, selectedSubject, selectedYear]);
+  }, [practiceMode, selectedSubject, questionType, selectedTopic]);
 
-  // ---- load a whole paper via the RPC ----------------------------------
+  // ---- PAPER mode: load available papers for subject+type+year ----
   useEffect(() => {
-    if (!selectedPaperKey) {
-      setPaperQuestions([]);
+    if (practiceMode !== "paper" || !selectedSubject || !selectedYear) {
+      setPapers([]);
       return;
     }
+    let mounted = true;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, year: selectedYear, papers: "1" });
+        const response = await fetch(`/api/paper-practice?${params.toString()}`);
+        const data = response.ok ? ((await response.json()) as { papers: AvailablePaper[] }) : { papers: [] };
+        if (mounted) setPapers(data.papers ?? []);
+      } catch {
+        if (mounted) setPapers([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [practiceMode, selectedSubject, questionType, selectedYear]);
+
+  // ---- PAPER mode: load the whole selected paper via the RPC ----
+  useEffect(() => {
+    if (practiceMode !== "paper" || !selectedPaperKey) return;
     const paper = papers.find((p) => p.key === selectedPaperKey);
     if (!paper) return;
-
     let mounted = true;
-    async function loadPaper() {
-      setLoadingPaper(true);
+    (async () => {
+      setLoadingQuestions(true);
       setError("");
-      setChecked(false);
+      clearQuestions();
       try {
         const params = new URLSearchParams({
           subject: selectedSubject,
-          year: paper!.year,
-          session: paper!.session,
-          paper: paper!.paper,
-          variant: paper!.variant,
+          year: paper.year,
+          session: paper.session,
+          paper: paper.paper,
+          variant: paper.variant,
         });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load the paper.");
         const data = (await response.json()) as { questions: PracticeQuestion[] };
-        if (mounted) setPaperQuestions(sortQuestions(data.questions ?? []));
+        if (mounted) setQuestions(data.questions ?? []);
       } catch (loadError) {
-        if (mounted) {
-          setPaperQuestions([]);
-          setError(loadError instanceof Error ? loadError.message : "Could not load the paper.");
-        }
+        if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load the paper.");
       } finally {
-        if (mounted) setLoadingPaper(false);
+        if (mounted) setLoadingQuestions(false);
       }
-    }
-    loadPaper();
+    })();
     return () => {
       mounted = false;
     };
-  }, [selectedPaperKey, papers, selectedSubject]);
-
-  // ---- derived dropdown options + filtered list ------------------------
-  const availableVariants = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const q of questions) if (q.variant) map.set(q.variant, (map.get(q.variant) ?? 0) + 1);
-    return Array.from(map, ([variant, count]) => ({ variant, count })).sort((a, b) => a.variant.localeCompare(b.variant, undefined, { numeric: true }));
-  }, [questions]);
-
-  const availableTopics = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const q of questions) {
-      const name = q.topic || "Uncategorised";
-      map.set(name, (map.get(name) ?? 0) + 1);
-    }
-    return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [questions]);
+  }, [practiceMode, selectedPaperKey, papers, selectedSubject]);
 
   const displayQuestions = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
-    if (isPaperMode) return paperQuestions.filter((q) => matchesQuery(q, trimmed));
-    return questions.filter((q) => {
-      if (selectedVariant !== "all" && q.variant !== selectedVariant) return false;
-      if (selectedTopic !== "all" && (q.topic || "Uncategorised") !== selectedTopic) return false;
-      return matchesQuery(q, trimmed);
+    const filtered = questions.filter((q) => matchesQuery(q, trimmed));
+    return [...filtered].sort((a, b) => {
+      if (practiceMode === "topic") {
+        return (
+          Number.parseInt(b.year, 10) - Number.parseInt(a.year, 10) ||
+          questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber)
+        );
+      }
+      return (
+        questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
+        a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true })
+      );
     });
-  }, [isPaperMode, paperQuestions, questions, selectedVariant, selectedTopic, query]);
+  }, [questions, query, practiceMode]);
 
   const gradable = displayQuestions.filter((q) => q.type === "mcq" && q.correctOption);
   const score = gradable.filter((q) => mcqAnswers[q.id] === q.correctOption).length;
@@ -504,33 +477,41 @@ export default function PaperPracticePage() {
         : Boolean(partAnswers[`${q.id}::0`]?.trim()),
   ).length;
   const hasScheme = displayQuestions.some((q) => q.markingScheme || q.parts.some((p) => p.answer));
+
+  const ready =
+    practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
   const selectedPaper = papers.find((p) => p.key === selectedPaperKey) ?? null;
 
-  // ---- handlers --------------------------------------------------------
-  function resetFilters() {
-    setSelectedVariant("all");
-    setSelectedTopic("all");
-    setSelectedPaperKey("");
-    setQuery("");
-    setMcqAnswers({});
-    setPartAnswers({});
-    setChecked(false);
-    setShowScheme(false);
-  }
-
+  // ---- handlers ----
   function handleSubjectChange(name: string) {
     setSelectedSubject(name);
+    setSelectedTopic("");
     setSelectedYear("");
-    resetFilters();
+    setSelectedPaperKey("");
+    setQuery("");
+    clearQuestions();
   }
   function handleTypeChange(type: QuestionType) {
     setQuestionType(type);
+    setSelectedTopic("");
     setSelectedYear("");
-    resetFilters();
+    setSelectedPaperKey("");
+    setQuery("");
+    clearQuestions();
+  }
+  function handleModeChange(mode: PracticeMode) {
+    setPracticeMode(mode);
+    setSelectedTopic("");
+    setSelectedYear("");
+    setSelectedPaperKey("");
+    setQuery("");
+    clearQuestions();
   }
   function handleYearChange(year: string) {
     setSelectedYear(year);
-    resetFilters();
+    setSelectedPaperKey("");
+    setQuery("");
+    clearQuestions();
   }
   function resetPractice() {
     setMcqAnswers({});
@@ -539,9 +520,12 @@ export default function PaperPracticePage() {
     setShowScheme(false);
   }
 
-  const summary = isPaperMode
-    ? selectedPaper?.label
-    : `${selectedSubject} · ${selectedYear} · ${questionType === "mcq" ? "MCQs" : "Paper questions"}`;
+  const summary =
+    practiceMode === "topic"
+      ? `${selectedSubject} · ${questionType === "mcq" ? "MCQs" : "Paper questions"} · ${selectedTopic}`
+      : selectedPaper
+        ? `${selectedSubject} · ${selectedPaper.year} · ${selectedPaper.session.replace(/_/g, " ")} · ${selectedPaper.paper.replace(/_/g, " ")} · ${selectedPaper.variant.replace(/_/g, " ")}`
+        : `${selectedSubject} · ${selectedYear || "—"}`;
 
   return (
     <div className="min-h-full bg-[#FAF6F0] px-4 py-6 text-[#1C1714] md:px-8 md:py-8">
@@ -555,11 +539,11 @@ export default function PaperPracticePage() {
             </div>
             <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight md:text-4xl">Paper Practice</h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[#6B5F57]">
-              Choose a subject, switch between MCQs and paper questions, then filter by year, variant and topic — or load a complete past paper.
+              Practice by topic to drill every unique question across all years, or load a complete past paper exactly as it was sat.
             </p>
           </div>
 
-          {hasSelection && (
+          {ready && (
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-[#1C1714]/[.09] bg-white p-2 shadow-sm sm:min-w-[340px]">
               {[
                 { label: "Questions", value: displayQuestions.length },
@@ -591,7 +575,8 @@ export default function PaperPracticePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_210px_140px_180px_minmax(190px,1fr)_minmax(180px,1fr)]">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_200px_220px_minmax(200px,1.2fr)_minmax(180px,1fr)]">
+                {/* Subject */}
                 <label className="block">
                   <span className={labelClass}>Subject</span>
                   <select value={selectedSubject} onChange={(e) => handleSubjectChange(e.target.value)} className={selectClass}>
@@ -604,6 +589,7 @@ export default function PaperPracticePage() {
                   </select>
                 </label>
 
+                {/* Type */}
                 <div className="block">
                   <span className={labelClass}>Question Type</span>
                   <div className={cx("grid h-11 grid-cols-2 rounded-lg border border-[#1C1714]/[.12] bg-[#1C1714]/[.04] p-1", !currentSubject && "opacity-60")}>
@@ -626,65 +612,94 @@ export default function PaperPracticePage() {
                   </div>
                 </div>
 
-                <label className="block">
-                  <span className={labelClass}>Year</span>
-                  <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject} className={selectClass}>
-                    <option value="">Select year</option>
-                    {availableYears.map((year) => (
-                      <option key={year.year} value={year.year}>
-                        {year.year} ({year.count})
-                      </option>
+                {/* Mode */}
+                <div className="block">
+                  <span className={labelClass}>Practice mode</span>
+                  <div className={cx("grid h-11 grid-cols-2 rounded-lg border border-[#1C1714]/[.12] bg-[#1C1714]/[.04] p-1", !currentSubject && "opacity-60")}>
+                    {([
+                      ["topic", "By topic", Sparkles],
+                      ["paper", "Full paper", FileText],
+                    ] as const).map(([value, label, Icon]) => (
+                      <button
+                        key={value}
+                        onClick={() => handleModeChange(value)}
+                        disabled={!currentSubject}
+                        className={cx(
+                          "inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
+                          practiceMode === value ? "bg-white text-[#A8123C] shadow-sm" : "text-[#6B5F57] hover:text-[#1C1714]",
+                        )}
+                      >
+                        <Icon size={14} />
+                        {label}
+                      </button>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                </div>
 
-                <label className="block">
-                  <span className={labelClass}>Variant</span>
-                  <select
-                    value={selectedVariant}
-                    onChange={(e) => setSelectedVariant(e.target.value)}
-                    disabled={!hasSelection || loadingQuestions || isPaperMode}
-                    className={selectClass}
-                  >
-                    <option value="all">All variants</option>
-                    {availableVariants.map((v) => (
-                      <option key={v.variant} value={v.variant}>
-                        {v.variant.replace(/_/g, " ")} ({v.count})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {/* Mode-specific selector(s) */}
+                {practiceMode === "topic" ? (
+                  <label className="block">
+                    <span className={labelClass}>Topic</span>
+                    <select
+                      value={selectedTopic}
+                      onChange={(e) => setSelectedTopic(e.target.value)}
+                      disabled={!currentSubject || loadingQuestions}
+                      className={selectClass}
+                    >
+                      <option value="">Select a topic</option>
+                      {availableTopics.map((topic) => (
+                        <option key={topic.name} value={topic.name}>
+                          {topic.name} ({topic.count})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className={labelClass}>Year</span>
+                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject} className={selectClass}>
+                        <option value="">Year</option>
+                        {availableYears.map((year) => (
+                          <option key={year.year} value={year.year}>
+                            {year.year}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className={labelClass}>Paper</span>
+                      <select
+                        value={selectedPaperKey}
+                        onChange={(e) => setSelectedPaperKey(e.target.value)}
+                        disabled={!selectedYear || papers.length === 0 || loadingQuestions}
+                        className={selectClass}
+                      >
+                        <option value="">{selectedYear ? "Select paper" : "Pick year first"}</option>
+                        {papers.map((paper) => (
+                          <option key={paper.key} value={paper.key}>
+                            {paper.session.replace(/_/g, " ")} · {paper.paper.replace(/_/g, " ")} · {paper.variant.replace(/_/g, " ")} ({paper.count})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
 
-                <label className="block">
-                  <span className={labelClass}>Topic</span>
-                  <select
-                    value={selectedTopic}
-                    onChange={(e) => setSelectedTopic(e.target.value)}
-                    disabled={!hasSelection || loadingQuestions || isPaperMode}
-                    className={selectClass}
-                  >
-                    <option value="all">All topics ({questions.length})</option>
-                    {availableTopics.map((topic) => (
-                      <option key={topic.name} value={topic.name}>
-                        {topic.name} ({topic.count})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
+                {/* Search */}
                 <label className="block">
                   <span className={labelClass}>Find</span>
                   <div
                     className={cx(
                       "flex h-11 items-center gap-2 rounded-lg border border-[#1C1714]/[.14] bg-white px-3 transition focus-within:border-[#A8123C] focus-within:ring-2 focus-within:ring-[#A8123C]/15",
-                      (!hasSelection || loadingQuestions) && "bg-[#1C1714]/[.03]",
+                      (!ready || loadingQuestions) && "bg-[#1C1714]/[.03]",
                     )}
                   >
                     <Search size={16} className="text-[#9A8D83]" />
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      disabled={!hasSelection || loadingQuestions}
+                      disabled={!ready || loadingQuestions}
                       placeholder="Search questions"
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#33291F] outline-none disabled:cursor-not-allowed disabled:text-[#9A8D83]"
                     />
@@ -692,45 +707,15 @@ export default function PaperPracticePage() {
                 </label>
               </div>
 
-              {/* Full-paper picker */}
-              {hasSelection && papers.length > 0 && (
-                <div className="flex flex-col gap-2 rounded-lg border border-[#1C1714]/[.08] bg-[#FAF6F0]/70 p-3 sm:flex-row sm:items-center">
-                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-[#9A8D83]">
-                    <Layers size={15} />
-                    Full paper
-                  </div>
-                  <select
-                    value={selectedPaperKey}
-                    onChange={(e) => setSelectedPaperKey(e.target.value)}
-                    disabled={loadingPaper}
-                    className="h-10 flex-1 rounded-lg border border-[#1C1714]/[.14] bg-white px-3 text-sm font-semibold text-[#33291F] outline-none transition focus:border-[#A8123C] focus:ring-2 focus:ring-[#A8123C]/15"
-                  >
-                    <option value="">Browse by filters (no full paper)</option>
-                    {papers.map((paper) => (
-                      <option key={paper.key} value={paper.key}>
-                        {paper.label} ({paper.count})
-                      </option>
-                    ))}
-                  </select>
-                  {isPaperMode && (
-                    <button
-                      onClick={() => setSelectedPaperKey("")}
-                      className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#1C1714]/[.12] px-3 text-sm font-bold text-[#6B5F57] transition hover:bg-[#1C1714]/[.04]"
-                    >
-                      <X size={15} /> Exit paper
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {hasSelection && (
+              {ready && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1C1714]/[.07] pt-4">
                   <p className="flex items-center gap-2 text-sm font-semibold text-[#6B5F57]">
-                    {isPaperMode && <FileText size={15} className="text-[#A8123C]" />}
+                    {practiceMode === "topic" ? <Sparkles size={15} className="text-[#A8123C]" /> : <FileText size={15} className="text-[#A8123C]" />}
                     {summary}
                     {displayQuestions.length > 0 && (
                       <span className="text-[#9A8D83]">
-                        · {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}
+                        · {displayQuestions.length} {practiceMode === "topic" ? "unique " : ""}question{displayQuestions.length === 1 ? "" : "s"}
+                        {practiceMode === "topic" && " across all years"}
                       </span>
                     )}
                   </p>
@@ -773,35 +758,48 @@ export default function PaperPracticePage() {
 
         {/* Questions */}
         <section className="space-y-4">
-          {loadingQuestions || loadingPaper ? (
+          {loadingQuestions ? (
             <div className="flex min-h-[340px] items-center justify-center rounded-lg border border-[#1C1714]/[.09] bg-white text-sm font-semibold text-[#9A8D83] shadow-sm">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {loadingPaper ? "Loading paper..." : "Loading questions..."}
+              Loading questions...
             </div>
-          ) : !hasSelection ? (
+          ) : !ready ? (
             <div className="rounded-lg border border-dashed border-[#1C1714]/[.18] bg-white p-10 text-center shadow-sm">
               <FileQuestion className="mx-auto h-10 w-10 text-[#C9BDB2]" />
               <h2 className="mt-3 font-display text-lg font-semibold">Nothing selected yet</h2>
-              <p className="mt-1 text-sm text-[#6B5F57]">Pick a subject, question type and year to begin.</p>
+              <p className="mt-1 text-sm text-[#6B5F57]">
+                {practiceMode === "topic"
+                  ? "Pick a subject, question type and topic to start drilling."
+                  : "Pick a subject, year and a paper to load the full paper."}
+              </p>
             </div>
           ) : displayQuestions.length > 0 ? (
-            displayQuestions.map((question) => (
-              <QuestionCard
-                key={question.id}
-                question={question}
-                mcqAnswer={mcqAnswers[question.id]}
-                partAnswers={partAnswers}
-                checked={checked}
-                showScheme={showScheme}
-                onMcqAnswer={(value) => setMcqAnswers((current) => ({ ...current, [question.id]: value }))}
-                onPartAnswer={(partKey, value) => setPartAnswers((current) => ({ ...current, [partKey]: value }))}
-              />
-            ))
+            <>
+              {practiceMode === "topic" && (
+                <div className="flex items-center gap-2 rounded-lg border border-[#1C1714]/[.08] bg-white px-4 py-2.5 text-xs font-semibold text-[#6B5F57] shadow-sm">
+                  <Layers size={14} className="text-[#A8123C]" />
+                  Deduplicated — each unique question is shown once, even if it appeared in several years or variants.
+                </div>
+              )}
+              {displayQuestions.map((question) => (
+                <QuestionCard
+                  key={question.id}
+                  question={question}
+                  showYear={practiceMode === "topic"}
+                  mcqAnswer={mcqAnswers[question.id]}
+                  partAnswers={partAnswers}
+                  checked={checked}
+                  showScheme={showScheme}
+                  onMcqAnswer={(value) => setMcqAnswers((current) => ({ ...current, [question.id]: value }))}
+                  onPartAnswer={(partKey, value) => setPartAnswers((current) => ({ ...current, [partKey]: value }))}
+                />
+              ))}
+            </>
           ) : (
             <div className="rounded-lg border border-[#1C1714]/[.09] bg-white p-10 text-center shadow-sm">
               <FileQuestion className="mx-auto h-10 w-10 text-[#C9BDB2]" />
               <h2 className="mt-3 font-display text-lg font-semibold">No questions found</h2>
-              <p className="mt-1 text-sm text-[#6B5F57]">Try another variant, topic, or search term.</p>
+              <p className="mt-1 text-sm text-[#6B5F57]">Try another topic, paper, or search term.</p>
             </div>
           )}
         </section>
