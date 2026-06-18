@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
+// Next.js patches global fetch with an on-disk Data Cache. supabase-js uses fetch,
+// so without this every query would be cached and serve stale rows after a re-ingest.
+const noStoreFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: "no-store" });
 
 /**
  * Paper Practice API — schema v2 (subject-agnostic).
@@ -73,7 +78,11 @@ type DbQuestion = {
   requires_diagram: boolean;
   images: DbImage[] | null;
   reference: Record<string, unknown> | null;
+  dedup_group: string | null;
 };
+
+const QUESTION_COLUMNS =
+  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,dedup_group";
 
 function getSupabaseClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -86,7 +95,10 @@ function getSupabaseClients() {
   if (!url || keys.length === 0) return [];
 
   return Array.from(new Set(keys)).map((key) =>
-    createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }),
+    createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: noStoreFetch },
+    }),
   );
 }
 
@@ -257,6 +269,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
     requiresDiagram: Boolean(question.requires_diagram),
     images: normalizeImages(question.images, question.question_number),
     reference: question.reference ?? null,
+    dedupGroup: question.dedup_group ?? null,
     parts: parts
       .slice()
       .sort((a, b) => a.order_index - b.order_index)
@@ -269,6 +282,28 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
   };
 }
 
+// Fetch + fold in parts for any set of structured questions, then normalize.
+async function withParts(supabase: SupabaseClient, questions: DbQuestion[]) {
+  const partsByUid = new Map<string, DbPart[]>();
+  const structuredUids = questions.filter((q) => q.type === "structured").map((q) => q.id);
+
+  if (structuredUids.length > 0) {
+    const { data: partData, error: partError } = await supabase
+      .from("question_parts")
+      .select("question_uid,label,order_index,body,marks,answer")
+      .in("question_uid", structuredUids)
+      .order("order_index", { ascending: true });
+    if (partError) throw partError;
+    for (const part of (partData ?? []) as DbPart[]) {
+      const list = partsByUid.get(part.question_uid) ?? [];
+      list.push(part);
+      partsByUid.set(part.question_uid, list);
+    }
+  }
+
+  return questions.map((question) => normalizeQuestion(question, partsByUid.get(question.id) ?? []));
+}
+
 async function fetchQuestions(
   supabase: SupabaseClient,
   subject: string,
@@ -279,9 +314,7 @@ async function fetchQuestions(
 ) {
   let query = supabase
     .from("questions")
-    .select(
-      "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference",
-    )
+    .select(QUESTION_COLUMNS)
     .ilike("subject", subject)
     .eq("type", type)
     .eq("exam_year", year)
@@ -296,26 +329,36 @@ async function fetchQuestions(
   const { data, error } = await query;
   if (error) throw error;
 
-  const questions = (data ?? []) as DbQuestion[];
+  return withParts(supabase, (data ?? []) as DbQuestion[]);
+}
 
-  // Fold in parts for structured questions.
-  const partsByUid = new Map<string, DbPart[]>();
-  if (type === "structured" && questions.length > 0) {
-    const uids = questions.map((q) => q.id);
-    const { data: partData, error: partError } = await supabase
-      .from("question_parts")
-      .select("question_uid,label,order_index,body,marks,answer")
-      .in("question_uid", uids)
-      .order("order_index", { ascending: true });
-    if (partError) throw partError;
-    for (const part of (partData ?? []) as DbPart[]) {
-      const list = partsByUid.get(part.question_uid) ?? [];
-      list.push(part);
-      partsByUid.set(part.question_uid, list);
-    }
+// Topic view: every UNIQUE question for a subject+type+topic across ALL years,
+// deduped on dedup_group (keeps the most recent year's copy as representative).
+async function fetchTopicQuestions(supabase: SupabaseClient, subject: string, type: QuestionType, topic: string) {
+  let query = supabase
+    .from("questions")
+    .select(QUESTION_COLUMNS)
+    .ilike("subject", subject)
+    .eq("type", type)
+    .order("exam_year", { ascending: false })
+    .order("question_number", { ascending: true })
+    .range(0, 9999);
+
+  if (topic && topic.toLowerCase() !== "all") query = query.eq("topic", topic);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const unique: DbQuestion[] = [];
+  for (const row of (data ?? []) as DbQuestion[]) {
+    const key = row.dedup_group || row.question_id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
   }
 
-  return questions.map((question) => normalizeQuestion(question, partsByUid.get(question.id) ?? []));
+  return withParts(supabase, unique);
 }
 
 // ---------------------------------------------------------------------------
@@ -396,6 +439,7 @@ export async function GET(request: Request) {
   const session = searchParams.get("session");
   const paper = searchParams.get("paper");
   const wantPapers = searchParams.get("papers") === "1";
+  const mode = searchParams.get("mode");
   const validYear = yearParam && /^\d{4}$/.test(yearParam) ? Number.parseInt(yearParam, 10) : null;
 
   let lastError: unknown = null;
@@ -418,6 +462,19 @@ export async function GET(request: Request) {
       if (wantPapers) {
         const papers = await fetchAvailablePapers(supabase, subjectMeta.name, typeParam, validYear);
         return NextResponse.json({ subject: subjectMeta.name, papers });
+      }
+
+      // Topic practice: unique questions for a topic across all years (deduped).
+      if (mode === "topic" && typeParam && topic) {
+        const questions = await fetchTopicQuestions(supabase, subjectMeta.name, typeParam, topic);
+        return NextResponse.json({
+          subject: subjectMeta.name,
+          type: typeParam,
+          topic,
+          questions,
+          total: questions.length,
+          mode: "topic",
+        });
       }
 
       // Whole paper via the fetch_paper RPC.
