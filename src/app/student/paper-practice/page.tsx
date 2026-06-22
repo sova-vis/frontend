@@ -75,6 +75,7 @@ type AvailablePaper = {
 };
 
 const preferredSubjects = ["Physics", "Chemistry", "Mathematics"];
+const TOPIC_PAGE = 24;
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -91,6 +92,11 @@ function matchesQuery(question: PracticeQuestion, trimmed: string) {
     .concat(question.parts.map((part) => part.body))
     .some((value) => value.toLowerCase().includes(trimmed));
 }
+
+// Mark-scheme answers can be images (e.g. Mathematics answer_image). Keep those
+// behind the reveal toggle; everything else is part of the question itself.
+const questionImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role !== "answer");
+const answerImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role === "answer");
 
 // ---------------------------------------------------------------------------
 function QuestionImage({ image }: { image: PracticeImage }) {
@@ -124,9 +130,9 @@ function McqBody({
     <div className="space-y-4 p-4 sm:p-5">
       <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>
 
-      {question.images.length > 0 && (
+      {questionImagesOf(question.images).length > 0 && (
         <div className="space-y-3">
-          {question.images.map((image, index) => (
+          {questionImagesOf(question.images).map((image, index) => (
             <QuestionImage key={`${question.id}-img-${index}`} image={image} />
           ))}
         </div>
@@ -210,9 +216,9 @@ function StructuredBody({
     <div className="space-y-4 p-4 sm:p-5">
       {question.questionText && <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>}
 
-      {question.images.length > 0 && (
+      {questionImagesOf(question.images).length > 0 && (
         <div className="space-y-3">
-          {question.images.map((image, index) => (
+          {questionImagesOf(question.images).map((image, index) => (
             <QuestionImage key={`${question.id}-img-${index}`} image={image} />
           ))}
         </div>
@@ -255,6 +261,15 @@ function StructuredBody({
 
       {showScheme && question.markingScheme && (
         <div className="rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-3 text-sm leading-6 text-[#6F4A14]">{question.markingScheme}</div>
+      )}
+
+      {showScheme && answerImagesOf(question.images).length > 0 && (
+        <div className="space-y-2 rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-3">
+          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[#8A4F12]">Mark scheme</p>
+          {answerImagesOf(question.images).map((image, index) => (
+            <QuestionImage key={`${question.id}-ans-${index}`} image={image} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -322,8 +337,10 @@ export default function PaperPracticePage() {
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({});
   const [partAnswers, setPartAnswers] = useState<Record<string, string>>({});
 
+  const [topicTotal, setTopicTotal] = useState(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState(false);
   const [showScheme, setShowScheme] = useState(false);
@@ -370,7 +387,7 @@ export default function PaperPracticePage() {
     setShowScheme(false);
   }
 
-  // ---- TOPIC mode: load deduped questions for subject+type+topic ----
+  // ---- TOPIC mode: load first page of deduped questions (paginated) ----
   useEffect(() => {
     if (practiceMode !== "topic" || !selectedSubject || !selectedTopic) return;
     let mounted = true;
@@ -378,12 +395,23 @@ export default function PaperPracticePage() {
       setLoadingQuestions(true);
       setError("");
       clearQuestions();
+      setTopicTotal(0);
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic" });
+        const params = new URLSearchParams({
+          subject: selectedSubject,
+          type: questionType,
+          topic: selectedTopic,
+          mode: "topic",
+          limit: String(TOPIC_PAGE),
+          offset: "0",
+        });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load topic questions.");
-        const data = (await response.json()) as { questions: PracticeQuestion[] };
-        if (mounted) setQuestions(data.questions ?? []);
+        const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
+        if (mounted) {
+          setQuestions(data.questions ?? []);
+          setTopicTotal(data.total ?? 0);
+        }
       } catch (loadError) {
         if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load topic questions.");
       } finally {
@@ -394,6 +422,30 @@ export default function PaperPracticePage() {
       mounted = false;
     };
   }, [practiceMode, selectedSubject, questionType, selectedTopic]);
+
+  async function loadMoreTopic() {
+    setLoadingMore(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        subject: selectedSubject,
+        type: questionType,
+        topic: selectedTopic,
+        mode: "topic",
+        limit: String(TOPIC_PAGE),
+        offset: String(questions.length),
+      });
+      const response = await fetch(`/api/paper-practice?${params.toString()}`);
+      if (!response.ok) throw new Error("Could not load more questions.");
+      const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
+      setQuestions((prev) => [...prev, ...(data.questions ?? [])]);
+      setTopicTotal((prev) => data.total ?? prev);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Could not load more questions.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   // ---- PAPER mode: load available papers for subject+type+year ----
   useEffect(() => {
@@ -476,7 +528,9 @@ export default function PaperPracticePage() {
         ? q.parts.some((_, index) => Boolean(partAnswers[`${q.id}::${index}`]?.trim()))
         : Boolean(partAnswers[`${q.id}::0`]?.trim()),
   ).length;
-  const hasScheme = displayQuestions.some((q) => q.markingScheme || q.parts.some((p) => p.answer));
+  const hasScheme = displayQuestions.some(
+    (q) => q.markingScheme || q.parts.some((p) => p.answer) || q.images.some((i) => i.role === "answer"),
+  );
 
   const ready =
     practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
@@ -546,7 +600,7 @@ export default function PaperPracticePage() {
           {ready && (
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-[#1C1714]/[.09] bg-white p-2 shadow-sm sm:min-w-[340px]">
               {[
-                { label: "Questions", value: displayQuestions.length },
+                { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
                 { label: "Answered", value: answeredCount },
                 { label: "Score", value: questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—" },
               ].map((stat) => (
@@ -712,12 +766,17 @@ export default function PaperPracticePage() {
                   <p className="flex items-center gap-2 text-sm font-semibold text-[#6B5F57]">
                     {practiceMode === "topic" ? <Sparkles size={15} className="text-[#A8123C]" /> : <FileText size={15} className="text-[#A8123C]" />}
                     {summary}
-                    {displayQuestions.length > 0 && (
-                      <span className="text-[#9A8D83]">
-                        · {displayQuestions.length} {practiceMode === "topic" ? "unique " : ""}question{displayQuestions.length === 1 ? "" : "s"}
-                        {practiceMode === "topic" && " across all years"}
-                      </span>
-                    )}
+                    {practiceMode === "topic"
+                      ? topicTotal > 0 && (
+                          <span className="text-[#9A8D83]">
+                            · {displayQuestions.length} of {topicTotal} unique question{topicTotal === 1 ? "" : "s"} across all years
+                          </span>
+                        )
+                      : displayQuestions.length > 0 && (
+                          <span className="text-[#9A8D83]">
+                            · {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}
+                          </span>
+                        )}
                   </p>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -794,6 +853,22 @@ export default function PaperPracticePage() {
                   onPartAnswer={(partKey, value) => setPartAnswers((current) => ({ ...current, [partKey]: value }))}
                 />
               ))}
+
+              {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
+                <button
+                  onClick={loadMoreTopic}
+                  disabled={loadingMore}
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-[#1C1714]/[.12] bg-white text-sm font-bold text-[#A8123C] shadow-sm transition hover:bg-[#F6E1E7]/40 disabled:cursor-not-allowed disabled:text-[#9A8D83]"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                    </>
+                  ) : (
+                    `Load more (${questions.length} of ${topicTotal})`
+                  )}
+                </button>
+              )}
             </>
           ) : (
             <div className="rounded-lg border border-[#1C1714]/[.09] bg-white p-10 text-center shadow-sm">

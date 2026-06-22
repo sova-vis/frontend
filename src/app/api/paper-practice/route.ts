@@ -334,31 +334,58 @@ async function fetchQuestions(
 
 // Topic view: every UNIQUE question for a subject+type+topic across ALL years,
 // deduped on dedup_group (keeps the most recent year's copy as representative).
-async function fetchTopicQuestions(supabase: SupabaseClient, subject: string, type: QuestionType, topic: string) {
-  let query = supabase
+//
+// Two-phase to stay under the DB statement timeout: image-heavy subjects (e.g.
+// Mathematics carries a question image + an answer image per question) blow the
+// timeout if every matching row's base64 is read just to be deduped away. So we
+// first scan lightweight columns to choose representatives, then fetch the full
+// rows (with images) only for those, in chunks.
+async function fetchTopicQuestions(
+  supabase: SupabaseClient,
+  subject: string,
+  type: QuestionType,
+  topic: string,
+  limit: number,
+  offset: number,
+) {
+  let scan = supabase
     .from("questions")
-    .select(QUESTION_COLUMNS)
+    .select("id,dedup_group,question_id,exam_year,question_number")
     .ilike("subject", subject)
     .eq("type", type)
     .order("exam_year", { ascending: false })
     .order("question_number", { ascending: true })
     .range(0, 9999);
 
-  if (topic && topic.toLowerCase() !== "all") query = query.eq("topic", topic);
+  if (topic && topic.toLowerCase() !== "all") scan = scan.eq("topic", topic);
 
-  const { data, error } = await query;
-  if (error) throw error;
+  const { data: lite, error: scanError } = await scan;
+  if (scanError) throw scanError;
 
   const seen = new Set<string>();
-  const unique: DbQuestion[] = [];
-  for (const row of (data ?? []) as DbQuestion[]) {
+  const repIds: string[] = [];
+  for (const row of (lite ?? []) as Array<{ id: string; dedup_group: string | null; question_id: string }>) {
     const key = row.dedup_group || row.question_id;
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push(row);
+    repIds.push(row.id);
   }
 
-  return withParts(supabase, unique);
+  const total = repIds.length;
+  const pageIds = repIds.slice(offset, offset + limit);
+  if (pageIds.length === 0) return { questions: [], total };
+
+  const rank = new Map(pageIds.map((id, index) => [id, index]));
+  const chunkSize = 40;
+  const rows: DbQuestion[] = [];
+  for (let i = 0; i < pageIds.length; i += chunkSize) {
+    const { data, error } = await supabase.from("questions").select(QUESTION_COLUMNS).in("id", pageIds.slice(i, i + chunkSize));
+    if (error) throw error;
+    rows.push(...((data ?? []) as DbQuestion[]));
+  }
+
+  rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+  return { questions: await withParts(supabase, rows), total };
 }
 
 // ---------------------------------------------------------------------------
@@ -446,73 +473,63 @@ export async function GET(request: Request) {
 
   for (const supabase of supabaseClients) {
     try {
-      const metaRows = await fetchMetaRows(supabase);
-      const subjects = buildSubjectMeta(metaRows);
+      // ---- Data requests: resolve via ilike, skipping the full metadata scan.
+      // The frontend always sends the canonical subject name from the subject list.
+      if (rawSubject) {
+        // Available-papers picker (available_papers view).
+        if (wantPapers) {
+          const papers = await fetchAvailablePapers(supabase, rawSubject, typeParam, validYear);
+          return NextResponse.json({ subject: rawSubject, papers });
+        }
 
+        // Topic practice: unique questions for a topic across all years (deduped,
+        // paginated so image-heavy subjects stay fast).
+        if (mode === "topic" && typeParam && topic) {
+          const limit = Math.min(Math.max(Number.parseInt(searchParams.get("limit") || "24", 10) || 24, 1), 60);
+          const offset = Math.max(Number.parseInt(searchParams.get("offset") || "0", 10) || 0, 0);
+          const { questions, total } = await fetchTopicQuestions(supabase, rawSubject, typeParam, topic, limit, offset);
+          return NextResponse.json({ subject: rawSubject, type: typeParam, topic, questions, total, offset, limit, mode: "topic" });
+        }
+
+        // Whole paper via the fetch_paper RPC.
+        if (validYear && session && paper) {
+          const questions = await fetchWholePaper(
+            supabase,
+            rawSubject,
+            validYear,
+            session,
+            paper,
+            variant && variant.toLowerCase() !== "all" ? variant : "",
+          );
+          return NextResponse.json({
+            subject: rawSubject,
+            year: yearParam,
+            session,
+            paper,
+            variant,
+            questions,
+            total: questions.length,
+            mode: "paper",
+          });
+        }
+
+        // Year + type browse (still available; the two-mode UI uses topic/paper).
+        if (typeParam && validYear) {
+          const questions = await fetchQuestions(supabase, rawSubject, typeParam, validYear, variant, topic);
+          return NextResponse.json({ subject: rawSubject, type: typeParam, year: yearParam, questions, total: questions.length });
+        }
+      }
+
+      // ---- Metadata requests: aggregate the whole bank (subjects list / dropdowns).
+      const subjects = buildSubjectMeta(await fetchMetaRows(supabase));
       if (!rawSubject) {
         return NextResponse.json({ subjects });
       }
-
       const subjectMeta = subjects.find((s) => s.name.toLowerCase() === rawSubject.toLowerCase());
       if (!subjectMeta) {
         return NextResponse.json({ error: "Subject not found." }, { status: 404 });
       }
-
-      // Available-papers picker (available_papers view).
-      if (wantPapers) {
-        const papers = await fetchAvailablePapers(supabase, subjectMeta.name, typeParam, validYear);
-        return NextResponse.json({ subject: subjectMeta.name, papers });
-      }
-
-      // Topic practice: unique questions for a topic across all years (deduped).
-      if (mode === "topic" && typeParam && topic) {
-        const questions = await fetchTopicQuestions(supabase, subjectMeta.name, typeParam, topic);
-        return NextResponse.json({
-          subject: subjectMeta.name,
-          type: typeParam,
-          topic,
-          questions,
-          total: questions.length,
-          mode: "topic",
-        });
-      }
-
-      // Whole paper via the fetch_paper RPC.
-      if (validYear && session && paper) {
-        const questions = await fetchWholePaper(
-          supabase,
-          subjectMeta.name,
-          validYear,
-          session,
-          paper,
-          variant && variant.toLowerCase() !== "all" ? variant : "",
-        );
-        return NextResponse.json({
-          subject: subjectMeta.name,
-          year: yearParam,
-          session,
-          paper,
-          variant,
-          questions,
-          total: questions.length,
-          mode: "paper",
-        });
-      }
-
-      // Metadata only (drives Type/Year dropdowns) when no type+year requested.
-      if (!typeParam || !validYear) {
-        return NextResponse.json({ subject: subjectMeta });
-      }
-
-      const questions = await fetchQuestions(supabase, subjectMeta.name, typeParam, validYear, variant, topic);
-
-      return NextResponse.json({
-        subject: subjectMeta.name,
-        type: typeParam,
-        year: yearParam,
-        questions,
-        total: questions.length,
-      });
+      return NextResponse.json({ subject: subjectMeta });
     } catch (error) {
       lastError = error;
       console.warn("Paper practice Supabase client failed:", error);
