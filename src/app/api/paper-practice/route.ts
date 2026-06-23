@@ -78,11 +78,12 @@ type DbQuestion = {
   requires_diagram: boolean;
   images: DbImage[] | null;
   reference: Record<string, unknown> | null;
+  source_note: string | null;
   dedup_group: string | null;
 };
 
 const QUESTION_COLUMNS =
-  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,dedup_group";
+  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,source_note,dedup_group";
 
 function getSupabaseClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -269,6 +270,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
     requiresDiagram: Boolean(question.requires_diagram),
     images: normalizeImages(question.images, question.question_number),
     reference: question.reference ?? null,
+    sourceNote: cleanText(question.source_note) || null,
     dedupGroup: question.dedup_group ?? null,
     parts: parts
       .slice()

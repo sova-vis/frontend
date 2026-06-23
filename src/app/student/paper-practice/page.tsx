@@ -50,6 +50,7 @@ type PracticeQuestion = {
   requiresDiagram: boolean;
   images: PracticeImage[];
   reference: Record<string, unknown> | null;
+  sourceNote: string | null;
   dedupGroup: string | null;
   parts: PracticePart[];
 };
@@ -98,6 +99,13 @@ function matchesQuery(question: PracticeQuestion, trimmed: string) {
 const questionImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role !== "answer");
 const answerImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role === "answer");
 
+function SourceNote({ note }: { note: string | null }) {
+  if (!note) return null;
+  return (
+    <p className="rounded-md border border-[#1C1714]/[.08] bg-[#FAF6F0] px-3 py-2 text-xs italic leading-5 text-[#9A8D83]">{note}</p>
+  );
+}
+
 // ---------------------------------------------------------------------------
 function QuestionImage({ image }: { image: PracticeImage }) {
   if (!image.src) return null;
@@ -129,6 +137,7 @@ function McqBody({
   return (
     <div className="space-y-4 p-4 sm:p-5">
       <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>
+      <SourceNote note={question.sourceNote} />
 
       {questionImagesOf(question.images).length > 0 && (
         <div className="space-y-3">
@@ -215,6 +224,7 @@ function StructuredBody({
   return (
     <div className="space-y-4 p-4 sm:p-5">
       {question.questionText && <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>}
+      <SourceNote note={question.sourceNote} />
 
       {questionImagesOf(question.images).length > 0 && (
         <div className="space-y-3">
