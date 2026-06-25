@@ -30,6 +30,12 @@ type PracticeImage = {
 
 type PracticeOption = { label: string; text: string };
 type PracticePart = { label: string; body: string; marks: number | null; answer: string | null };
+type PracticeSource = {
+  label: string | null;
+  reference: string | null;
+  translation: string | null;
+  image: { src: string; width: number | null; height: number | null } | null;
+};
 
 type PracticeQuestion = {
   id: string;
@@ -50,6 +56,7 @@ type PracticeQuestion = {
   requiresDiagram: boolean;
   images: PracticeImage[];
   reference: Record<string, unknown> | null;
+  sources: PracticeSource[];
   sourceNote: string | null;
   dedupGroup: string | null;
   parts: PracticePart[];
@@ -106,6 +113,33 @@ function SourceNote({ note }: { note: string | null }) {
   );
 }
 
+// Read-only passages/sources (e.g. Islamiyat ayats): each Arabic-text image is
+// shown together with its translation. These are part of the question — no answer box.
+function Passages({ sources }: { sources: PracticeSource[] }) {
+  if (!sources.length) return null;
+  return (
+    <div className="space-y-3">
+      {sources.map((source, index) => (
+        <figure key={index} className="rounded-lg border border-[#1C1714]/[.1] bg-[#FAF6F0]/70 p-3">
+          {(source.label || source.reference) && (
+            <figcaption className="flex flex-wrap items-baseline gap-2 text-xs font-bold text-[#A8123C]">
+              {source.label && <span>{source.label}</span>}
+              {source.reference && <span className="font-semibold text-[#9A8D83]">{source.reference}</span>}
+            </figcaption>
+          )}
+          {source.image?.src && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={source.image.src} alt={source.label || "passage"} className="mx-auto mt-2 max-h-[300px] w-full max-w-2xl object-contain" loading="lazy" />
+          )}
+          {source.translation && (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#33291F]">{source.translation}</p>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 function QuestionImage({ image }: { image: PracticeImage }) {
   if (!image.src) return null;
@@ -138,6 +172,7 @@ function McqBody({
     <div className="space-y-4 p-4 sm:p-5">
       <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>
       <SourceNote note={question.sourceNote} />
+      <Passages sources={question.sources} />
 
       {questionImagesOf(question.images).length > 0 && (
         <div className="space-y-3">
@@ -233,6 +268,8 @@ function StructuredBody({
           ))}
         </div>
       )}
+
+      <Passages sources={question.sources} />
 
       {question.parts.length > 0 ? (
         <div className="space-y-4">

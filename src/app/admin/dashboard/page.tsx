@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Reveal } from "@/components/ui/Motion";
 
 export default function AdminDashboard() {
   type AdminView = "overview" | "teacher-accounts" | "users" | "meetings";
@@ -169,24 +170,25 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-white dark:from-slate-950 dark:to-black px-4 py-10 md:px-8">
+    <div className="min-h-screen bg-paper px-4 py-10 md:px-8">
       <div className="w-full max-w-7xl mx-auto space-y-8">
-        <header className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur p-5 md:p-8 shadow-xl">
+        <Reveal>
+        <header className="ed-card p-5 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="inline-flex items-center justify-center p-3 bg-red-100 dark:bg-red-950 rounded-2xl">
-                <Shield size={30} className="text-red-600" />
+              <div className="inline-flex items-center justify-center p-3 bg-crimson-soft rounded-2xl">
+                <Shield size={30} className="text-crimson-ink" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-display">Admin Control Center</h1>
-                <p className="text-slate-500 dark:text-slate-400">Teachers, user profiles, and full meeting records</p>
+                <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">Admin Control Center</h1>
+                <p className="text-ink-muted">Teachers, user profiles, and full meeting records</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <ThemeToggle />
               <button
                 onClick={() => void signOut()}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
+                className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft"
               >
                 <LogOut size={15} />
                 Logout
@@ -200,8 +202,8 @@ export default function AdminDashboard() {
               onClick={() => setActiveView("overview")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
                 activeView === "overview"
-                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
-                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
               }`}
             >
               Overview
@@ -211,8 +213,8 @@ export default function AdminDashboard() {
               onClick={() => setActiveView("teacher-accounts")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
                 activeView === "teacher-accounts"
-                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
-                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
               }`}
             >
               Teacher Accounts
@@ -222,8 +224,8 @@ export default function AdminDashboard() {
               onClick={() => setActiveView("users")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
                 activeView === "users"
-                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
-                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
               }`}
             >
               Users
@@ -233,69 +235,72 @@ export default function AdminDashboard() {
               onClick={() => setActiveView("meetings")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
                 activeView === "meetings"
-                  ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100"
-                  : "bg-white text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
               }`}
             >
               Meetings
             </button>
           </div>
         </header>
+        </Reveal>
 
         {activeView === "overview" && (
-          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Overview</h3>
-            <p className="text-sm text-slate-500 mb-4">Quick summary of your admin workspace.</p>
+          <Reveal>
+          <section className="ed-card p-6">
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1">Overview</h3>
+            <p className="text-sm text-ink-muted mb-4">Quick summary of your admin workspace.</p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                <p className="text-xs uppercase text-slate-500">Total Users</p>
-                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{users.length}</p>
+              <div className="rounded-xl border border-line bg-surface-soft p-3">
+                <p className="ed-label">Total Users</p>
+                <p className="font-display text-2xl font-semibold text-ink">{users.length}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                <p className="text-xs uppercase text-slate-500">Teachers</p>
-                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{teachers.length}</p>
+              <div className="rounded-xl border border-line bg-surface-soft p-3">
+                <p className="ed-label">Teachers</p>
+                <p className="font-display text-2xl font-semibold text-ink">{teachers.length}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                <p className="text-xs uppercase text-slate-500">Students</p>
-                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{students.length}</p>
+              <div className="rounded-xl border border-line bg-surface-soft p-3">
+                <p className="ed-label">Students</p>
+                <p className="font-display text-2xl font-semibold text-ink">{students.length}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-                <p className="text-xs uppercase text-slate-500">Confirmed Meetings</p>
-                <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{confirmedMeetings.length}</p>
+              <div className="rounded-xl border border-line bg-surface-soft p-3">
+                <p className="ed-label">Confirmed Meetings</p>
+                <p className="font-display text-2xl font-semibold text-ink">{confirmedMeetings.length}</p>
               </div>
             </div>
           </section>
+          </Reveal>
         )}
 
-        {activeView === "teacher-accounts" && <div className="space-y-6">
+        {activeView === "teacher-accounts" && <Reveal><div className="space-y-6">
           <div className="grid xl:grid-cols-2 gap-6">
-          <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                <UserPlus size={24} className="text-primary" />
+          <section className="ed-card overflow-hidden">
+            <div className="p-6 border-b border-line">
+              <h2 className="font-display text-xl font-semibold tracking-tight flex items-center gap-2 text-ink">
+                <UserPlus size={24} className="text-crimson" />
                 Create Teacher Account
               </h2>
-              <p className="text-sm text-slate-500 mt-1">Creates Clerk user + Supabase profile + teacher role metadata.</p>
+              <p className="text-sm text-ink-muted mt-1">Creates Clerk user + Supabase profile + teacher role metadata.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
               {status === "success" && (
-                <div className="p-3 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 rounded-xl flex items-center gap-2 text-sm font-medium">
+                <div className="p-3 bg-mint-soft text-mint-ink rounded-xl flex items-center gap-2 text-sm font-medium">
                   <Check size={18} /> {message}
                 </div>
               )}
               {status === "error" && (
-                <div className="p-3 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 rounded-xl flex items-center gap-2 text-sm font-medium">
+                <div className="p-3 bg-crimson-soft text-crimson-ink rounded-xl flex items-center gap-2 text-sm font-medium">
                   <AlertCircle size={18} /> {message}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Teacher Name</label>
+                <label className="block text-sm font-bold text-ink mb-2">Teacher Name</label>
                 <input
                   type="text"
                   required
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                   placeholder="e.g. Sarah Williams"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -304,22 +309,22 @@ export default function AdminDashboard() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Email Address</label>
+                  <label className="block text-sm font-bold text-ink mb-2">Email Address</label>
                   <input
                     type="email"
                     required
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                    className="ed-input"
                     placeholder="teacher@school.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Password</label>
+                  <label className="block text-sm font-bold text-ink mb-2">Password</label>
                   <input
                     type="text"
                     required
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100"
+                    className="ed-input"
                     placeholder="Strong password required by Clerk"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -331,14 +336,14 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={generateStrongPassword}
-                  className="px-4 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                  className="ed-btn-ghost px-4 py-2 text-sm"
                 >
                   Generate Strong Password
                 </button>
                 <button
                   type="submit"
                   disabled={status === "loading"}
-                  className="px-5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold disabled:opacity-60"
+                  className="ed-btn-primary"
                 >
                   {status === "loading" ? "Creating..." : "Create Teacher"}
                 </button>
@@ -346,15 +351,15 @@ export default function AdminDashboard() {
             </form>
           </section>
 
-          <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2">
+          <section className="ed-card p-6">
+            <h3 className="font-display text-xl font-semibold tracking-tight text-ink mb-1 inline-flex items-center gap-2">
               <UserCog size={20} /> Teacher Profiles
             </h3>
-            <p className="text-sm text-slate-500 mb-4">Manage subjects, bio, and provider shown to students.</p>
+            <p className="text-sm text-ink-muted mb-4">Manage subjects, bio, and provider shown to students.</p>
 
             <form onSubmit={handleTeacherProfileSave} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Teacher Account</label>
+                <label className="block text-sm font-semibold text-ink mb-1">Teacher Account</label>
                 <select
                   value={teacherEdit.clerk_id}
                   onChange={(event) => {
@@ -367,7 +372,7 @@ export default function AdminDashboard() {
                       meeting_provider: selected?.meeting_provider || "google_meet",
                     });
                   }}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                 >
                   <option value="" disabled>
                     Select teacher account
@@ -381,39 +386,39 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Headline</label>
+                <label className="block text-sm font-semibold text-ink mb-1">Headline</label>
                 <input
                   value={teacherEdit.headline}
                   onChange={(event) => setTeacherEdit((current) => ({ ...current, headline: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Bio</label>
+                <label className="block text-sm font-semibold text-ink mb-1">Bio</label>
                 <textarea
                   rows={3}
                   value={teacherEdit.bio}
                   onChange={(event) => setTeacherEdit((current) => ({ ...current, bio: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Subjects (comma separated)</label>
+                <label className="block text-sm font-semibold text-ink mb-1">Subjects (comma separated)</label>
                 <input
                   value={teacherEdit.subjects}
                   onChange={(event) => setTeacherEdit((current) => ({ ...current, subjects: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Meeting Provider</label>
+                <label className="block text-sm font-semibold text-ink mb-1">Meeting Provider</label>
                 <select
                   value={teacherEdit.meeting_provider}
                   onChange={(event) => setTeacherEdit((current) => ({ ...current, meeting_provider: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"
+                  className="ed-input"
                 >
                   <option value="google_meet">Google Meet</option>
                   <option value="zoom">Zoom</option>
@@ -424,7 +429,7 @@ export default function AdminDashboard() {
               <button
                 type="submit"
                 disabled={status === "loading" || !teacherEdit.clerk_id}
-                className="w-full py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold disabled:opacity-60"
+                className="ed-btn-primary w-full"
               >
                 {status === "loading" ? "Saving..." : "Save Teacher Profile"}
               </button>
@@ -432,16 +437,16 @@ export default function AdminDashboard() {
           </section>
         </div>
 
-          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Teacher Details</h3>
-            <p className="text-sm text-slate-500 mb-4">Complete list of teachers and profile details.</p>
+          <section className="ed-card p-6">
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1">Teacher Details</h3>
+            <p className="text-sm text-ink-muted mb-4">Complete list of teachers and profile details.</p>
             {loadingData ? (
-              <p className="text-sm text-slate-500">Loading teachers...</p>
+              <p className="text-sm text-ink-muted">Loading teachers...</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                    <tr className="text-left border-b border-line text-ink-faint">
                       <th className="py-2 pr-3">Name</th>
                       <th className="py-2 pr-3">Email</th>
                       <th className="py-2 pr-3">Headline</th>
@@ -452,13 +457,19 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {teachers.map((teacher) => (
-                      <tr key={teacher.clerk_id} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{teacher.full_name || "-"}</td>
-                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.email || "-"}</td>
-                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300 max-w-[260px] truncate">{teacher.headline || "-"}</td>
-                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.subjects.length ? teacher.subjects.join(", ") : "-"}</td>
-                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{teacher.meeting_provider || "google_meet"}</td>
-                        <td className="py-2 text-slate-600 dark:text-slate-300">{teacher.is_active ? "Active" : "Inactive"}</td>
+                      <tr key={teacher.clerk_id} className="border-b border-line hover:bg-surface-soft">
+                        <td className="py-2 pr-3 text-ink">{teacher.full_name || "-"}</td>
+                        <td className="py-2 pr-3 text-ink-muted">{teacher.email || "-"}</td>
+                        <td className="py-2 pr-3 text-ink-muted max-w-[260px] truncate">{teacher.headline || "-"}</td>
+                        <td className="py-2 pr-3 text-ink-muted">{teacher.subjects.length ? teacher.subjects.join(", ") : "-"}</td>
+                        <td className="py-2 pr-3 text-ink-muted">{teacher.meeting_provider || "google_meet"}</td>
+                        <td className="py-2">
+                          {teacher.is_active ? (
+                            <span className="ed-pill-mint">Active</span>
+                          ) : (
+                            <span className="ed-pill-clay">Inactive</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -466,19 +477,19 @@ export default function AdminDashboard() {
               </div>
             )}
           </section>
-        </div>}
+        </div></Reveal>}
 
-        {activeView === "users" && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 inline-flex items-center gap-2"><Users size={18} /> Students</h3>
-            <p className="text-sm text-slate-500 mb-4">Student records only.</p>
+        {activeView === "users" && <Reveal><section className="ed-card p-6">
+          <div>
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1 inline-flex items-center gap-2"><Users size={18} /> Students</h3>
+            <p className="text-sm text-ink-muted mb-4">Student records only.</p>
             {loadingData ? (
-              <p className="text-sm text-slate-500">Loading students...</p>
+              <p className="text-sm text-ink-muted">Loading students...</p>
             ) : (
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[420px] overflow-y-auto custom-scrollbar">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                    <tr className="text-left border-b border-line text-ink-faint">
                       <th className="py-2 pr-3">Name</th>
                       <th className="py-2 pr-3">Email</th>
                       <th className="py-2 pr-3">Role</th>
@@ -487,20 +498,26 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {students.map((user) => (
-                      <tr key={String(user.clerk_id || user.email || Math.random())} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{String(user.full_name || "Student")}</td>
-                        <td className="py-2 pr-3 text-slate-600 dark:text-slate-300">{String(user.email || "-")}</td>
+                      <tr key={String(user.clerk_id || user.email || Math.random())} className="border-b border-line hover:bg-surface-soft">
+                        <td className="py-2 pr-3 text-ink">{String(user.full_name || "Student")}</td>
+                        <td className="py-2 pr-3 text-ink-muted">{String(user.email || "-")}</td>
                         <td className="py-2 pr-3">
-                          <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="ed-pill-crimson">
                             student
                           </span>
                         </td>
-                        <td className="py-2 text-slate-600 dark:text-slate-300">{user.onboarding_complete ? "Onboarded" : "Pending"}</td>
+                        <td className="py-2">
+                          {user.onboarding_complete ? (
+                            <span className="ed-pill-mint">Onboarded</span>
+                          ) : (
+                            <span className="ed-pill-gold">Pending</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {students.length === 0 && (
                       <tr>
-                        <td className="py-3 text-slate-500" colSpan={4}>No students found.</td>
+                        <td className="py-3 text-ink-muted" colSpan={4}>No students found.</td>
                       </tr>
                     )}
                   </tbody>
@@ -508,18 +525,18 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </section>}
+        </section></Reveal>}
 
-        {activeView === "meetings" && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">All Meeting Records</h3>
-          <p className="text-sm text-slate-500 mb-4">Full history of meetings between teachers and students.</p>
+        {activeView === "meetings" && <Reveal><section className="ed-card p-6">
+          <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1">All Meeting Records</h3>
+          <p className="text-sm text-ink-muted mb-4">Full history of meetings between teachers and students.</p>
           {loadingData ? (
-            <p className="text-sm text-slate-500">Loading meetings...</p>
+            <p className="text-sm text-ink-muted">Loading meetings...</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                  <tr className="text-left border-b border-line text-ink-faint">
                     <th className="py-2 pr-3">Teacher</th>
                     <th className="py-2 pr-3">Student</th>
                     <th className="py-2 pr-3">Agenda</th>
@@ -529,21 +546,21 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {meetings.map((meeting) => (
-                    <tr key={meeting.id} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "-"}</td>
-                      <td className="py-2 pr-3 text-slate-900 dark:text-slate-100">{meeting.student_profile?.full_name || meeting.student_profile?.email || "-"}</td>
-                      <td className="py-2 pr-3 text-slate-600 dark:text-slate-300 max-w-[260px] truncate">{meeting.agenda}</td>
+                    <tr key={meeting.id} className="border-b border-line hover:bg-surface-soft">
+                      <td className="py-2 pr-3 text-ink">{meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "-"}</td>
+                      <td className="py-2 pr-3 text-ink">{meeting.student_profile?.full_name || meeting.student_profile?.email || "-"}</td>
+                      <td className="py-2 pr-3 text-ink-muted max-w-[260px] truncate">{meeting.agenda}</td>
                       <td className="py-2 pr-3">
-                        <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">{meeting.status}</span>
+                        <span className="ed-pill-gold">{meeting.status}</span>
                       </td>
-                      <td className="py-2 text-slate-600 dark:text-slate-300">{meeting.start_time ? new Date(meeting.start_time).toLocaleString() : new Date(meeting.requested_at).toLocaleString()}</td>
+                      <td className="py-2 text-ink-muted">{meeting.start_time ? new Date(meeting.start_time).toLocaleString() : new Date(meeting.requested_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </section>}
+        </section></Reveal>}
       </div>
     </div>
   );

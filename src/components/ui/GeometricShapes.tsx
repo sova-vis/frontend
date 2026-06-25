@@ -2,65 +2,44 @@
 
 import { motion } from "framer-motion";
 
+/**
+ * Soft, editorial backdrop — warm paper-toned blobs and a faint shape that
+ * drift slowly behind content. Intentionally low-contrast so foreground
+ * cards and text always lead.
+ */
 export default function GeometricShapes() {
-    return (
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-            {/* Circle Top Right */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 0.4, scale: 1 }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-                className="absolute -top-20 -right-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl opacity-20"
-            />
+  return (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+      {/* Crimson glow — top right */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.6, ease: "easeOut" }}
+        className="absolute -top-32 -right-24 h-[28rem] w-[28rem] rounded-full bg-crimson/10 blur-[120px]"
+      />
 
-            {/* Hexagon/Polygon Shape Bottom Left */}
-            <motion.div
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 0.6, x: 0 }}
-                transition={{ duration: 1.5, delay: 0.2 }}
-                className="absolute top-1/2 left-10 w-24 h-24 border-4 border-highlight/20 rotate-12"
-                style={{ borderRadius: "20% 80% 20% 80% / 80% 20% 80% 20%" }}
-            />
+      {/* Gold glow — bottom left */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.6, delay: 0.2, ease: "easeOut" }}
+        className="absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-gold/10 blur-[120px]"
+      />
 
-            {/* Small Triangle scattered */}
-            <motion.svg
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 0.5, y: 0 }}
-                transition={{ duration: 1, delay: 0.5 }}
-                className="absolute bottom-20 right-40 text-accent/30 w-16 h-16"
-                viewBox="0 0 100 100"
-                fill="currentColor"
-            >
-                <polygon points="50,15 100,100 0,100" />
-            </motion.svg>
+      {/* Mint glow — center drift */}
+      <motion.div
+        animate={{ y: [0, -24, 0], opacity: [0.5, 0.8, 0.5] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-1/3 left-1/4 h-40 w-40 rounded-full bg-mint/10 blur-3xl"
+      />
 
-            {/* Floating Circle */}
-            <motion.div
-                animate={{
-                    y: [0, -20, 0],
-                    rotate: [0, 10, -10, 0]
-                }}
-                transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-                className="absolute top-32 left-1/4 w-12 h-12 bg-secondary/30 rounded-full blur-sm"
-            />
-
-            {/* Square */}
-            <motion.div
-                animate={{
-                    rotate: [0, 90, 180, 270, 360],
-                }}
-                transition={{
-                    duration: 20,
-                    repeat: Infinity,
-                    ease: "linear"
-                }}
-                className="absolute bottom-1/4 right-10 w-20 h-20 border-2 border-primary/10 rounded-xl"
-            />
-
-        </div>
-    );
+      {/* Faint rotating squircle outline */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+        className="absolute bottom-1/4 right-[8%] h-24 w-24 border border-crimson/10"
+        style={{ borderRadius: "38% 62% 63% 37% / 41% 44% 56% 59%" }}
+      />
+    </div>
+  );
 }

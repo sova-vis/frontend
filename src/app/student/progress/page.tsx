@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Award, CheckCircle2, Target, TrendingUp } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
+import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
 export default function ProgressPage() {
     const { getToken } = useAuth();
@@ -31,85 +32,91 @@ export default function ProgressPage() {
     const progressPercent = goalPapers.length === 0 ? 0 : Math.round((completedGoals.length / goalPapers.length) * 100);
 
     return (
-        <div className="p-8 max-w-6xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold font-display text-gray-900">Your Progress</h1>
-                <p className="text-gray-500 mt-1">Track past paper goals and completion momentum.</p>
-            </div>
+        <div className="min-h-full bg-transparent p-4 py-6 md:p-8 max-w-6xl mx-auto">
+            <Reveal>
+                <header className="mb-8">
+                    <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
+                        Your <span className="italic text-crimson">Progress</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-ink-muted">Track past paper goals and completion momentum.</p>
+                </header>
+            </Reveal>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-amber-50 text-amber-700 rounded-xl">
+            <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <StaggerItem className="ed-card p-5 md:p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-gold-soft text-gold-ink rounded-xl">
                             <Target size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">Goal Papers</p>
-                            <h3 className="text-2xl font-bold text-gray-900">{goalPapers.length}</h3>
+                            <p className="text-sm text-ink-muted">Goal Papers</p>
+                            <h3 className="font-display text-2xl font-semibold tracking-tight text-ink">{goalPapers.length}</h3>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-green-50 text-green-600 rounded-xl">
+                </StaggerItem>
+                <StaggerItem className="ed-card p-5 md:p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-mint-soft text-mint-ink rounded-xl">
                             <CheckCircle2 size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">Goals Completed</p>
-                            <h3 className="text-2xl font-bold text-gray-900">{completedGoals.length}</h3>
+                            <p className="text-sm text-ink-muted">Goals Completed</p>
+                            <h3 className="font-display text-2xl font-semibold tracking-tight text-ink">{completedGoals.length}</h3>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                </StaggerItem>
+                <StaggerItem className="ed-card p-5 md:p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-clay-soft text-clay-ink rounded-xl">
                             <TrendingUp size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">In Progress</p>
-                            <h3 className="text-2xl font-bold text-gray-900">{inProgress.length}</h3>
+                            <p className="text-sm text-ink-muted">In Progress</p>
+                            <h3 className="font-display text-2xl font-semibold tracking-tight text-ink">{inProgress.length}</h3>
                         </div>
                     </div>
-                </div>
-            </div>
+                </StaggerItem>
+            </Stagger>
 
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Goal Achievement</h3>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <Award size={16} className="text-amber-600" />
-                        {progressPercent}% complete
+            <Reveal delay={0.1}>
+                <div className="ed-card p-6 md:p-8">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">Goal Achievement</h3>
+                        <div className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
+                            <Award size={16} className="text-gold-deep" />
+                            {progressPercent}% complete
+                        </div>
                     </div>
-                </div>
-                <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden mb-6">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${progressPercent}%` }} />
-                </div>
-                {goalPapers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 p-6 text-center">
-                        <p className="text-sm text-gray-500 mb-4">No paper goals have been set yet.</p>
-                        <a href="/student/goals" className="inline-flex px-5 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-semibold">
-                            Set goals
-                        </a>
+                    <div className="h-4 w-full bg-surface-soft rounded-full overflow-hidden mb-6">
+                        <div className="h-full bg-crimson rounded-full" style={{ width: `${progressPercent}%` }} />
                     </div>
-                ) : (
-                    <div className="space-y-3">
-                        {goalPapers.slice(0, 10).map((paper) => (
-                            <div key={paper.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3">
-                                <div className="min-w-0">
-                                    <p className={`text-sm font-medium truncate ${paper.statuses.includes("completed") ? "text-gray-400 line-through" : "text-gray-800"}`}>{paper.name}</p>
-                                    <p className="text-xs text-gray-400">{paper.type}</p>
+                    {goalPapers.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-line p-6 text-center">
+                            <p className="text-sm text-ink-muted mb-4">No paper goals have been set yet.</p>
+                            <a href="/student/goals" className="ed-btn-ink inline-flex px-5 py-2.5 text-sm">
+                                Set goals
+                            </a>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {goalPapers.slice(0, 10).map((paper) => (
+                                <div key={paper.id} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+                                    <div className="min-w-0">
+                                        <p className={`text-sm font-medium truncate ${paper.statuses.includes("completed") ? "text-ink-faint line-through" : "text-ink"}`}>{paper.name}</p>
+                                        <p className="text-xs text-ink-faint">{paper.type}</p>
+                                    </div>
+                                    <span className={paper.statuses.includes("completed") ? "ed-pill-mint" : "ed-pill-gold"}>
+                                        {paper.statuses.includes("completed") ? "Done" : "Goal"}
+                                    </span>
                                 </div>
-                                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${paper.statuses.includes("completed") ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
-                                    {paper.statuses.includes("completed") ? "Done" : "Goal"}
-                                </span>
-                            </div>
-                        ))}
-                        {goalPapers.length > 10 && (
-                            <p className="text-center text-xs text-gray-400">+{goalPapers.length - 10} more goals</p>
-                        )}
-                    </div>
-                )}
-            </div>
+                            ))}
+                            {goalPapers.length > 10 && (
+                                <p className="text-center text-xs text-ink-faint">+{goalPapers.length - 10} more goals</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </Reveal>
         </div>
     );
 }

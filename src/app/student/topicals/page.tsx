@@ -1,62 +1,68 @@
 "use client";
 
 import { Layers, ChevronRight, Zap } from "lucide-react";
+import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
 const topics = [
-    { id: 1, name: "Algebra", count: 120, difficulty: "Medium", color: "bg-blue-500" },
-    { id: 2, name: "Geometry", count: 85, difficulty: "Hard", color: "bg-purple-500" },
-    { id: 3, name: "Calculus", count: 200, difficulty: "Hard", color: "bg-red-500" },
-    { id: 4, name: "Statistics", count: 150, difficulty: "Easy", color: "bg-green-500" },
-    { id: 5, name: "Kinematics", count: 90, difficulty: "Medium", color: "bg-orange-500" },
-    { id: 6, name: "Electricity", count: 110, difficulty: "Hard", color: "bg-yellow-500" },
+    { id: 1, name: "Algebra", count: 120, difficulty: "Medium", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
+    { id: 2, name: "Geometry", count: 85, difficulty: "Hard", bar: "bg-clay", iconBg: "bg-clay-soft", iconText: "text-clay-ink" },
+    { id: 3, name: "Calculus", count: 200, difficulty: "Hard", bar: "bg-crimson-deep", iconBg: "bg-crimson-soft", iconText: "text-crimson-ink" },
+    { id: 4, name: "Statistics", count: 150, difficulty: "Easy", bar: "bg-mint", iconBg: "bg-mint-soft", iconText: "text-mint-ink" },
+    { id: 5, name: "Kinematics", count: 90, difficulty: "Medium", bar: "bg-clay", iconBg: "bg-clay-soft", iconText: "text-clay-ink" },
+    { id: 6, name: "Electricity", count: 110, difficulty: "Hard", bar: "bg-gold", iconBg: "bg-gold-soft", iconText: "text-gold-ink" },
 ];
 
 export default function TopicalsPage() {
     return (
-        <div className="p-8 max-w-7xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold font-display text-gray-900">Topical Practice</h1>
-                <p className="text-gray-500 mt-1">Master specific topics with targeted questions.</p>
-            </div>
+        <div className="min-h-full bg-transparent p-4 py-6 md:p-8 max-w-7xl mx-auto">
+            <Reveal>
+                <header className="mb-8">
+                    <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
+                        Topical <span className="italic text-crimson">Practice</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-ink-muted">Master specific topics with targeted questions.</p>
+                </header>
+            </Reveal>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {topics.map((topic) => (
-                    <div key={topic.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group">
+                    <StaggerItem key={topic.id} className="ed-card p-5 md:p-6 hover:shadow-card-hover hover:-translate-y-0.5 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-4">
-                            <div className={`p-3 rounded-xl ${topic.color} bg-opacity-10 text-${topic.color.split("-")[1]}-600`}>
-                                <Layers size={24} className={topic.color.replace('bg-', 'text-')} />
+                            <div className={`p-3 rounded-xl ${topic.iconBg}`}>
+                                <Layers size={24} className={topic.iconText} />
                             </div>
-                            <div className="bg-gray-100 px-2 py-1 rounded text-xs font-semibold text-gray-600">
+                            <div className="bg-surface-soft px-2 py-1 rounded text-xs font-semibold text-ink-muted">
                                 {topic.difficulty}
                             </div>
                         </div>
 
-                        <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-primary transition-colors">{topic.name}</h3>
-                        <p className="text-sm text-gray-500 mb-4">{topic.count} Questions available</p>
+                        <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1 group-hover:text-crimson transition-colors">{topic.name}</h3>
+                        <p className="text-sm text-ink-muted mb-4">{topic.count} Questions available</p>
 
-                        <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                            <div className={`h-full ${topic.color} w-1/3`}></div>
+                        <div className="w-full bg-surface-soft h-1.5 rounded-full overflow-hidden">
+                            <div className={`h-full ${topic.bar} w-1/3`}></div>
                         </div>
-                        <div className="mt-4 flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                        <div className="mt-4 flex items-center text-sm font-semibold text-crimson opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
                             Start Practice <ChevronRight size={16} className="ml-1" />
                         </div>
-                    </div>
+                    </StaggerItem>
                 ))}
 
                 {/* Recommendation Card */}
-                <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-                    <div>
+                <StaggerItem className="relative overflow-hidden bg-ink p-6 rounded-[1.25rem] text-paper shadow-card flex flex-col justify-between">
+                    <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/[.06]" />
+                    <div className="relative">
                         <div className="p-2 bg-white/10 w-fit rounded-lg mb-4">
-                            <Zap className="text-yellow-400" />
+                            <Zap className="text-gold" />
                         </div>
-                        <h3 className="text-xl font-bold mb-2">Smart Recommendation</h3>
-                        <p className="text-gray-300 text-sm">Based on your recent mistakes, we recommend focusing on <span className="text-white font-semibold">Integrals</span>.</p>
+                        <h3 className="font-display text-xl font-semibold tracking-tight mb-2">Smart Recommendation</h3>
+                        <p className="text-paper/70 text-sm">Based on your recent mistakes, we recommend focusing on <span className="text-paper font-semibold">Integrals</span>.</p>
                     </div>
-                    <button className="mt-6 w-full py-3 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-colors">
+                    <button className="relative mt-6 w-full py-3 bg-paper text-ink rounded-xl font-bold hover:opacity-90 transition-opacity">
                         Start Integrals
                     </button>
-                </div>
-            </div>
+                </StaggerItem>
+            </Stagger>
         </div>
     );
 }

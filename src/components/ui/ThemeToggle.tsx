@@ -25,9 +25,6 @@ export function ThemeToggle({
   useEffect(() => {
     const stored =
       (window.localStorage.getItem(STORAGE_KEY) as Theme | null) || null;
-    const preferredDark =
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
     const nextTheme = stored || "light";
 
     setTheme(nextTheme);
@@ -47,7 +44,7 @@ export function ThemeToggle({
       <button
         type="button"
         aria-label="Toggle theme"
-        className={`h-10 w-10 rounded-full ${withBackground ? "bg-slate-200/80" : ""} ${className}`}
+        className={`h-10 w-10 rounded-full ${withBackground ? "bg-surface-soft" : ""} ${className}`}
       />
     );
   }
@@ -59,13 +56,13 @@ export function ThemeToggle({
       type="button"
       onClick={toggleTheme}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className={`h-10 w-10 rounded-full border border-slate-300/80 text-slate-700 dark:text-slate-100 dark:border-slate-700 transition-colors ${
-        withBackground
-          ? "bg-white/90 hover:bg-white dark:bg-slate-900/80 dark:hover:bg-slate-900"
-          : ""
+      className={`group relative h-10 w-10 overflow-hidden rounded-full border border-line text-ink transition-colors ${
+        withBackground ? "bg-surface hover:bg-surface-soft" : ""
       } ${className}`}
     >
-      {isDark ? <Sun size={18} className="mx-auto" /> : <Moon size={18} className="mx-auto" />}
+      <span className="relative block transition-transform duration-500 group-hover:rotate-12">
+        {isDark ? <Sun size={18} className="mx-auto" /> : <Moon size={18} className="mx-auto" />}
+      </span>
     </button>
   );
 }

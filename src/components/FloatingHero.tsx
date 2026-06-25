@@ -1,338 +1,319 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import Link from 'next/link';
+"use client";
+
+import { useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  ArrowRight,
+  GraduationCap,
+  TrendingUp,
+  Flame,
+  FileText,
+  Check,
+  Sparkles,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { EASE } from "@/components/ui/Motion";
 
 interface FloatingHeroProps {
-    user?: any;
-    profile?: { role: string; full_name?: string } | null;
-    onSignUp: () => void;
-    onExplore: () => void;
+  user?: any;
+  profile?: { role: string; full_name?: string } | null;
+  onSignUp: () => void;
+  onExplore: () => void;
 }
 
+function dashboardHref(user: any, profile?: { role: string } | null) {
+  const role = profile?.role || user?.publicMetadata?.role;
+  if (role === "teacher") return "/teacher/dashboard";
+  if (role === "admin") return "/admin/dashboard";
+  return "/student/dashboard";
+}
 
-const Book3D = ({ delay = 0, color = "#880E4F", secondaryColor = "#C2185B", position = "" }: { delay?: number, color?: string, secondaryColor?: string, position?: string }) => (
-    <motion.div
-        animate={{
-            y: [-15, 15, -15],
-            rotateY: [-12, 12, -12],
-            rotateX: [15, 20, 15]
-        }}
-        transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: delay
-        }}
-        className={`absolute ${position} w-44 h-60 md:w-56 md:h-80 perspective-2000 preserve-3d z-10`}
+/* Mini readiness ring — echoes the real dashboard */
+function MiniRing({ score = 64 }: { score?: number }) {
+  const radius = 40;
+  const circ = 2 * Math.PI * radius;
+  const offset = circ - (circ * score) / 100;
+  return (
+    <div className="relative h-24 w-24 shrink-0">
+      <svg viewBox="0 0 100 100" className="-rotate-90">
+        <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="9" />
+        <motion.circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke="#FBE9CF"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          initial={{ strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.6, ease: EASE, delay: 0.6 }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+        <b className="font-display text-2xl font-semibold leading-none">{score}%</b>
+        <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[.14em] text-white/70">Ready</span>
+      </div>
+    </div>
+  );
+}
+
+const trendPoints = "6,70 40,58 74,62 108,44 142,40 176,28 210,22";
+
+export default function FloatingHero({ user, profile, onSignUp, onExplore }: FloatingHeroProps) {
+  const ref = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
+  const yUp = useTransform(scrollYProgress, [0, 1], [0, -70]);
+  const yDown = useTransform(scrollYProgress, [0, 1], [0, 90]);
+  const fade = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+
+  return (
+    <section
+      ref={ref}
+      className="relative w-full overflow-hidden bg-paper pt-32 pb-16 md:pt-44 md:pb-24"
     >
-        {/* Book Container with Realistic Volume */}
-        <div className="absolute inset-0 preserve-3d">
-            {/* Front Cover with Gold Accents */}
-            <div
-                className="absolute inset-0 rounded-r-lg shadow-2xl flex flex-col justify-between p-6 preserve-3d backface-hidden"
-                style={{
-                    background: `linear-gradient(135deg, ${color} 0%, ${secondaryColor} 100%)`,
-                    transform: 'translateZ(14px)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2), 0 10px 30px rgba(0,0,0,0.4)'
-                }}
-            >
-                {/* Gold Embossed Emblem */}
-                <div className="w-12 h-12 rounded-full border-2 border-yellow-500/50 flex items-center justify-center self-center opacity-80">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-600" />
-                </div>
+      {/* Decorative backdrop */}
+      <div className="absolute inset-0 ed-grid-bg opacity-60" />
+      <div className="absolute -top-24 -left-24 h-[30rem] w-[30rem] rounded-full bg-crimson/10 blur-[120px]" />
+      <div className="absolute top-10 right-0 h-[26rem] w-[26rem] rounded-full bg-gold/10 blur-[120px]" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden opacity-[0.03] dark:opacity-[0.05]"
+      >
+        <span className="-rotate-6 whitespace-nowrap font-display text-[22vw] font-black leading-none text-ink">
+          O LEVELS
+        </span>
+      </div>
 
-                <div className="space-y-3">
-                    {/* Gold Text simulation */}
-                    <div className="w-full h-1 bg-gradient-to-r from-yellow-400/80 to-yellow-600/80 rounded-sm" />
-                    <div className="w-4/5 h-1 bg-gradient-to-r from-yellow-400/60 to-yellow-600/60 rounded-sm" />
-                    <div className="w-3/4 h-1 bg-gradient-to-r from-yellow-400/40 to-yellow-600/40 rounded-sm" />
-                </div>
-            </div>
+      <div className="relative z-10 mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-5 md:px-8 lg:grid-cols-[1.05fr_1fr]">
+        {/* ---- Left: copy ---- */}
+        <div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: EASE }}
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.14em] text-ink-muted backdrop-blur"
+          >
+            <Sparkles size={14} className="text-crimson" />
+            O Level exam prep, reimagined
+          </motion.div>
 
-            {/* Back Cover */}
-            <div
-                className="absolute inset-0 rounded-r-lg preserve-3d"
-                style={{
-                    background: color,
-                    transform: 'translateZ(-14px)',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
-                }}
-            />
+          <motion.h1
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.05 }}
+            className="mt-5 font-display text-[2.7rem] font-semibold leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-7xl"
+          >
+            Propel your success in{" "}
+            <span className="relative inline-block text-crimson">
+              O Levels
+              <svg
+                className="absolute -bottom-2 left-0 h-3 w-full text-gold md:h-4"
+                viewBox="0 0 200 20"
+                preserveAspectRatio="none"
+                fill="none"
+              >
+                <motion.path
+                  d="M2 12 Q 50 2, 100 11 T 198 9"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 1, ease: EASE, delay: 0.7 }}
+                />
+              </svg>
+            </span>
+          </motion.h1>
 
-            {/* Spine (Advanced Rounded Look) */}
-            <div
-                className="absolute left-0 top-0 bottom-0 w-[28px] overflow-hidden"
-                style={{
-                    background: `linear-gradient(to right, ${secondaryColor}, ${color} 50%, ${secondaryColor})`,
-                    transform: 'translateX(-14px) rotateY(-90deg)',
-                    borderRadius: '8px 0 0 8px',
-                    boxShadow: 'inset 0 0 10px rgba(0,0,0,0.3)'
-                }}
-            >
-                {/* Spine Decorative Ribs */}
-                <div className="absolute top-[20%] w-full h-[2px] bg-yellow-500/30 shadow-sm" />
-                <div className="absolute top-[40%] w-full h-[2px] bg-yellow-500/30 shadow-sm" />
-                <div className="absolute top-[60%] w-full h-[2px] bg-yellow-500/30 shadow-sm" />
-                <div className="absolute top-[80%] w-full h-[2px] bg-yellow-500/30 shadow-sm" />
-            </div>
+          <motion.p
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.15 }}
+            className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
+          >
+            One focused workspace for past papers, topical practice, AI answer grading, and
+            real exam-readiness tracking — built to turn weak spots into A* grades.
+          </motion.p>
 
-            {/* Top Pages Edge (Realistic fiber texture) */}
-            <div
-                className="absolute top-0 left-0 right-0 h-[28px] bg-[#fdfdfd]"
-                style={{
-                    transform: 'translateY(-14px) rotateX(90deg)',
-                    background: 'repeating-linear-gradient(90deg, #dee2eb, #dee2eb 1px, #fff 1px, #fff 2px)',
-                    opacity: 0.95
-                }}
-            />
-
-            {/* Bottom Pages Edge */}
-            <div
-                className="absolute bottom-0 left-0 right-0 h-[28px] bg-[#fdfdfd]"
-                style={{
-                    transform: 'translateY(14px) rotateX(-90deg)',
-                    background: 'repeating-linear-gradient(90deg, #dee2eb, #dee2eb 1px, #fff 1px, #fff 2px)',
-                    opacity: 0.95
-                }}
-            />
-
-            {/* Right Side (Page Edges Rounded) */}
-            <div
-                className="absolute right-0 top-0 bottom-0 w-[28px] bg-[#fdfdfd]"
-                style={{
-                    transform: 'translateX(14px) rotateY(90deg)',
-                    background: 'repeating-linear-gradient(0deg, #dee2eb, #dee2eb 1px, #fff 1px, #fff 2px)',
-                    opacity: 0.95
-                }}
-            />
-
-            {/* Animated Pages (Extreme Realism with Bend Simulation) */}
-            {[1, 2, 3, 4, 5].map((i) => (
-                <motion.div
-                    key={i}
-                    animate={{ rotateY: [0, -175, 0] }}
-                    transition={{
-                        duration: 6,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: delay + (i * 0.15)
-                    }}
-                    className="absolute inset-y-2 right-2 left-4 bg-[#fffefe] rounded-r-sm origin-left shadow-2xl preserve-3d overflow-hidden"
-                    style={{
-                        transform: `translateZ(${10 - (i * 4)}px)`,
-                        borderLeft: '1px solid #dee2e6',
-                        animation: 'page-flip-v3 6s ease-in-out infinite'
-                    }}
+          <motion.div
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.25 }}
+            className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center"
+          >
+            {user ? (
+              <Link href={dashboardHref(user, profile)}>
+                <Button size="lg" className="h-14 rounded-full px-8 text-base shadow-crimson">
+                  Go to dashboard <ArrowRight size={18} />
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Button
+                  onClick={onSignUp}
+                  size="lg"
+                  className="h-14 rounded-full px-8 text-base shadow-crimson"
                 >
-                    <div className="w-full h-full p-4 space-y-3 opacity-30">
-                        {/* Text simulations on pages */}
-                        <div className="w-full h-[1px] bg-slate-400" />
-                        <div className="w-3/4 h-[1px] bg-slate-400" />
-                        <div className="w-full h-[2px] bg-brand-burgundy/10" />
-                        <div className="w-4/5 h-[1px] bg-slate-400" />
-                        <div className="w-full h-[1px] bg-slate-400" />
-                        <div className="w-1/2 h-[1px] bg-slate-400" />
-                    </div>
-                </motion.div>
+                  Get started free <ArrowRight size={18} />
+                </Button>
+                <Button
+                  onClick={onExplore}
+                  variant="ghost"
+                  size="lg"
+                  className="h-14 rounded-full border border-line bg-surface px-8 text-base"
+                >
+                  Explore platform
+                </Button>
+              </>
+            )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-3"
+          >
+            {[
+              ["12k+", "questions solved"],
+              ["50+", "past paper years"],
+              ["94%", "hit their target"],
+            ].map(([n, l]) => (
+              <div key={l} className="flex items-baseline gap-2">
+                <b className="font-display text-xl font-semibold text-ink">{n}</b>
+                <span className="text-sm text-ink-faint">{l}</span>
+              </div>
             ))}
+          </motion.div>
         </div>
-    </motion.div>
-);
 
-const Pencil3D = ({ delay = 1.5, position = "" }: { delay?: number, position?: string }) => (
-    <motion.div
-        animate={{
-            y: [0, -30, 0],
-            rotate: [15, 25, 15],
-            rotateY: [0, 45, 0],
-            z: [0, 25, 0]
-        }}
-        transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: delay
-        }}
-        className={`absolute ${position} w-6 h-48 md:w-8 md:h-64 z-10 perspective-2000 preserve-3d`}
-    >
-        {/* Hexagonal Pencil Body (Simulated with 3 sides) */}
-        <div className="w-full h-full preserve-3d">
-            {/* Top Eraser Block */}
-            <div className="absolute top-0 w-full h-[15%] preserve-3d">
-                <div
-                    className="absolute inset-0 bg-[#F48FB1] rounded-t-sm"
-                    style={{ transform: 'translateZ(4px)' }}
-                />
-                <div
-                    className="absolute inset-0 bg-[#C2185B]"
-                    style={{ transform: 'rotateY(90deg) translateZ(4px)' }}
-                />
-                <div className="absolute top-[80%] w-full h-[20%] bg-slate-300 shadow-inner" style={{ transform: 'translateZ(5px)' }} />
+        {/* ---- Right: animated dashboard showcase ---- */}
+        <motion.div
+          style={{ y: yUp, opacity: fade }}
+          className="relative mx-auto w-full max-w-[460px]"
+        >
+          {/* Main readiness card */}
+          <motion.div
+            initial={{ opacity: 0, y: 40, rotate: -2 }}
+            animate={{ opacity: 1, y: 0, rotate: 0 }}
+            transition={{ duration: 0.8, ease: EASE, delay: 0.2 }}
+            className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#A8123C] to-[#760B28] p-6 text-white shadow-[0_30px_60px_-25px_rgba(168,18,60,0.6)]"
+          >
+            <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/[.07]" />
+            <div className="relative flex items-center gap-5">
+              <MiniRing score={64} />
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-white/70">
+                  <GraduationCap size={14} /> Exam readiness
+                </div>
+                <h3 className="mt-1.5 font-display text-2xl font-semibold">On track</h3>
+                <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
+                  <TrendingUp size={13} /> +8% this week
+                </span>
+              </div>
             </div>
-
-            {/* Main Body with perspective shading */}
-            <div className="absolute top-[15%] w-full h-[65%] preserve-3d">
-                <div
-                    className="absolute inset-0 bg-[#FFD54F] shadow-inner border-y border-black/5"
-                    style={{ transform: 'translateZ(4px)' }}
-                />
-                <div
-                    className="absolute inset-0 bg-[#FBC02D]"
-                    style={{ transform: 'rotateY(60deg) translateZ(4px)' }}
-                />
-                <div
-                    className="absolute inset-0 bg-[#F9A825]"
-                    style={{ transform: 'rotateY(-60deg) translateZ(4px)' }}
-                />
+            <div className="relative mt-5 grid grid-cols-3 gap-3 border-t border-white/15 pt-4">
+              {[
+                ["5", "strong"],
+                ["3", "need work"],
+                ["2", "at risk"],
+              ].map(([n, l]) => (
+                <div key={l}>
+                  <b className="font-display text-xl font-semibold">{n}</b>
+                  <p className="text-[11px] text-white/70">{l}</p>
+                </div>
+              ))}
             </div>
+          </motion.div>
 
-            {/* Sharpened Tip (Pyramid-like) */}
-            <div className="absolute bottom-0 w-full h-[20%] preserve-3d flex justify-center">
-                <div
-                    className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[32px] border-t-[#D7CCC8] border-l-transparent border-r-transparent origin-top"
-                    style={{ transform: 'rotateX(180deg) translateZ(4px)' }}
-                />
-                <div className="absolute bottom-0 w-3 h-3 bg-slate-800 rounded-full shadow-lg" style={{ transform: 'translateZ(6px)' }} />
+          {/* Floating streak card (top-left) */}
+          <motion.div
+            style={{ y: yDown }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.55 }}
+            className="absolute -left-6 -top-8 hidden rounded-2xl border border-line bg-surface p-3.5 shadow-card sm:block"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold text-white">
+                <Flame size={18} />
+              </span>
+              <div>
+                <b className="font-display text-xl font-semibold leading-none text-gold-deep">12</b>
+                <p className="text-[10px] font-bold uppercase tracking-[.1em] text-gold-deep/70">
+                  day streak
+                </p>
+              </div>
             </div>
-        </div>
-    </motion.div>
-);
+          </motion.div>
 
-const Pen3D = ({ delay = 2, position = "" }: { delay?: number, position?: string }) => (
-    <motion.div
-        animate={{
-            y: [-25, 25, -25],
-            rotate: [-15, -5, -15],
-            rotateY: [-25, 25, -25],
-            z: [0, 40, 0]
-        }}
-        transition={{
-            duration: 7,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: delay
-        }}
-        className={`absolute ${position} w-5 h-52 md:w-7 md:h-64 z-10 perspective-2000 preserve-3d`}
-    >
-        <div className="w-full h-full preserve-3d shadow-2xl">
-            {/* Glossy Pen Body */}
-            <div
-                className="absolute inset-0 bg-brand-blue rounded-full border border-white/10"
-                style={{
-                    transform: 'translateZ(5px)',
-                    background: 'linear-gradient(to right, #0288D1, #03A9F4 50%, #01579B)'
-                }}
-            />
-            {/* Meta-Clip (Realistic depth) */}
-            <div
-                className="absolute top-8 -right-2 w-3 h-20 bg-gradient-to-r from-slate-200 to-slate-400 rounded-sm shadow-lg"
-                style={{ transform: 'translateZ(10px) rotateY(-10deg)' }}
-            />
-            {/* Clicker */}
-            <div
-                className="absolute -top-2 left-1/2 -translateX-1/2 w-4 h-6 bg-slate-800 rounded-t-lg"
-                style={{ transform: 'translateZ(3px)' }}
-            />
-            {/* Grip Texture */}
-            <div className="absolute top-1/2 w-full h-1/4 bg-black/10 backdrop-blur-[1px] flex flex-col justify-around py-1" style={{ transform: 'translateZ(6px)' }}>
-                {[1, 2, 3, 4].map(i => <div key={i} className="w-full h-[1px] bg-white/5" />)}
+          {/* Floating trend card (bottom-right) */}
+          <motion.div
+            style={{ y: yDown }}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.7 }}
+            className="absolute -bottom-10 -right-4 w-52 rounded-2xl border border-line bg-surface p-4 shadow-card md:-right-10"
+          >
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-ink-faint">
+              <Sparkles size={12} className="text-crimson" /> Accuracy trend
             </div>
-            {/* Chrome Tip */}
-            <div
-                className="absolute bottom-0 left-1/2 -translateX-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[24px] border-t-slate-300 border-l-transparent border-r-transparent origin-top"
-                style={{ transform: 'rotateX(180deg) translateZ(5px)' }}
-            />
-        </div>
-    </motion.div>
-);
-
-const FloatingHero = ({ user, profile, onSignUp, onExplore }: FloatingHeroProps) => {
-
-    return (
-        <div className="relative w-full h-[80vh] md:h-[90vh] min-h-[600px] md:min-h-[800px] flex items-center justify-center overflow-hidden bg-slate-50 dark:bg-slate-900 pt-32 md:pt-44">
-
-            {/* 3D Floating Education Objects - Simplified */}
-            <Pencil3D position="left-[12%] bottom-[2%]" delay={1} />
-
-            <Pen3D position="right-[15%] bottom-[4%]" delay={3} />
-
-
-            {/* Faint 'A/O Levels' Background Text */}
-            <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-12 z-0 overflow-hidden pointer-events-none opacity-[0.02] dark:opacity-[0.03] rotate-[-5deg] scale-150">
-                {Array.from({ length: 24 }).map((_, i) => (
-                    <span key={i} className="text-6xl md:text-9xl font-black whitespace-nowrap select-none">
-                        {i % 2 === 0 ? 'O LEVELS' : 'A LEVELS'}
-                    </span>
-                ))}
+            <svg viewBox="0 0 216 80" className="mt-2 h-16 w-full" preserveAspectRatio="none">
+              <motion.path
+                d={`M${trendPoints}`}
+                fill="none"
+                stroke="#A8123C"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 1.4, ease: EASE, delay: 0.9 }}
+              />
+              <path d={`M${trendPoints} L210,80 L6,80 Z`} fill="rgba(168,18,60,.08)" />
+            </svg>
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className="text-ink-faint">8 weeks</span>
+              <span className="inline-flex items-center gap-1 font-bold text-mint">
+                <Check size={12} /> +14%
+              </span>
             </div>
+          </motion.div>
 
-            {/* Central Content */}
-            <div className="relative z-30 flex flex-col items-center justify-center text-center max-w-4xl px-6 -mt-16">
-                <motion.h1
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black text-slate-900 dark:text-white tracking-tight leading-[1.05] mb-4 md:mb-6"
-                >
-                    Propel Your Success<br />
-                    in <span className="relative inline-block text-brand-burgundy z-10">
-                        O Levels
-                        <svg className="absolute -bottom-2 md:-bottom-4 w-full h-4 md:h-8 left-0 text-brand-pink -z-10" viewBox="0 0 200 20" preserveAspectRatio="none">
-                            <path d="M0 10 Q 25 20, 50 10 T 100 10 T 150 10 T 200 10" fill="transparent" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </span><br />
-                    with <span className="text-brand-pink">Expert Teachers</span>
-                </motion.h1 >
+          {/* Floating "papers solved" chip (right edge) */}
+          <motion.div
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.85 }}
+            className="absolute right-2 top-1/3 hidden items-center gap-2 rounded-full border border-line bg-surface py-1.5 pl-2 pr-3.5 shadow-card lg:flex"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-crimson-soft text-crimson-ink">
+              <FileText size={14} />
+            </span>
+            <span className="text-xs font-bold text-ink">47 papers</span>
+          </motion.div>
+        </motion.div>
+      </div>
 
-                <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.2 }}
-                    className="text-base md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl font-medium leading-relaxed mb-6 md:mb-8"
-                >
-                    Unlock your academic potential with interactive lessons, top resources, and real exam strategies for O Level students.
-                </motion.p>
-
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.4 }}
-                    className="flex flex-col sm:flex-row items-center gap-4"
-                >
-                    {user ? (
-                        <Link href={
-                            (profile?.role === "teacher" || user.publicMetadata?.role === "teacher") ? "/teacher/dashboard" :
-                                (profile?.role === "admin" || user.publicMetadata?.role === "admin") ? "/admin/dashboard" :
-                                    "/student/dashboard"
-                        }>
-                            <Button className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white font-bold rounded-full px-10 h-14 shadow-xl shadow-brand-burgundy/30 text-lg transition-all hover:scale-105 active:scale-95">
-                                Go to Dashboard <ArrowRight className="ml-2" size={20} />
-                            </Button>
-                        </Link>
-                    ) : (
-                        <>
-                            <Button
-                                onClick={onSignUp}
-                                className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white font-bold rounded-full px-10 h-14 shadow-xl shadow-brand-burgundy/30 text-lg transition-all hover:scale-105 active:scale-95"
-                            >
-                                Get Started <ArrowRight className="ml-2" size={20} />
-                            </Button>
-                            <Button
-                                onClick={onExplore}
-                                className="bg-white border-2 border-slate-200 text-slate-700 hover:border-slate-200 hover:text-slate-700 font-bold rounded-full px-10 h-14 text-lg transition-all shadow-sm"
-                            >
-                                Explore
-                            </Button>
-                        </>
-                    )}
-                </motion.div>
-            </div>
-
-        </div>
-    );
-};
-
-export default FloatingHero;
+      {/* Scroll cue */}
+      <motion.button
+        onClick={onExplore}
+        style={{ opacity: fade }}
+        className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-ink-faint md:flex"
+        aria-label="Scroll to explore"
+      >
+        <span className="text-[11px] font-bold uppercase tracking-[.2em]">Scroll</span>
+        <span className="flex h-9 w-6 items-start justify-center rounded-full border-2 border-line p-1">
+          <motion.span
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            className="h-1.5 w-1.5 rounded-full bg-crimson"
+          />
+        </span>
+      </motion.button>
+    </section>
+  );
+}

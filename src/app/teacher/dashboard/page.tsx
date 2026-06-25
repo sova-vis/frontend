@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import ChatModal from "@/components/mentoring/ChatModal";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 
 export default function TeacherDashboard() {
@@ -31,12 +32,12 @@ export default function TeacherDashboard() {
 
   const statusTone = useMemo(
     () => ({
-      pending: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-      accepted: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-      scheduled: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-      completed: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
-      cancelled: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-      declined: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+      pending: "bg-gold-soft text-gold-ink",
+      accepted: "bg-mint-soft text-mint-ink",
+      scheduled: "bg-mint-soft text-mint-ink",
+      completed: "bg-ink text-paper",
+      cancelled: "bg-surface-soft text-ink-muted",
+      declined: "bg-crimson-soft text-crimson-ink",
     }),
     []
   );
@@ -193,76 +194,82 @@ export default function TeacherDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-100 to-white dark:from-slate-950 dark:to-black p-8">
+      <div className="min-h-screen bg-paper p-8">
         <div className="max-w-6xl mx-auto space-y-4">
-          <div className="h-9 w-72 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-          <div className="h-36 rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+          <div className="h-9 w-72 rounded bg-surface-soft animate-pulse" />
+          <div className="h-36 rounded-[1.25rem] bg-surface-soft animate-pulse" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-white dark:from-slate-950 dark:to-black px-4 md:px-8 py-8">
+    <div className="min-h-screen bg-paper px-4 md:px-8 py-8 text-ink">
       <div className="max-w-6xl mx-auto space-y-7">
-        <section className="rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100">Teacher Dashboard</h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">Manage 1:1 requests, schedule sessions, and chat with students.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <ThemeToggle />
-              <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200">
-                <UserCircle2 size={16} />
-                {profile?.full_name || user?.primaryEmailAddress?.emailAddress || "Teacher"}
+        <Reveal>
+          <section className="ed-card p-6 md:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
+                  Teacher <span className="italic text-crimson">Dashboard</span>
+                </h1>
+                <p className="text-ink-muted mt-1">Manage 1:1 requests, schedule sessions, and chat with students.</p>
               </div>
-              <button
-                onClick={() => void signOut()}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2.5 text-sm font-semibold"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
+              <div className="flex items-center gap-3">
+                <ThemeToggle />
+                <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border border-line text-sm text-ink-muted">
+                  <UserCircle2 size={16} />
+                  {profile?.full_name || user?.primaryEmailAddress?.emailAddress || "Teacher"}
+                </div>
+                <button
+                  onClick={() => void signOut()}
+                  className="ed-btn-ink px-4 py-2.5"
+                >
+                  <LogOut size={14} />
+                  Logout
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-5 grid sm:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800">
-              <p className="text-xs uppercase font-semibold text-slate-500">Pending Requests</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">{pendingMeetings.length}</p>
+            <div className="mt-5 grid sm:grid-cols-3 gap-3">
+              <div className="ed-card-soft p-4">
+                <p className="ed-label">Pending Requests</p>
+                <p className="font-display text-2xl font-semibold text-ink mt-1">{pendingMeetings.length}</p>
+              </div>
+              <div className="ed-card-soft p-4">
+                <p className="ed-label">Scheduled</p>
+                <p className="font-display text-2xl font-semibold text-ink mt-1">{scheduledMeetings.length}</p>
+              </div>
+              <div className="ed-card-soft p-4">
+                <p className="ed-label">Active Chats</p>
+                <p className="font-display text-2xl font-semibold text-ink mt-1">{chatEligibleConversations.length}</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800">
-              <p className="text-xs uppercase font-semibold text-slate-500">Scheduled</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">{scheduledMeetings.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800">
-              <p className="text-xs uppercase font-semibold text-slate-500">Active Chats</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">{chatEligibleConversations.length}</p>
-            </div>
-          </div>
-        </section>
+          </section>
+        </Reveal>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        {success && <p className="text-sm text-emerald-700 dark:text-emerald-400">{success}</p>}
+        {error && <p className="text-sm text-crimson">{error}</p>}
+        {success && <p className="text-sm text-mint-ink">{success}</p>}
 
-        <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-4">Incoming Meeting Requests</h2>
-          <div className="space-y-4">
-            {pendingMeetings.length === 0 && <p className="text-sm text-slate-500">No pending requests.</p>}
+        <Reveal delay={0.05}>
+        <section className="ed-card p-6 md:p-8">
+          <h2 className="font-display text-xl font-semibold tracking-tight text-ink mb-4">Incoming <span className="italic text-crimson">Requests</span></h2>
+          <Stagger className="space-y-4">
+            {pendingMeetings.length === 0 && <p className="text-sm text-ink-faint">No pending requests.</p>}
             {pendingMeetings.map((meeting) => (
-              <article key={meeting.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-800/60">
+              <StaggerItem key={meeting.id}>
+              <article className="ed-card-soft p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    <h3 className="text-base font-bold text-ink">
                       {meeting.student_profile?.full_name || meeting.student_profile?.email || "Student"}
                     </h3>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">{meeting.agenda}</p>
-                    {meeting.note_from_student && <p className="text-xs text-slate-500 mt-2">{meeting.note_from_student}</p>}
+                    <p className="text-sm text-ink-muted mt-1">{meeting.agenda}</p>
+                    {meeting.note_from_student && <p className="text-xs text-ink-faint mt-2">{meeting.note_from_student}</p>}
                   </div>
                   <button
                     onClick={() => void handleOpenChat(meeting.student_clerk_id)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+                    className="ed-btn-ghost px-3 py-2"
                   >
                     <MessageCircle size={14} />
                     Chat
@@ -278,39 +285,39 @@ export default function TeacherDashboard() {
                   }}
                 >
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Start</label>
+                    <label className="ed-label">Start</label>
                     <input
                       name="start_time"
                       type="datetime-local"
                       defaultValue={meeting.start_time ? meeting.start_time.slice(0, 16) : ""}
-                      className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                      className="ed-input mt-1 px-3 py-2 text-sm"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">End</label>
+                    <label className="ed-label">End</label>
                     <input
                       name="end_time"
                       type="datetime-local"
                       defaultValue={meeting.end_time ? meeting.end_time.slice(0, 16) : ""}
-                      className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                      className="ed-input mt-1 px-3 py-2 text-sm"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Meeting Link</label>
+                    <label className="ed-label">Meeting Link</label>
                     <input
                       name="meeting_link"
                       type="url"
                       defaultValue={meeting.meeting_link || ""}
                       placeholder="https://meet.google.com/..."
-                      className="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                      className="ed-input mt-1 px-3 py-2 text-sm"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={savingMeetingId === meeting.id}
-                    className="h-10 rounded-xl bg-slate-900 dark:bg-slate-100 px-4 text-sm font-semibold text-white dark:text-slate-900 disabled:opacity-60"
+                    className="ed-btn-primary h-10 px-4"
                   >
                     {savingMeetingId === meeting.id ? "Saving..." : "Schedule"}
                   </button>
@@ -320,7 +327,7 @@ export default function TeacherDashboard() {
                   <button
                     onClick={() => void handleStatusOnly(meeting.id, "accepted")}
                     disabled={savingMeetingId === meeting.id}
-                    className="inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 dark:bg-blue-950 dark:text-blue-300 px-3 py-2 text-xs font-semibold text-blue-700"
+                    className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-mint-soft px-3 py-2 text-xs font-bold text-mint-ink disabled:opacity-60"
                   >
                     <CheckCircle2 size={14} />
                     Mark Accepted
@@ -328,7 +335,7 @@ export default function TeacherDashboard() {
                   <button
                     onClick={() => void handleStatusOnly(meeting.id, "declined")}
                     disabled={savingMeetingId === meeting.id}
-                    className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-950 dark:text-rose-300 px-3 py-2 text-xs font-semibold text-rose-700"
+                    className="inline-flex items-center gap-2 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-2 text-xs font-bold text-crimson-ink disabled:opacity-60"
                   >
                     <XCircle size={14} />
                     Decline
@@ -336,7 +343,7 @@ export default function TeacherDashboard() {
                   <button
                     onClick={() => void handleStatusOnly(meeting.id, "cancelled")}
                     disabled={savingMeetingId === meeting.id}
-                    className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:text-amber-300 px-3 py-2 text-xs font-semibold text-amber-700"
+                    className="inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold-soft px-3 py-2 text-xs font-bold text-gold-ink disabled:opacity-60"
                   >
                     <XCircle size={14} />
                     Abort
@@ -344,33 +351,37 @@ export default function TeacherDashboard() {
                   <button
                     onClick={() => void handleDeleteMeeting(meeting.id)}
                     disabled={savingMeetingId === meeting.id}
-                    className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-950 dark:text-rose-300 px-3 py-2 text-xs font-semibold text-rose-700"
+                    className="inline-flex items-center gap-2 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-2 text-xs font-bold text-crimson-ink disabled:opacity-60"
                   >
                     <XCircle size={14} />
                     Delete
                   </button>
                 </div>
               </article>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </section>
+        </Reveal>
 
-        <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-4">Scheduled and Previous Meetings</h2>
-          <div className="space-y-3">
-            {meetings.length === 0 && <p className="text-sm text-slate-500">No meetings yet.</p>}
+        <Reveal delay={0.1}>
+        <section className="ed-card p-6 md:p-8">
+          <h2 className="font-display text-xl font-semibold tracking-tight text-ink mb-4">Scheduled &amp; <span className="italic text-crimson">Previous</span></h2>
+          <Stagger className="space-y-3">
+            {meetings.length === 0 && <p className="text-sm text-ink-faint">No meetings yet.</p>}
             {meetings.map((meeting) => (
-              <div key={meeting.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-800/60">
+              <StaggerItem key={meeting.id}>
+              <div className="ed-card-soft p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="font-semibold text-ink">
                       {meeting.student_profile?.full_name || meeting.student_profile?.email || "Student"}
                     </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">{meeting.agenda}</p>
+                    <p className="text-sm text-ink-muted">{meeting.agenda}</p>
                   </div>
-                  <p className={`text-xs px-3 py-1 rounded-full font-semibold ${statusTone[meeting.status as keyof typeof statusTone] || statusTone.pending}`}>{meeting.status}</p>
+                  <p className={`text-xs px-3 py-1 rounded-full font-bold capitalize ${statusTone[meeting.status as keyof typeof statusTone] || statusTone.pending}`}>{meeting.status}</p>
                 </div>
-                <div className="mt-2 text-xs text-slate-500 grid sm:grid-cols-2 gap-1">
+                <div className="mt-2 text-xs text-ink-faint grid sm:grid-cols-2 gap-1">
                   <p className="inline-flex items-center gap-1"><Clock3 size={12} /> Requested: {new Date(meeting.requested_at).toLocaleString()}</p>
                   {meeting.start_time && meeting.end_time ? (
                     <p className="inline-flex items-center gap-1"><Calendar size={12} /> {new Date(meeting.start_time).toLocaleString()} - {new Date(meeting.end_time).toLocaleTimeString()}</p>
@@ -379,40 +390,46 @@ export default function TeacherDashboard() {
                   )}
                 </div>
                 {meeting.meeting_link && (
-                  <a href={meeting.meeting_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                  <a href={meeting.meeting_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-2 text-sm font-bold text-crimson hover:text-crimson-deep">
                     <CheckCircle2 size={14} />
                     Join Meeting
                   </a>
                 )}
               </div>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </section>
+        </Reveal>
 
-        <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-4">Chat Inbox</h2>
-          <div className="space-y-3">
-            {chatEligibleConversations.length === 0 && <p className="text-sm text-slate-500">No conversations yet. Students can start chats after requesting a 1:1 meeting.</p>}
+        <Reveal delay={0.15}>
+        <section className="ed-card p-6 md:p-8">
+          <h2 className="font-display text-xl font-semibold tracking-tight text-ink mb-4">Chat <span className="italic text-crimson">Inbox</span></h2>
+          <Stagger className="space-y-3">
+            {chatEligibleConversations.length === 0 && <p className="text-sm text-ink-faint">No conversations yet. Students can start chats after requesting a 1:1 meeting.</p>}
             {chatEligibleConversations.map((conversation) => {
               const studentName = conversation.student_profile?.full_name || conversation.student_profile?.email || "Student";
               return (
-                <div key={conversation.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-800/60 flex items-center justify-between gap-3">
+                <StaggerItem key={conversation.id}>
+                <div className="ed-card-soft p-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">{studentName}</p>
-                    <p className="text-xs text-slate-500">Last activity: {new Date(conversation.updated_at).toLocaleString()}</p>
+                    <p className="font-semibold text-ink">{studentName}</p>
+                    <p className="text-xs text-ink-faint">Last activity: {new Date(conversation.updated_at).toLocaleString()}</p>
                   </div>
                   <button
                     onClick={() => setSelectedConversation(conversation)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+                    className="ed-btn-ghost px-3 py-2"
                   >
                     <MessageCircle size={14} />
                     Open Chat
                   </button>
                 </div>
+                </StaggerItem>
               );
             })}
-          </div>
+          </Stagger>
         </section>
+        </Reveal>
       </div>
 
       {selectedConversation && user && (

@@ -169,7 +169,7 @@ function renderInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={i} className="font-semibold text-gray-900 dark:text-gray-100">{part.slice(2, -2)}</strong>;
+      return <strong key={i} className="font-semibold text-ink">{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*"))
       return <em key={i}>{part.slice(1, -1)}</em>;
     return <span key={i}>{part}</span>;
@@ -200,7 +200,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (!paragraphLines.length) return;
     const key = `p-${nodes.length}`;
     nodes.push(
-      <p key={key} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+      <p key={key} className="text-[16px] leading-relaxed text-ink-muted">
         {paragraphLines.map((line, idx) => (
           <span key={idx}>
             {renderInline(line)}
@@ -218,7 +218,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     nodes.push(
       <ul key={key} className="list-disc list-inside space-y-1 my-2">
         {bulletLines.map((line, idx) => (
-          <li key={idx} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+          <li key={idx} className="text-[16px] leading-relaxed text-ink-muted">
             {renderInline(line)}
           </li>
         ))}
@@ -233,7 +233,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     nodes.push(
       <ol key={key} className="list-decimal list-inside space-y-1 my-2">
         {numberedLines.map((line, idx) => (
-          <li key={idx} className="text-[16px] leading-relaxed text-gray-700 dark:text-gray-300">
+          <li key={idx} className="text-[16px] leading-relaxed text-ink-muted">
             {renderInline(line)}
           </li>
         ))}
@@ -277,15 +277,15 @@ function renderMarkdown(text: string): React.ReactNode[] {
       nodes.push(
         <div key={`code-${nodes.length}`} className="my-2">
           {language ? (
-            <p className="mb-1 text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-ink-faint font-semibold">
               {language}
             </p>
           ) : null}
           <pre
-            className={`overflow-x-auto rounded-lg border px-3 py-2 text-[12px] leading-relaxed font-mono whitespace-pre ${
+            className={`overflow-x-auto rounded-lg border px-3 py-2 text-[12px] leading-relaxed font-mono whitespace-pre text-ink-muted ${
               looksLikeDiagram
-                ? "border-slate-300/70 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+                ? "border-line bg-surface-soft"
+                : "border-line bg-surface-soft"
             }`}
           >
             <code>{codeText || " "}</code>
@@ -325,14 +325,14 @@ function renderMarkdown(text: string): React.ReactNode[] {
       });
 
       nodes.push(
-        <div key={`table-${nodes.length}`} className="my-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div key={`table-${nodes.length}`} className="my-2 overflow-x-auto rounded-lg border border-line">
           <table className="min-w-full border-collapse text-[13px]">
-            <thead className="bg-gray-100 dark:bg-gray-800">
+            <thead className="bg-surface-soft">
               <tr>
                 {headerCells.map((cell, idx) => (
                   <th
                     key={`th-${idx}`}
-                    className="px-3 py-2 text-left font-semibold text-gray-800 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700"
+                    className="px-3 py-2 text-left font-semibold text-ink border-b border-line"
                   >
                     {renderInline(cell)}
                   </th>
@@ -341,11 +341,11 @@ function renderMarkdown(text: string): React.ReactNode[] {
             </thead>
             <tbody>
               {normalizedRows.map((row, rowIdx) => (
-                <tr key={`tr-${rowIdx}`} className="odd:bg-white even:bg-gray-50/70 dark:odd:bg-gray-900 dark:even:bg-gray-900/60">
+                <tr key={`tr-${rowIdx}`} className="odd:bg-surface even:bg-surface-soft/60">
                   {row.map((cell, cellIdx) => (
                     <td
                       key={`td-${rowIdx}-${cellIdx}`}
-                      className="px-3 py-2 align-top text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800"
+                      className="px-3 py-2 align-top text-ink-muted border-b border-line"
                     >
                       {renderInline(cell)}
                     </td>
@@ -367,8 +367,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
       const level = headingMatch[1].length;
       const headingText = headingMatch[2].trim();
       const headingClass = level <= 2
-        ? "text-[18px] sm:text-[19px] font-semibold text-gray-900 dark:text-gray-100 mt-2"
-        : "text-[17px] sm:text-[18px] font-semibold text-gray-900 dark:text-gray-100 mt-2";
+        ? "font-display text-[18px] sm:text-[19px] font-semibold tracking-tight text-ink mt-2"
+        : "font-display text-[17px] sm:text-[18px] font-semibold tracking-tight text-ink mt-2";
 
       nodes.push(
         <h3 key={`h-${nodes.length}`} className={headingClass}>
@@ -709,7 +709,7 @@ export default function Chatbot() {
     if (centered) {
       return (
         <div className="w-full max-w-4xl">
-          <div className="rounded-[26px] border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/90 shadow-sm px-5 sm:px-6 py-5 min-h-[150px] flex flex-col">
+          <div className="rounded-[26px] border border-line bg-surface shadow-card px-5 sm:px-6 py-5 min-h-[150px] flex flex-col">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -722,13 +722,13 @@ export default function Chatbot() {
                 }
               }}
               placeholder="How can I help you today?"
-              className="w-full resize-none outline-none text-[17px] sm:text-[18px] text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500 bg-transparent min-h-[64px] max-h-40 leading-relaxed"
+              className="w-full resize-none outline-none text-[17px] sm:text-[18px] text-ink placeholder-ink-faint bg-transparent min-h-[64px] max-h-40 leading-relaxed"
             />
 
             <div className="mt-4 flex items-center justify-between">
               <button
                 type="button"
-                className="w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="w-8 h-8 rounded-lg text-ink-faint hover:bg-surface-soft transition-colors"
                 aria-label="More options"
               >
                 <span className="text-[30px] leading-none">+</span>
@@ -737,7 +737,7 @@ export default function Chatbot() {
               <button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-150 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:shadow-none disabled:cursor-not-allowed"
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-150 bg-crimson hover:bg-crimson-deep shadow-crimson disabled:bg-surface-soft disabled:shadow-none disabled:cursor-not-allowed"
                 aria-label="Send"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4">
@@ -753,7 +753,7 @@ export default function Chatbot() {
 
     return (
       <div className="max-w-3xl mx-auto">
-        <div className="flex gap-3 items-end rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all duration-200 px-4 py-3">
+        <div className="flex gap-3 items-end rounded-2xl border border-line bg-surface shadow-card focus-within:border-crimson/40 focus-within:ring-2 focus-within:ring-crimson/10 transition-all duration-200 px-4 py-3">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -766,12 +766,12 @@ export default function Chatbot() {
               }
             }}
             placeholder="Ask an exam question or explore topics..."
-            className="flex-1 resize-none outline-none text-[16px] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 bg-transparent min-h-[24px] max-h-40 leading-relaxed"
+            className="flex-1 resize-none outline-none text-[16px] text-ink placeholder-ink-faint bg-transparent min-h-[24px] max-h-40 leading-relaxed"
           />
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:shadow-none disabled:cursor-not-allowed"
+            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 bg-crimson hover:bg-crimson-deep shadow-crimson disabled:bg-surface-soft disabled:shadow-none disabled:cursor-not-allowed"
             aria-label="Send"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
@@ -780,7 +780,7 @@ export default function Chatbot() {
             </svg>
           </button>
         </div>
-        <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+        <p className="text-center text-[11px] text-ink-faint mt-2">
           Enter to send · Shift+Enter for new line
         </p>
       </div>
@@ -790,10 +790,10 @@ export default function Chatbot() {
   const sidebarContent = (
     <>
       {/* New chat */}
-      <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+      <div className="p-4 border-b border-line">
         <button
           onClick={handleNewChat}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 transition-colors text-sm font-medium text-white shadow-sm shadow-primary/20"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-crimson hover:bg-crimson-deep transition-colors text-sm font-medium text-white shadow-crimson"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -805,16 +805,16 @@ export default function Chatbot() {
 
       {/* Chat history */}
       {/* Chat history */}
-      <div className="flex-1 overflow-y-auto p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 px-1 mb-2">Chats</p>
+      <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-faint px-1 mb-2">Chats</p>
         {chatSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center mt-10 gap-2">
-            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 dark:text-gray-500">
+            <div className="w-10 h-10 rounded-full bg-surface-soft flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-ink-faint">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 text-center">No messages yet.<br />Ask something to start.</p>
+            <p className="text-xs text-ink-faint text-center">No messages yet.<br />Ask something to start.</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -830,17 +830,17 @@ export default function Chatbot() {
                     }}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors border pr-12 ${
                       isActive
-                        ? "bg-primary/5 border-primary/20"
-                        : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        ? "bg-crimson/5 border-crimson/20"
+                        : "bg-surface border-line hover:bg-surface-soft"
                     }`}
                   >
-                    <p className={`text-xs leading-relaxed line-clamp-2 ${isActive ? "text-primary font-semibold" : "text-gray-700 dark:text-gray-200 font-medium"}`}>
+                    <p className={`text-xs leading-relaxed line-clamp-2 ${isActive ? "text-crimson font-semibold" : "text-ink-muted font-medium"}`}>
                       {session.title}
                     </p>
                   </button>
                   <button
                     onClick={(e) => handleDeleteChat(session.id, e)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-crimson-soft text-ink-faint hover:text-crimson"
                     title="Delete chat"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -858,12 +858,12 @@ export default function Chatbot() {
       </div>
 
       {/* Sidebar footer */}
-      <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+      <div className="p-3 border-t border-line">
         <div className="flex items-center gap-2 px-2 py-1.5">
           <CircularOLogo size={28} />
           <div>
-            <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Propel AI</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">Powered by past papers</p>
+            <p className="text-[11px] font-semibold text-ink-muted">Propel AI</p>
+            <p className="text-[10px] text-ink-faint">Powered by past papers</p>
           </div>
         </div>
       </div>
@@ -871,10 +871,10 @@ export default function Chatbot() {
   );
 
   return (
-    <div className="relative flex h-full bg-gray-50/30 dark:bg-gray-950 font-sans antialiased overflow-hidden">
+    <div className="relative flex h-full bg-paper font-sans antialiased overflow-hidden">
       <button
         onClick={() => setMobileSidebarOpen((v) => !v)}
-        className="fixed top-[88px] z-[60] p-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/5 transition-all duration-200 shadow-sm lg:hidden"
+        className="fixed top-[88px] z-[60] p-2 rounded-lg bg-surface border border-line text-ink-muted hover:text-crimson hover:bg-crimson/5 transition-all duration-200 shadow-card lg:hidden"
         style={{ left: mobileSidebarOpen ? "calc(18rem + 0.75rem)" : "1rem" }}
         aria-label={mobileSidebarOpen ? "Close sidebar" : "Open sidebar"}
       >
@@ -897,7 +897,7 @@ export default function Chatbot() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed left-0 top-[74px] h-[calc(100vh-74px)] w-72 z-50 flex flex-col bg-white dark:bg-black border-r border-gray-100 dark:border-gray-800 shadow-2xl"
+              className="fixed left-0 top-[74px] h-[calc(100vh-74px)] w-72 z-50 flex flex-col bg-surface border-r border-line shadow-2xl"
             >
               {sidebarContent}
             </motion.aside>
@@ -905,7 +905,7 @@ export default function Chatbot() {
         )}
       </AnimatePresence>
 
-      <aside className="hidden lg:flex lg:w-72 lg:flex-col bg-white dark:bg-black border-r border-gray-100 dark:border-gray-800 shadow-sm">
+      <aside className="hidden lg:flex lg:w-72 lg:flex-col bg-surface border-r border-line shadow-card">
         {sidebarContent}
       </aside>
 
@@ -916,16 +916,16 @@ export default function Chatbot() {
               <div className="mb-4">
                 <CircularOLogo size={44} />
               </div>
-              <h1 className="text-3xl sm:text-4xl font-semibold text-gray-800 dark:text-gray-100 mb-1.5">
-                {getTimeGreeting()}, {userName}
+              <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-ink mb-1.5">
+                {getTimeGreeting()}, <span className="italic text-crimson">{userName}</span>
               </h1>
-              <p className="text-gray-400 dark:text-gray-500 text-lg">How can I help you study today?</p>
+              <p className="text-ink-muted text-lg">How can I help you study today?</p>
               <div className="mt-8 w-full flex justify-center">
                 {renderComposer({ centered: true })}
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6 custom-scrollbar">
               {messages.map((msg) => (
                 <MessageRow key={msg.id} msg={msg} />
               ))}
@@ -935,10 +935,10 @@ export default function Chatbot() {
                   <div className="flex-shrink-0 mt-0.5">
                     <CircularOLogo size={32} />
                   </div>
-                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:300ms]" />
+                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-tl-sm bg-surface border border-line shadow-card">
+                    <span className="w-1.5 h-1.5 bg-crimson/60 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-crimson/60 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-crimson/60 rounded-full animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               )}
@@ -949,7 +949,7 @@ export default function Chatbot() {
         </div>
 
         {!showCenteredComposer && (
-          <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 sm:px-6 py-4">
+          <div className="flex-shrink-0 bg-surface border-t border-line px-4 sm:px-6 py-4">
             {renderComposer()}
           </div>
         )}
@@ -962,7 +962,7 @@ function MessageRow({ msg }: { msg: Message }) {
   if (msg.type === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[88%] sm:max-w-[85%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary text-white shadow-sm shadow-primary/20">
+        <div className="max-w-[88%] sm:max-w-[85%] px-4 py-3 rounded-2xl rounded-br-sm bg-crimson text-white shadow-crimson">
           <p className="text-[16px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
           <p className="text-[10px] mt-1.5 text-white/60 text-right">
             {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -988,17 +988,17 @@ function MessageRow({ msg }: { msg: Message }) {
 
   const sourceCardClass =
     sourceType === "past_paper"
-      ? "border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/25"
+      ? "border-mint/20 bg-mint-soft/60"
       : sourceType === "nearby_only"
-        ? "border-blue-100 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/25"
-        : "border-amber-100 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/25";
+        ? "border-gold/20 bg-gold-soft/60"
+        : "border-clay/20 bg-clay-soft/60";
 
   const sourceTextClass =
     sourceType === "past_paper"
-      ? "text-emerald-900 dark:text-emerald-200"
+      ? "text-mint-ink"
       : sourceType === "nearby_only"
-        ? "text-blue-900 dark:text-blue-200"
-        : "text-amber-900 dark:text-amber-200";
+        ? "text-gold-ink"
+        : "text-clay-ink";
 
   return (
     <div className="flex gap-2 sm:gap-3 items-start">
@@ -1007,7 +1007,7 @@ function MessageRow({ msg }: { msg: Message }) {
       </div>
 
       <div className="flex-1 min-w-0 space-y-3">
-        <div className="bg-gradient-to-b from-white to-slate-50/70 dark:from-slate-800 dark:to-slate-900/95 rounded-2xl rounded-tl-sm border border-slate-200/80 dark:border-slate-700 shadow-sm px-4 py-3.5">
+        <div className="bg-surface rounded-2xl rounded-tl-sm border border-line shadow-card px-4 py-3.5">
           <div className="space-y-2">{renderMarkdown(msg.content)}</div>
         </div>
 
@@ -1018,16 +1018,16 @@ function MessageRow({ msg }: { msg: Message }) {
             )}
 
             {primaryCitation && (
-              <div className={`${shouldShowSourceNoteText ? "mt-2" : "mt-0"} rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2`}>
-                <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <div className={`${shouldShowSourceNoteText ? "mt-2" : "mt-0"} rounded-lg bg-surface border border-line px-3 py-2`}>
+                <p className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">
                   Similar Past Paper
                 </p>
-                <p className="mt-1 text-[12px] text-gray-700 dark:text-gray-300 leading-snug">
+                <p className="mt-1 text-[12px] text-ink-muted leading-snug">
                   {primaryCitation.subject} · {primaryCitation.year} {humanizeSessionValue(primaryCitation.session)} · Paper {humanizePaperValue(primaryCitation.paper)} · Variant {humanizePaperValue(primaryCitation.variant)}
                 </p>
 
                 {buildCitationQuestionRef(primaryCitation) && (
-                  <p className="mt-1 text-[12px] text-gray-700 dark:text-gray-300 leading-snug">
+                  <p className="mt-1 text-[12px] text-ink-muted leading-snug">
                     {buildCitationQuestionRef(primaryCitation)}
                     {Number.isFinite(primaryCitation.marks)
                       ? ` (${primaryCitation.marks} marks)`
@@ -1036,7 +1036,7 @@ function MessageRow({ msg }: { msg: Message }) {
                 )}
 
                 {primaryCitation.topicSyllabus && (
-                  <p className="mt-1 text-[12px] text-gray-600 dark:text-gray-400 leading-snug">
+                  <p className="mt-1 text-[12px] text-ink-faint leading-snug">
                     Topic: {primaryCitation.topicSyllabus}
                   </p>
                 )}
@@ -1046,18 +1046,18 @@ function MessageRow({ msg }: { msg: Message }) {
         )}
 
         {msg.markingPoints && msg.markingPoints.length > 0 && (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/60 overflow-hidden">
-            <div className="px-4 py-2 bg-gray-100/80 dark:bg-gray-700/60 border-b border-gray-200 dark:border-gray-700">
-              <h4 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Marking Points</h4>
+          <div className="rounded-xl border border-line bg-surface-soft overflow-hidden">
+            <div className="px-4 py-2 bg-surface-soft border-b border-line">
+              <h4 className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider">Marking Points</h4>
             </div>
             <div className="p-4 space-y-2.5">
               {msg.markingPoints.map((item, i) => (
                 <div key={i} className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2 flex-1">
-                    <span className="text-primary text-xs mt-0.5 font-bold flex-shrink-0">{i + 1}.</span>
-                    <p className="text-[14px] text-gray-700 dark:text-gray-300 leading-snug">{item.point}</p>
+                    <span className="text-crimson text-xs mt-0.5 font-bold flex-shrink-0">{i + 1}.</span>
+                    <p className="text-[14px] text-ink-muted leading-snug">{item.point}</p>
                   </div>
-                  <span className="flex-shrink-0 inline-block px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
+                  <span className="flex-shrink-0 inline-block px-2 py-0.5 rounded-full bg-crimson/10 text-crimson text-[11px] font-bold">
                     {item.marks}m
                   </span>
                 </div>
@@ -1067,14 +1067,14 @@ function MessageRow({ msg }: { msg: Message }) {
         )}
 
         {msg.commonMistakes && msg.commonMistakes.length > 0 && (
-          <div className="rounded-xl border border-red-100 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/30 overflow-hidden">
-            <div className="px-4 py-2 bg-red-100/60 dark:bg-red-900/30 border-b border-red-100 dark:border-red-900/50">
-              <h4 className="text-[11px] font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider">Common Mistakes</h4>
+          <div className="rounded-xl border border-crimson/15 bg-crimson-soft/50 overflow-hidden">
+            <div className="px-4 py-2 bg-crimson-soft/70 border-b border-crimson/15">
+              <h4 className="text-[11px] font-semibold text-crimson uppercase tracking-wider">Common Mistakes</h4>
             </div>
             <ul className="p-4 space-y-2">
               {msg.commonMistakes.map((mistake, i) => (
-                <li key={i} className="text-[14px] text-red-700 dark:text-red-400 flex items-start gap-2 leading-snug">
-                  <span className="flex-shrink-0 text-red-400 dark:text-red-500 font-bold mt-0.5">x</span>
+                <li key={i} className="text-[14px] text-crimson-ink flex items-start gap-2 leading-snug">
+                  <span className="flex-shrink-0 text-crimson font-bold mt-0.5">x</span>
                   <span>{mistake}</span>
                 </li>
               ))}
@@ -1082,7 +1082,7 @@ function MessageRow({ msg }: { msg: Message }) {
           </div>
         )}
 
-        <p className="text-[11px] text-gray-400 dark:text-gray-500">
+        <p className="text-[11px] text-ink-faint">
           {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>

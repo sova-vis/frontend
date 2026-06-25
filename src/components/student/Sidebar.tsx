@@ -62,15 +62,15 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                 />
             )}
 
-            <aside className={`fixed left-0 top-0 h-screen w-64 bg-white/90 backdrop-blur-xl border-r border-gray-100 flex flex-col z-50 transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"
+            <aside className={`fixed left-0 top-0 h-screen w-64 bg-surface/90 backdrop-blur-xl border-r border-line flex flex-col z-50 transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"
                 }`}>
                 <div className="p-8 pb-4 flex justify-between items-center gap-3">
-                    <BrandLogo size={40} labelClassName="text-2xl text-primary" />
-                    <button onClick={onClose} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg ml-auto">
+                    <BrandLogo size={40} labelClassName="text-2xl text-crimson" />
+                    <button onClick={onClose} className="md:hidden p-2 text-ink-muted hover:bg-surface-soft rounded-lg ml-auto">
                         <ChevronLeft size={20} />
                     </button>
                     {/* Desktop Toggle - visible only on desktop */}
-                    <button onClick={onClose} className="hidden md:block p-2 text-gray-400 hover:text-primary transition-colors hover:bg-gray-50 rounded-lg">
+                    <button onClick={onClose} className="hidden md:block p-2 text-ink-faint hover:text-crimson transition-colors hover:bg-surface-soft rounded-lg">
                         <ChevronLeft size={20} className={`transition-transform duration-300 ${!isOpen ? "rotate-180" : ""}`} />
                     </button>
                 </div>
@@ -85,8 +85,8 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                                 href={item.href}
                                 onClick={onClose}
                                 className={`relative flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all ${isActive
-                                    ? "text-primary bg-primary/5"
-                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                    ? "text-crimson bg-crimson/5"
+                                    : "text-ink-muted hover:text-ink hover:bg-surface-soft"
                                     }`}
                             >
                                 <item.icon size={20} />
@@ -94,7 +94,7 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                                 {isActive && (
                                     <motion.div
                                         layoutId="activeTab"
-                                        className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"
+                                        className="absolute left-0 top-0 bottom-0 w-1 bg-crimson rounded-r-full"
                                     />
                                 )}
                             </Link>
@@ -102,18 +102,18 @@ export default function StudentSidebar({ isOpen, onClose }: { isOpen?: boolean, 
                     })}
                 </nav>
 
-                <div className="p-4 mt-auto border-t border-gray-50 space-y-2">
+                <div className="p-4 mt-auto border-t border-line space-y-2">
                     <Link
                         href="/student/settings"
                         onClick={onClose}
-                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-500 rounded-xl hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink-muted rounded-xl hover:text-ink hover:bg-surface-soft transition-colors"
                     >
                         <Settings size={20} />
                         <span>Settings</span>
                     </Link>
-                    <button 
+                    <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-crimson rounded-xl hover:bg-crimson-soft transition-colors text-left"
                     >
                         <LogOut size={20} />
                         <span>Log Out</span>

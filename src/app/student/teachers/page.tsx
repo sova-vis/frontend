@@ -23,6 +23,7 @@ import {
   updateMeeting,
 } from "@/lib/api";
 import ChatModal from "@/components/mentoring/ChatModal";
+import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
 interface RequestFormState {
   teacher_clerk_id: string;
@@ -33,12 +34,12 @@ interface RequestFormState {
 }
 
 const statusStyle: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  accepted: "bg-blue-100 text-blue-700",
-  scheduled: "bg-emerald-100 text-emerald-700",
-  completed: "bg-teal-100 text-teal-700",
-  declined: "bg-rose-100 text-rose-700",
-  cancelled: "bg-gray-200 text-gray-700",
+  pending: "bg-gold-soft text-gold-ink",
+  accepted: "bg-mint-soft text-mint-ink",
+  scheduled: "bg-mint-soft text-mint-ink",
+  completed: "bg-ink text-paper",
+  declined: "bg-crimson-soft text-crimson-ink",
+  cancelled: "bg-surface-soft text-ink-muted",
 };
 
 export default function StudentTeachersPage() {
@@ -248,33 +249,36 @@ export default function StudentTeachersPage() {
   if (loading) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
-        <div className="h-8 w-72 bg-gray-200 rounded animate-pulse mb-4" />
-        <div className="h-28 bg-gray-200 rounded-2xl animate-pulse" />
+        <div className="h-8 w-72 bg-surface-soft rounded animate-pulse mb-4" />
+        <div className="h-28 bg-surface-soft rounded-2xl animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-8 pb-14 min-h-full">
+    <div className="p-4 md:p-8 pb-14 min-h-full bg-transparent">
       <div className="max-w-6xl mx-auto space-y-8">
-        <section className="rounded-3xl bg-white border border-gray-200 shadow-sm p-6 md:p-8">
+        <Reveal>
+        <section className="ed-card p-6 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900">Teacher Support</h1>
-              <p className="text-gray-600">Request one-to-one meetings and chat with your teachers.</p>
+              <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
+                Teacher <span className="italic text-crimson">Support</span>
+              </h1>
+              <p className="text-ink-muted">Request one-to-one meetings and chat with your teachers.</p>
             </div>
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600">
+            <div className="inline-flex items-center gap-2 text-sm font-semibold text-ink-muted">
               <Users size={16} />
               {teachers.length} teachers available
             </div>
           </div>
 
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-          {success && <p className="mb-3 text-sm text-emerald-700">{success}</p>}
+          {error && <p className="mb-3 text-sm text-crimson">{error}</p>}
+          {success && <p className="mb-3 text-sm text-mint-ink">{success}</p>}
 
           <form onSubmit={handleMeetingRequest} className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-semibold text-gray-700">Teacher</label>
+              <label className="text-sm font-semibold text-ink-muted">Teacher</label>
               <select
                 value={form.teacher_clerk_id}
                 onChange={(event) => {
@@ -282,7 +286,7 @@ export default function StudentTeachersPage() {
                   setForm((current) => ({ ...current, teacher_clerk_id: nextTeacherId }));
                   setSelectedTeacherClerkId(nextTeacherId);
                 }}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                className="ed-input mt-1 text-sm"
                 required
               >
                 <option value="" disabled>
@@ -297,45 +301,45 @@ export default function StudentTeachersPage() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-gray-700">Agenda</label>
+              <label className="text-sm font-semibold text-ink-muted">Agenda</label>
               <input
                 required
                 value={form.agenda}
                 onChange={(event) => setForm((current) => ({ ...current, agenda: event.target.value }))}
                 placeholder="Discuss algebra problem solving"
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                className="ed-input mt-1 text-sm"
               />
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-gray-700">Preferred Start</label>
+              <label className="text-sm font-semibold text-ink-muted">Preferred Start</label>
               <input
                 type="datetime-local"
                 value={form.preferred_start_time}
                 onChange={(event) => setForm((current) => ({ ...current, preferred_start_time: event.target.value }))}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                className="ed-input mt-1 text-sm"
                 required
               />
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-gray-700">Preferred End</label>
+              <label className="text-sm font-semibold text-ink-muted">Preferred End</label>
               <input
                 type="datetime-local"
                 value={form.preferred_end_time}
                 onChange={(event) => setForm((current) => ({ ...current, preferred_end_time: event.target.value }))}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                className="ed-input mt-1 text-sm"
                 required
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">Notes for Teacher</label>
+              <label className="text-sm font-semibold text-ink-muted">Notes for Teacher</label>
               <textarea
                 value={form.note_from_student}
                 onChange={(event) => setForm((current) => ({ ...current, note_from_student: event.target.value }))}
                 rows={3}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                className="ed-input mt-1 text-sm"
                 placeholder="Mention chapter, assignment details, or exam target"
               />
             </div>
@@ -344,7 +348,7 @@ export default function StudentTeachersPage() {
               <button
                 type="submit"
                 disabled={submitting || teachers.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                className="ed-btn-ink disabled:opacity-60"
               >
                 <Calendar size={15} />
                 {submitting ? "Submitting..." : "Request 1:1 Meeting"}
@@ -352,16 +356,18 @@ export default function StudentTeachersPage() {
             </div>
           </form>
         </section>
+        </Reveal>
 
+        <Reveal delay={0.1}>
         <section className="grid lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Teachers List</h2>
-            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+          <div className="lg:col-span-4 ed-card p-5">
+            <h2 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Teachers List</h2>
+            <Stagger className="space-y-2 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
               {teachers.map((teacher) => {
                 const isActive = teacher.clerk_id === selectedTeacherClerkId;
                 return (
+                  <StaggerItem key={teacher.clerk_id}>
                   <button
-                    key={teacher.clerk_id}
                     type="button"
                     onClick={() => {
                       setSelectedTeacherClerkId(teacher.clerk_id);
@@ -369,51 +375,52 @@ export default function StudentTeachersPage() {
                     }}
                     className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
                       isActive
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
+                        ? "border-ink bg-ink text-paper"
+                        : "border-line bg-surface text-ink hover:bg-surface-soft"
                     }`}
                   >
                     <p className="text-sm font-semibold">{teacher.full_name || "Teacher"}</p>
-                    <p className={`text-xs ${isActive ? "text-gray-200" : "text-gray-500"}`}>{teacher.email || "No email"}</p>
+                    <p className={`text-xs ${isActive ? "text-paper/70" : "text-ink-faint"}`}>{teacher.email || "No email"}</p>
                   </button>
+                  </StaggerItem>
                 );
               })}
-              {teachers.length === 0 && <p className="text-sm text-gray-500">No teachers available.</p>}
-            </div>
+              {teachers.length === 0 && <p className="text-sm text-ink-faint">No teachers available.</p>}
+            </Stagger>
           </div>
 
-          <div className="lg:col-span-8 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Teacher Details</h2>
+          <div className="lg:col-span-8 ed-card p-5">
+            <h2 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Teacher Details</h2>
             {!selectedTeacher ? (
-              <p className="text-sm text-gray-500">Select a teacher to view details.</p>
+              <p className="text-sm text-ink-faint">Select a teacher to view details.</p>
             ) : (
               <>
                 <div className="flex justify-between items-start gap-3">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedTeacher.full_name || "Teacher"}</h3>
-                    <p className="text-sm text-gray-500">{selectedTeacher.email || "No email"}</p>
-                    {selectedTeacher.headline && <p className="text-sm text-gray-700 mt-2">{selectedTeacher.headline}</p>}
+                    <h3 className="font-display text-xl font-semibold tracking-tight text-ink">{selectedTeacher.full_name || "Teacher"}</h3>
+                    <p className="text-sm text-ink-faint">{selectedTeacher.email || "No email"}</p>
+                    {selectedTeacher.headline && <p className="text-sm text-ink-muted mt-2">{selectedTeacher.headline}</p>}
                   </div>
                   {eligibleTeacherIds.has(selectedTeacher.clerk_id) ? (
                     <button
                       onClick={() => void handleOpenChat(selectedTeacher.clerk_id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink-muted hover:bg-surface-soft"
                     >
                       <MessageCircle size={14} />
                       Chat
                     </button>
                   ) : (
-                    <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                    <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface-soft px-3 py-2 text-xs font-semibold text-ink-faint">
                       Request meeting to chat
                     </span>
                   )}
                 </div>
 
-                {selectedTeacher.bio && <p className="mt-3 text-sm text-gray-600">{selectedTeacher.bio}</p>}
+                {selectedTeacher.bio && <p className="mt-3 text-sm text-ink-muted">{selectedTeacher.bio}</p>}
                 {selectedTeacher.subjects.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selectedTeacher.subjects.map((subject) => (
-                      <span key={subject} className="text-xs rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                      <span key={subject} className="text-xs rounded-full bg-surface-soft px-3 py-1 text-ink-muted">
                         {subject}
                       </span>
                     ))}
@@ -423,25 +430,27 @@ export default function StudentTeachersPage() {
             )}
           </div>
         </section>
+        </Reveal>
 
-        <section className="rounded-3xl bg-white border border-gray-200 shadow-sm p-6 md:p-8">
-          <h3 className="text-xl font-black text-gray-900 mb-4">My Meeting Records</h3>
+        <Reveal delay={0.1}>
+        <section className="ed-card p-6 md:p-8">
+          <h3 className="font-display text-xl font-semibold tracking-tight text-ink mb-4">My Meeting Records</h3>
           <div className="space-y-3">
-            {meetings.length === 0 && <p className="text-sm text-gray-500">No meeting requests yet.</p>}
+            {meetings.length === 0 && <p className="text-sm text-ink-faint">No meeting requests yet.</p>}
             {meetings.map((meeting) => (
-              <div key={meeting.id} className="rounded-2xl border border-gray-200 p-4">
+              <div key={meeting.id} className="rounded-2xl border border-line bg-surface p-4 transition hover:shadow-card-hover">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-ink">
                       {meeting.teacher_profile?.full_name || meeting.teacher_profile?.email || "Teacher"}
                     </p>
-                    <p className="text-sm text-gray-600">{meeting.agenda}</p>
+                    <p className="text-sm text-ink-muted">{meeting.agenda}</p>
                   </div>
                   <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusStyle[meeting.status] || statusStyle.pending}`}>
                     {meeting.status}
                   </span>
                 </div>
-                <div className="mt-2 text-xs text-gray-500 grid sm:grid-cols-2 gap-1">
+                <div className="mt-2 text-xs text-ink-faint grid sm:grid-cols-2 gap-1">
                   <p className="inline-flex items-center gap-1"><Clock3 size={12} /> Requested: {new Date(meeting.requested_at).toLocaleString()}</p>
                   {meeting.start_time && meeting.end_time ? (
                     <p className="inline-flex items-center gap-1"><Calendar size={12} /> {new Date(meeting.start_time).toLocaleString()} - {new Date(meeting.end_time).toLocaleTimeString()}</p>
@@ -454,7 +463,7 @@ export default function StudentTeachersPage() {
                     href={meeting.meeting_link}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 mt-3 text-sm font-semibold text-blue-700"
+                    className="inline-flex items-center gap-2 mt-3 text-sm font-semibold text-crimson"
                   >
                     <CheckCircle2 size={14} />
                     Join Meeting Link
@@ -466,7 +475,7 @@ export default function StudentTeachersPage() {
                       <button
                         type="button"
                         onClick={() => void handleAbortMeeting(meeting.id)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
+                        className="inline-flex items-center gap-2 rounded-xl border border-gold/30 bg-gold-soft px-3 py-2 text-xs font-semibold text-gold-ink"
                       >
                         Abort
                       </button>
@@ -474,7 +483,7 @@ export default function StudentTeachersPage() {
                     <button
                       type="button"
                       onClick={() => void handleDeleteMeeting(meeting.id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
+                      className="inline-flex items-center gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-xs font-semibold text-crimson-ink"
                     >
                       Delete
                     </button>
@@ -484,6 +493,7 @@ export default function StudentTeachersPage() {
             ))}
           </div>
         </section>
+        </Reveal>
       </div>
 
       {selectedConversation && user && (

@@ -5,6 +5,7 @@ import { Award, CheckCircle2, CircleAlert, Loader2, Sparkles, Upload, FileImage,
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
+import { Reveal } from "@/components/ui/Motion";
 import {
   confirmQaGradingFromImage,
   gradeQaAnswer,
@@ -44,17 +45,17 @@ const SAMPLE_FORM: FormState = {
 };
 
 function statusPillClass(status?: string): string {
-  if (status === "accepted") return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800";
-  if (status === "review_required") return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800";
-  if (status === "failed") return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800";
-  return "bg-gray-50 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+  if (status === "accepted") return "bg-mint-soft text-mint-ink border-mint/20";
+  if (status === "review_required") return "bg-gold-soft text-gold-ink border-gold/20";
+  if (status === "failed") return "bg-crimson-soft text-crimson-ink border-crimson/20";
+  return "bg-surface-soft text-ink-muted border-line";
 }
 
 function gradePillClass(grade?: string): string {
-  if (grade === "fully_correct") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300";
-  if (grade === "partially_correct") return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
-  if (grade === "weak") return "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300";
-  return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
+  if (grade === "fully_correct") return "bg-mint-soft text-mint-ink";
+  if (grade === "partially_correct") return "bg-gold-soft text-gold-ink";
+  if (grade === "weak") return "bg-crimson-soft text-crimson-ink";
+  return "bg-surface-soft text-ink-muted";
 }
 
 export default function QaGradingPage() {
@@ -207,21 +208,25 @@ export default function QaGradingPage() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-rose-50/70 via-white to-slate-50 p-4 md:p-8 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="min-h-full bg-transparent p-4 md:p-8">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-3xl border border-rose-100/80 bg-white/90 p-6 shadow-sm backdrop-blur md:p-8 dark:border-slate-800 dark:bg-slate-900/90">
+        <section className="ed-card p-6 md:p-8">
+          <Reveal>
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl dark:text-slate-100">Q/A Grading</h1>
-              <p className="mt-2 max-w-2xl text-sm text-gray-600 md:text-base dark:text-slate-300">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-ink md:text-3xl">
+                Q/A <span className="italic text-crimson">Grading</span>
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-ink-muted md:text-base">
                 Submit a question and the student answer to get instant grading with feedback, expected points,
                 and missing points.
               </p>
             </div>
-            <div className="hidden rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 md:block dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <div className="hidden rounded-2xl border border-crimson/20 bg-crimson-soft px-3 py-2 text-xs font-semibold text-crimson-ink md:block">
               Student Tool
             </div>
           </div>
+          </Reveal>
 
           <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button
@@ -232,8 +237,8 @@ export default function QaGradingPage() {
               }}
               className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                 mode === "typed"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  ? "border-crimson bg-crimson/10 text-crimson"
+                  : "border-line bg-surface text-ink-muted hover:bg-surface-soft"
               }`}
             >
               Typed Question (Mode B)
@@ -246,8 +251,8 @@ export default function QaGradingPage() {
               }}
               className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                 mode === "upload"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  ? "border-crimson bg-crimson/10 text-crimson"
+                  : "border-line bg-surface text-ink-muted hover:bg-surface-soft"
               }`}
             >
               Upload Image/PDF (Mode A)
@@ -258,7 +263,7 @@ export default function QaGradingPage() {
             {mode === "typed" ? (
               <>
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Question</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Question</label>
                   <Textarea
                     value={form.question}
                     onChange={(event) => setForm((prev) => ({ ...prev, question: event.target.value }))}
@@ -268,7 +273,7 @@ export default function QaGradingPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Student Answer</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Student Answer</label>
                   <Textarea
                     value={form.studentAnswer}
                     onChange={(event) => setForm((prev) => ({ ...prev, studentAnswer: event.target.value }))}
@@ -278,10 +283,10 @@ export default function QaGradingPage() {
                 </div>
               </>
             ) : (
-              <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
-                <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Upload file (PDF/Image)</label>
+              <div className="space-y-3 rounded-2xl border border-line bg-surface-soft p-4">
+                <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Upload file (PDF/Image)</label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink-muted hover:bg-surface-soft">
                     <Upload className="h-4 w-4" />
                     Choose File
                     <input
@@ -291,13 +296,13 @@ export default function QaGradingPage() {
                       onChange={onFileChange}
                     />
                   </label>
-                  <span className="text-sm text-gray-600 dark:text-slate-300">
+                  <span className="text-sm text-ink-muted">
                     {uploadFile ? uploadFile.name : "No file selected"}
                   </span>
                 </div>
 
                 <div className="max-w-[180px]">
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Page Number</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Page Number</label>
                   <Input
                     value={uploadPageNumber}
                     onChange={(event) => setUploadPageNumber(event.target.value)}
@@ -305,7 +310,7 @@ export default function QaGradingPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-ink-faint">
                   {uploadFile?.type === "application/pdf" ? (
                     <FileText className="h-4 w-4" />
                   ) : (
@@ -317,7 +322,7 @@ export default function QaGradingPage() {
             )}
 
             {error && (
-              <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <div className="flex items-start gap-2 rounded-xl border border-crimson/20 bg-crimson-soft px-3 py-2 text-sm text-crimson-ink">
                 <CircleAlert className="mt-0.5 h-4 w-4" />
                 <span>{error}</span>
               </div>
@@ -340,16 +345,16 @@ export default function QaGradingPage() {
             </div>
 
             {mode === "upload" && preview && (
-              <div className="space-y-3 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900/70 dark:bg-sky-950/40">
+              <div className="space-y-3 rounded-2xl border border-mint/20 bg-mint-soft p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-sky-800">Preview Extracted Content</h3>
-                  <span className="text-xs font-semibold text-sky-700">
+                  <h3 className="text-sm font-semibold text-mint-ink">Preview Extracted Content</h3>
+                  <span className="text-xs font-semibold text-mint-ink">
                     OCR Confidence: {(preview.vision_confidence * 100).toFixed(1)}%
                   </span>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Question (editable)</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Question (editable)</label>
                   <Textarea
                     value={previewQuestion}
                     onChange={(event) => setPreviewQuestion(event.target.value)}
@@ -358,7 +363,7 @@ export default function QaGradingPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-slate-200">Student Answer (editable)</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-ink-muted">Student Answer (editable)</label>
                   <Textarea
                     value={previewStudentAnswer}
                     onChange={(event) => setPreviewStudentAnswer(event.target.value)}
@@ -367,7 +372,7 @@ export default function QaGradingPage() {
                 </div>
 
                 {preview.vision_warnings?.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <div className="rounded-lg border border-gold/20 bg-gold-soft p-3 text-xs text-gold-ink">
                     Warnings: {preview.vision_warnings.join(", ")}
                   </div>
                 )}
@@ -387,49 +392,51 @@ export default function QaGradingPage() {
           </form>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 dark:border-slate-800 dark:bg-slate-900">
+        <section className="ed-card p-6 md:p-8">
+          <Reveal delay={0.1}>
           <div className="mb-4 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Result</h2>
+            <Sparkles className="h-5 w-5 text-crimson" />
+            <h2 className="font-display text-xl font-semibold tracking-tight text-ink">Result</h2>
           </div>
+          </Reveal>
 
           {!result ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center text-sm text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+            <div className="rounded-2xl border border-dashed border-line bg-surface-soft px-5 py-8 text-center text-sm text-ink-faint">
               Submit the form to see grading details.
             </div>
           ) : (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Score</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-slate-100">{result.score_percent.toFixed(1)}%</p>
+                <div className="rounded-2xl border border-line bg-surface-soft p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Score</p>
+                  <p className="mt-2 font-display text-2xl font-semibold text-ink">{result.score_percent.toFixed(1)}%</p>
                 </div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Status</p>
+                <div className="rounded-2xl border border-line bg-surface-soft p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Status</p>
                   <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusPillClass(result.status)}`}>
                     {result.status.replace("_", " ")}
                   </span>
                 </div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Grade</p>
+                <div className="rounded-2xl border border-line bg-surface-soft p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Grade</p>
                   <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${gradePillClass(result.grade_label)}`}>
                     {result.grade_label.replace("_", " ")}
                   </span>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <div className="rounded-2xl border border-line bg-surface p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <Award className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Feedback</h3>
+                  <Award className="h-4 w-4 text-crimson" />
+                  <h3 className="text-sm font-semibold text-ink">Feedback</h3>
                 </div>
-                <p className="text-sm leading-6 text-gray-700 dark:text-slate-300">{result.feedback}</p>
+                <p className="text-sm leading-6 text-ink-muted">{result.feedback}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-emerald-800">Expected Points</h3>
-                  <ul className="space-y-1.5 text-sm text-emerald-900">
+                <div className="rounded-2xl border border-mint/20 bg-mint-soft p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-mint-ink">Expected Points</h3>
+                  <ul className="space-y-1.5 text-sm text-mint-ink">
                     {result.expected_points.length > 0 ? (
                       result.expected_points.map((point, idx) => (
                         <li key={`exp-${idx}`} className="flex gap-2">
@@ -438,14 +445,14 @@ export default function QaGradingPage() {
                         </li>
                       ))
                     ) : (
-                      <li className="text-emerald-700/80">No expected points returned.</li>
+                      <li className="text-mint-ink/80">No expected points returned.</li>
                     )}
                   </ul>
                 </div>
 
-                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-amber-800">Missing Points</h3>
-                  <ul className="space-y-1.5 text-sm text-amber-900">
+                <div className="rounded-2xl border border-gold/20 bg-gold-soft p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-gold-ink">Missing Points</h3>
+                  <ul className="space-y-1.5 text-sm text-gold-ink">
                     {result.missing_points.length > 0 ? (
                       result.missing_points.map((point, idx) => (
                         <li key={`miss-${idx}`} className="flex gap-2">
@@ -454,19 +461,19 @@ export default function QaGradingPage() {
                         </li>
                       ))
                     ) : (
-                      <li className="text-amber-700/80">No missing points detected.</li>
+                      <li className="text-gold-ink/80">No missing points detected.</li>
                     )}
                   </ul>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <div className="rounded-2xl border border-line bg-surface-soft p-4 text-xs text-ink-muted">
                 <p>
-                  Grading source: <span className="font-semibold text-gray-800 dark:text-slate-100">{result.grading_source}</span>
+                  Grading source: <span className="font-semibold text-ink">{result.grading_source}</span>
                 </p>
                 {result.grading_model && (
                   <p className="mt-1">
-                    Model: <span className="font-semibold text-gray-800 dark:text-slate-100">{result.grading_model}</span>
+                    Model: <span className="font-semibold text-ink">{result.grading_model}</span>
                   </p>
                 )}
               </div>

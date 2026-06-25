@@ -2,70 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================================
+   PROPEL — EDITORIAL DESIGN SYSTEM
+   Warm "paper" surfaces, crimson ink, earthy accents. Light + dark themes.
+   Tokens are RGB channels so `rgb(var(--x) / <alpha>)` powers Tailwind
+   opacity utilities (e.g. bg-paper/60) and exact colors at once.
+   ========================================================================= */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 345 20% 5%;
-    
+    /* Editorial palette — LIGHT */
+    --paper: 250 246 240;        /* #FAF6F0 page */
+    --paper-soft: 255 246 233;   /* #FFF6E9 warm section */
+    --surface: 255 255 255;      /* #FFFFFF card */
+    --surface-soft: 250 246 240; /* #FAF6F0 inset */
+    --ink: 28 23 20;             /* #1C1714 text */
+    --ink-muted: 107 95 87;      /* #6B5F57 */
+    --ink-faint: 154 141 131;    /* #9A8D83 */
+    --line: 232 226 217;         /* #E8E2D9 hairline */
+
+    --crimson: 168 18 60;        /* #A8123C */
+    --crimson-deep: 118 11 40;   /* #760B28 */
+    --crimson-soft: 246 225 231; /* #F6E1E7 pill bg */
+    --crimson-ink: 168 18 60;    /* #A8123C pill text */
+
+    --mint: 22 135 107;          /* #16876B */
+    --mint-soft: 219 239 232;    /* #DBEFE8 */
+    --mint-ink: 22 135 107;
+
+    --gold: 217 133 42;          /* #D9852A */
+    --gold-deep: 138 79 18;      /* #8A4F12 */
+    --gold-soft: 248 231 205;    /* #F8E7CD */
+    --gold-ink: 138 79 18;
+
+    --clay: 207 81 40;           /* #CF5128 */
+    --clay-soft: 249 226 215;    /* #F9E2D7 */
+    --clay-ink: 207 81 40;
+
+    /* Legacy shadcn-style tokens (HSL) mapped onto the editorial palette */
+    --background: 36 50% 96%;
+    --foreground: 24 17% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 345 20% 5%;
-    
+    --card-foreground: 24 17% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 345 20% 5%;
-    
-    --primary: 345 87% 30%;
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 345 80% 85%;
-    --secondary-foreground: 345 80% 20%;
-    
-    --accent: 188 77% 86%;
-    --accent-foreground: 188 77% 20%;
-    
-    --highlight: 44 100% 66%;
-    --highlight-foreground: 44 100% 15%;
-    
-    --muted: 0 0% 96%;
-    --muted-foreground: 345 10% 40%;
-    
-    --destructive: 0 84% 60%;
+    --popover-foreground: 24 17% 9%;
+    --muted: 36 28% 92%;
+    --muted-foreground: 24 11% 38%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    
-    --border: 345 10% 90%;
-    --input: 345 10% 85%;
-    --ring: 345 87% 30%;
-    
-    --radius: 1.5rem;
+    --input: 33 18% 86%;
+    --ring: 342 80% 36%;
+
+    --radius: 1.25rem;
   }
 
   .dark {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 98%;
-    --primary: 335 59% 78%;
-    --primary-foreground: 345 87% 10%;
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 92%;
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 95%;
-    --highlight: 44 100% 30%;
-    --highlight-foreground: 44 100% 95%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 70%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 335 59% 78%;
+    /* Editorial palette — DARK (warm charcoal "paper") */
+    --paper: 21 17 14;           /* #15110E */
+    --paper-soft: 33 26 18;      /* #211A12 */
+    --surface: 30 24 19;         /* #1E1813 */
+    --surface-soft: 38 30 23;    /* #261E17 */
+    --ink: 244 238 230;          /* #F4EEE6 */
+    --ink-muted: 187 174 162;    /* #BBAEA2 */
+    --ink-faint: 139 125 113;    /* #8B7D71 */
+    --line: 56 47 40;            /* #382F28 */
+
+    --crimson: 226 74 110;       /* #E24A6E brighter for dark */
+    --crimson-deep: 168 18 60;   /* #A8123C */
+    --crimson-soft: 58 22 34;    /* #3A1622 */
+    --crimson-ink: 240 138 166;  /* #F08AA6 */
+
+    --mint: 95 211 179;          /* #5FD3B3 */
+    --mint-soft: 21 48 42;       /* #15302A */
+    --mint-ink: 122 220 191;     /* #7ADCBF */
+
+    --gold: 233 184 115;         /* #E9B873 */
+    --gold-deep: 233 184 115;
+    --gold-soft: 51 39 15;       /* #33270F */
+    --gold-ink: 233 184 115;
+
+    --clay: 238 146 112;         /* #EE9270 */
+    --clay-soft: 51 33 26;       /* #33211A */
+    --clay-ink: 238 146 112;
+
+    --background: 26 20% 7%;
+    --foreground: 36 33% 93%;
+    --card: 28 21% 10%;
+    --card-foreground: 36 33% 93%;
+    --popover: 28 21% 10%;
+    --popover-foreground: 36 33% 93%;
+    --muted: 28 14% 16%;
+    --muted-foreground: 33 16% 68%;
+    --destructive: 0 64% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --input: 30 12% 22%;
+    --ring: 343 80% 64%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-line;
   }
 
   html {
     color-scheme: light;
+    scroll-behavior: smooth;
   }
 
   html.dark {
@@ -73,16 +115,79 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased transition-colors duration-200;
+    @apply bg-paper text-ink font-sans antialiased transition-colors duration-300;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: rgb(var(--crimson) / 0.85);
+    color: #fff;
+  }
+}
+
+@layer components {
+  /* Cards & surfaces */
+  .ed-card {
+    @apply rounded-[1.25rem] border border-line bg-surface shadow-card transition-colors;
+  }
+  .ed-card-soft {
+    @apply rounded-[1.25rem] border border-line bg-surface-soft;
+  }
+  .ed-card-pad {
+    @apply ed-card p-5 md:p-6;
+  }
+
+  /* Buttons */
+  .ed-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-crimson/30 focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:pointer-events-none disabled:opacity-50;
+  }
+  .ed-btn-primary {
+    @apply ed-btn bg-crimson px-5 py-2.5 text-white shadow-crimson hover:bg-crimson-deep active:scale-[0.98];
+  }
+  .ed-btn-ink {
+    @apply ed-btn bg-ink px-5 py-2.5 text-paper hover:opacity-90 active:scale-[0.98];
+  }
+  .ed-btn-ghost {
+    @apply ed-btn border border-line bg-surface px-5 py-2.5 text-ink hover:bg-surface-soft active:scale-[0.98];
+  }
+
+  /* Pills / tags */
+  .ed-pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold;
+  }
+  .ed-pill-crimson { @apply ed-pill bg-crimson-soft text-crimson-ink; }
+  .ed-pill-mint { @apply ed-pill bg-mint-soft text-mint-ink; }
+  .ed-pill-gold { @apply ed-pill bg-gold-soft text-gold-ink; }
+  .ed-pill-clay { @apply ed-pill bg-clay-soft text-clay-ink; }
+
+  /* Form controls */
+  .ed-input {
+    @apply w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-ink placeholder:text-ink-faint outline-none transition focus:border-crimson focus:ring-2 focus:ring-crimson/20;
+  }
+
+  /* Typographic helpers */
+  .ed-eyebrow {
+    @apply inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-ink-faint;
+  }
+  .ed-label {
+    @apply text-[11px] font-bold uppercase tracking-[.12em] text-ink-faint;
+  }
+  .ed-title {
+    @apply font-display font-semibold tracking-tight text-ink;
+  }
+
+  /* Decorative grid backdrop */
+  .ed-grid-bg {
+    background-image:
+      linear-gradient(rgb(var(--ink) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--ink) / 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
   }
 }
 
 @layer utilities {
   .font-display {
     font-family: var(--font-outfit), system-ui, sans-serif;
-  }
-  .font-sans {
-    font-family: var(--font-inter), system-ui, sans-serif;
   }
   .text-balance {
     text-wrap: balance;
@@ -96,23 +201,20 @@
   .backface-hidden {
     backface-visibility: hidden;
   }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--ink) / 0.18);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
-/* Shared motion primitives for hero elements */
-@keyframes book-flip {
-  0% { transform: rotateY(0deg) rotateX(5deg); }
-  50% { transform: rotateY(-30deg) rotateX(-5deg); }
-  100% { transform: rotateY(0deg) rotateX(5deg); }
-}
-
-@keyframes page-flip-v3 {
-  0% { transform: rotateY(0deg) skewY(0deg) scaleX(1); }
-  25% { transform: rotateY(-90deg) skewY(-15deg) scaleX(1.1); }
-  50% { transform: rotateY(-180deg) skewY(0deg) scaleX(1); }
-  75% { transform: rotateY(-90deg) skewY(15deg) scaleX(1.1); }
-  100% { transform: rotateY(0deg) skewY(0deg) scaleX(1); }
-}
-
+/* Shared motion primitives (used by hero / showcase) */
 @keyframes float-complex {
   0%, 100% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
   25% { transform: translateY(-15px) rotateX(5deg) rotateY(5deg); }
@@ -120,63 +222,93 @@
   75% { transform: translateY(-15px) rotateX(5deg) rotateY(5deg); }
 }
 
-@keyframes pen-writing {
-  0%, 100% { transform: rotate(15deg) translateX(0); }
-  50% { transform: rotate(25deg) translateX(10px); }
-}
+/* =========================================================================
+   DARK-MODE COMPATIBILITY LAYER
+   Many pages hardcode the editorial light hex values. These overrides remap
+   them to their dark equivalents so those pages adapt with no rewrite needed.
+   ========================================================================= */
 
-/* Dark mode compatibility layer for existing light-only utility classes */
-.dark .bg-white {
-  background-color: rgb(10 10 10) !important;
-}
-
+/* Warm neutral surfaces */
+.dark .bg-white { background-color: rgb(30 24 19) !important; }
 .dark .bg-white\/95,
 .dark .bg-white\/90,
-.dark .bg-white\/80 {
-  background-color: rgba(0, 0, 0, 0.9) !important;
-}
+.dark .bg-white\/80,
+.dark .bg-white\/75,
+.dark .bg-white\/70 { background-color: rgb(30 24 19 / 0.92) !important; }
 
 .dark .bg-slate-50,
-.dark .bg-gray-50 {
-  background-color: rgb(0 0 0) !important;
-}
+.dark .bg-gray-50,
+.dark .bg-neutral-50,
+.dark .bg-\[\#FAF6F0\] { background-color: rgb(21 17 14) !important; }
 
 .dark .bg-slate-100,
-.dark .bg-gray-100 {
-  background-color: rgb(18 18 18) !important;
-}
+.dark .bg-gray-100,
+.dark .bg-neutral-100 { background-color: rgb(30 24 19) !important; }
 
+.dark .bg-\[\#FAF6F0\]\/95,
+.dark .bg-\[\#FAF6F0\]\/60,
+.dark .bg-\[\#FAF6F0\]\/50 { background-color: rgb(21 17 14 / 0.92) !important; }
+
+.dark .bg-\[\#FFF6E9\] { background-color: rgb(33 26 18) !important; }
+
+/* Charcoal accent blocks become a raised warm surface so they stay visible */
+.dark .bg-\[\#1C1714\] { background-color: rgb(40 32 26) !important; }
+
+/* Editorial soft pill backgrounds */
+.dark .bg-\[\#F6E1E7\] { background-color: rgb(58 22 34) !important; }
+.dark .bg-\[\#DBEFE8\] { background-color: rgb(21 48 42) !important; }
+.dark .bg-\[\#F8E7CD\] { background-color: rgb(51 39 15) !important; }
+.dark .bg-\[\#F9E2D7\] { background-color: rgb(51 33 26) !important; }
+
+/* Borders */
 .dark .border-slate-100,
 .dark .border-slate-200,
 .dark .border-slate-300,
 .dark .border-gray-100,
 .dark .border-gray-200,
-.dark .border-gray-300 {
-  border-color: rgb(38 38 38) !important;
-}
+.dark .border-gray-300,
+.dark .border-\[\#F6E1E7\] { border-color: rgb(56 47 40) !important; }
 
+.dark .border-\[\#1C1714\]\/\[\.09\],
+.dark .border-\[\#1C1714\]\/\[\.08\],
+.dark .border-\[\#1C1714\]\/\[\.12\],
+.dark .border-\[\#1C1714\]\/\[\.16\],
+.dark .border-\[\#1C1714\]\/\[\.06\],
+.dark .border-\[\#1C1714\]\/10,
+.dark .border-\[\#1C1714\]\/20 { border-color: rgb(244 238 230 / 0.12) !important; }
+
+/* Text colors */
 .dark .text-slate-900,
-.dark .text-gray-900 {
-  color: rgb(245 245 245) !important;
-}
+.dark .text-gray-900,
+.dark .text-neutral-900,
+.dark .text-\[\#1C1714\] { color: rgb(244 238 230) !important; }
 
+.dark .text-slate-800,
 .dark .text-slate-700,
 .dark .text-slate-600,
 .dark .text-slate-500,
+.dark .text-gray-800,
 .dark .text-gray-700,
 .dark .text-gray-600,
 .dark .text-gray-500,
-.dark .text-gray-400 {
-  color: rgb(212 212 212) !important;
-}
+.dark .text-gray-400,
+.dark .text-\[\#6B5F57\] { color: rgb(187 174 162) !important; }
 
-.dark .shadow-slate-200\/50 {
-  --tw-shadow-color: rgba(0, 0, 0, 0.75) !important;
-}
+.dark .text-\[\#9A8D83\] { color: rgb(139 125 113) !important; }
+.dark .text-\[\#8A4F12\] { color: rgb(233 184 115) !important; }
+.dark .text-\[\#A8123C\] { color: rgb(240 138 166) !important; }
+.dark .text-\[\#16876B\] { color: rgb(122 220 191) !important; }
+.dark .text-\[\#CF5128\] { color: rgb(238 146 112) !important; }
+.dark .text-\[\#760B28\] { color: rgb(240 138 166) !important; }
 
+/* Hover surfaces */
 .dark .hover\:bg-gray-50:hover,
 .dark .hover\:bg-slate-50:hover,
 .dark .hover\:bg-gray-100:hover,
-.dark .hover\:bg-slate-100:hover {
-  background-color: rgb(24 24 24) !important;
-}
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-\[\#FAF6F0\]:hover { background-color: rgb(38 30 23) !important; }
+
+.dark .hover\:bg-\[\#F6E1E7\]:hover { background-color: rgb(58 22 34) !important; }
+
+.dark .shadow-slate-200\/50,
+.dark .shadow-slate-200\/60 { --tw-shadow-color: rgba(0, 0, 0, 0.6) !important; }

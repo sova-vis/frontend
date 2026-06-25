@@ -36,30 +36,30 @@ export default function ActionGrid() {
                 <Link
                     key={action.title}
                     href={action.href}
-                    className={`group flex items-start gap-4 p-5 rounded-2xl border transition-all hover:shadow-md hover:-translate-y-0.5 ${
+                    className={`group flex items-start gap-4 p-5 rounded-[1.25rem] border transition-all hover:shadow-card-hover hover:-translate-y-0.5 ${
                         action.highlight
-                            ? "bg-primary border-primary/20 text-white"
-                            : "bg-white border-gray-100 text-gray-900 hover:border-gray-200"
+                            ? "bg-crimson border-crimson/20 text-white shadow-crimson"
+                            : "ed-card text-ink hover:border-line"
                     }`}
                 >
                     <div className={`p-2.5 rounded-xl flex-shrink-0 ${
                         action.highlight
                             ? "bg-white/15"
-                            : "bg-gray-100 group-hover:bg-gray-200 transition-colors"
+                            : "bg-crimson-soft group-hover:bg-crimson/15 transition-colors"
                     }`}>
-                        <action.icon size={18} className={action.highlight ? "text-white" : "text-gray-700"} />
+                        <action.icon size={18} className={action.highlight ? "text-white" : "text-crimson"} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                            <span className={`font-semibold text-sm ${action.highlight ? "text-white" : "text-gray-900"}`}>
+                            <span className={`font-semibold text-sm ${action.highlight ? "text-white" : "text-ink"}`}>
                                 {action.title}
                             </span>
                             <ChevronRight
                                 size={15}
-                                className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${action.highlight ? "text-white/80" : "text-gray-400"}`}
+                                className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${action.highlight ? "text-white/80" : "text-ink-faint"}`}
                             />
                         </div>
-                        <p className={`text-xs mt-0.5 leading-relaxed ${action.highlight ? "text-white/75" : "text-gray-500"}`}>
+                        <p className={`text-xs mt-0.5 leading-relaxed ${action.highlight ? "text-white/75" : "text-ink-muted"}`}>
                             {action.description}
                         </p>
                     </div>

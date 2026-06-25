@@ -121,25 +121,25 @@ export default function ChatModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+    <div className="fixed inset-0 z-[70] bg-ink/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ed-card w-full max-w-xl shadow-card-hover" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Chat</h3>
-            <p className="text-sm text-gray-500">Conversation with {partnerName}</p>
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink">Chat</h3>
+            <p className="text-sm text-ink-muted">Conversation with {partnerName}</p>
           </div>
           <button
             onClick={onClose}
-            className="h-9 w-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800"
+            className="h-9 w-9 rounded-full border border-line flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div className="h-[360px] overflow-y-auto px-4 py-3 space-y-3 bg-gray-50">
-          {loading && <p className="text-sm text-gray-500">Loading messages...</p>}
+        <div className="h-[360px] overflow-y-auto custom-scrollbar px-4 py-3 space-y-3 bg-surface-soft">
+          {loading && <p className="text-sm text-ink-muted">Loading messages...</p>}
           {!loading && messages.length === 0 && (
-            <p className="text-sm text-gray-500">No messages yet. Start the conversation.</p>
+            <p className="text-sm text-ink-muted">No messages yet. Start the conversation.</p>
           )}
           {messages.map((message) => {
             const mine = message.sender_clerk_id === currentClerkId;
@@ -147,11 +147,11 @@ export default function ChatModal({
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                    mine ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-800"
+                    mine ? "bg-crimson text-white" : "ed-card border border-line text-ink"
                   }`}
                 >
                   <p>{message.body}</p>
-                  <p className={`mt-1 text-[11px] ${mine ? "text-gray-300" : "text-gray-400"}`}>
+                  <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-ink-faint"}`}>
                     {new Date(message.created_at).toLocaleString()}
                   </p>
                 </div>
@@ -160,9 +160,9 @@ export default function ChatModal({
           })}
         </div>
 
-        {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="px-4 py-2 text-sm text-crimson">{error}</p>}
 
-        <div className="p-4 border-t border-gray-100 flex items-center gap-2">
+        <div className="p-4 border-t border-line flex items-center gap-2">
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -173,12 +173,12 @@ export default function ChatModal({
               }
             }}
             placeholder="Type a message"
-            className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+            className="ed-input flex-1 px-3 py-2 text-sm"
           />
           <button
             onClick={() => void handleSend()}
             disabled={sending || !draft.trim()}
-            className="h-10 px-4 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-2"
+            className="ed-btn-primary h-10 px-4 disabled:opacity-60"
           >
             <Send size={14} />
             Send

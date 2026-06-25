@@ -11,6 +11,7 @@ import { useClerkAuth } from "@/lib/useClerkAuth";
 import { useUser } from "@clerk/nextjs";
 import { apiCall } from "@/lib/api";
 import { BrandLogo } from "@/components/ui/Logo";
+import { Reveal } from "@/components/ui/Motion";
 
 interface FolderItem {
     id: string;
@@ -43,13 +44,13 @@ export default function PublicPastPapersPage() {
 
     // Navigation component
     const Navigation = () => (
-        <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4">
+        <nav className="bg-surface/85 backdrop-blur-xl border-b border-line px-4 md:px-6 py-4">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
                 <Link href="/">
-                    <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                    <BrandLogo size={36} labelClassName="text-2xl text-crimson" />
                 </Link>
                 <div className="flex items-center gap-2 md:gap-4">
-                    <Link href="/" className="hidden sm:flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-brand-burgundy font-semibold">
+                    <Link href="/" className="hidden sm:flex items-center gap-2 text-ink-muted hover:text-crimson font-semibold transition-colors">
                         <Home size={18} />
                         Home
                     </Link>
@@ -58,7 +59,7 @@ export default function PublicPastPapersPage() {
                             profile.role === "teacher" ? "/teacher/dashboard" :
                                 profile.role === "admin" ? "/admin/dashboard" :
                                     "/student/dashboard"
-                        } className="flex items-center gap-2 px-4 py-2 bg-brand-burgundy text-white rounded-lg hover:bg-brand-burgundy/90 font-semibold">
+                        } className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-crimson text-white shadow-crimson hover:bg-crimson-deep font-bold transition-all active:scale-[0.98]">
                             Dashboard
                         </Link>
                     ) : null}
@@ -214,41 +215,41 @@ export default function PublicPastPapersPage() {
                 case 'subject':
                     return {
                         icon: getSubjectIcon(item.name),
-                        color: 'text-gray-700',
-                        bgColor: 'bg-white',
-                        borderColor: 'border-gray-300',
+                        color: 'text-crimson',
+                        bgColor: 'bg-crimson-soft',
+                        borderColor: 'border-crimson/20',
                         label: 'Subject'
                     };
                 case 'category':
                     return {
                         icon: <FolderOpen className="w-5 h-5" />,
-                        color: 'text-gray-600',
-                        bgColor: 'bg-gray-50',
-                        borderColor: 'border-gray-200',
+                        color: 'text-ink-muted',
+                        bgColor: 'bg-surface-soft',
+                        borderColor: 'border-line',
                         label: 'Category'
                     };
                 case 'year':
                     return {
                         icon: <Calendar className="w-5 h-5" />,
-                        color: 'text-gray-600',
-                        bgColor: 'bg-gray-50',
-                        borderColor: 'border-gray-200',
+                        color: 'text-ink-muted',
+                        bgColor: 'bg-surface-soft',
+                        borderColor: 'border-line',
                         label: 'Year'
                     };
                 case 'month':
                     return {
                         icon: <Calendar className="w-5 h-5" />,
-                        color: 'text-gray-600',
-                        bgColor: 'bg-gray-50',
-                        borderColor: 'border-gray-200',
+                        color: 'text-ink-muted',
+                        bgColor: 'bg-surface-soft',
+                        borderColor: 'border-line',
                         label: 'Session'
                     };
                 default:
                     return {
                         icon: <FolderOpen className="w-5 h-5" />,
-                        color: 'text-gray-600',
-                        bgColor: 'bg-gray-50',
-                        borderColor: 'border-gray-200',
+                        color: 'text-ink-muted',
+                        bgColor: 'bg-surface-soft',
+                        borderColor: 'border-line',
                         label: ''
                     };
             }
@@ -257,21 +258,21 @@ export default function PublicPastPapersPage() {
         const folderStyle = getFolderStyle();
 
         return (
-            <div key={item.id} className="border-b border-gray-100 last:border-b-0">
+            <div key={item.id} className="border-b border-line last:border-b-0">
                 {/* Folder Header */}
                 <button
                     onClick={() => toggleFolder(item.id)}
-                    className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                    className="w-full p-3 flex items-center gap-3 hover:bg-surface-soft transition-colors"
                     style={{ paddingLeft: `${paddingLeft + 12}px` }}
                 >
                     {isLoading ? (
-                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
+                        <Loader2 className="w-4 h-4 text-ink-faint animate-spin flex-shrink-0" />
                     ) : (
                         <div className="flex-shrink-0">
                             {isExpanded ? (
-                                <ChevronDown className="w-5 h-5 text-gray-500" />
+                                <ChevronDown className="w-5 h-5 text-ink-faint" />
                             ) : (
-                                <ChevronRight className="w-5 h-5 text-gray-500" />
+                                <ChevronRight className="w-5 h-5 text-ink-faint" />
                             )}
                         </div>
                     )}
@@ -279,9 +280,9 @@ export default function PublicPastPapersPage() {
                         {folderStyle.icon}
                     </div>
                     <div className="flex-1 text-left">
-                        <span className={`font-semibold ${folderStyle.color}`}>{item.name}</span>
+                        <span className={`font-semibold ${folderStyle.color === 'text-crimson' ? 'text-ink' : folderStyle.color}`}>{item.name}</span>
                         {folderStyle.label && (
-                            <span className="ml-2 text-xs text-gray-400">({folderStyle.label})</span>
+                            <span className="ml-2 text-xs text-ink-faint">({folderStyle.label})</span>
                         )}
                     </div>
                 </button>
@@ -298,7 +299,7 @@ export default function PublicPastPapersPage() {
                         })}
                         {children.length === 0 && (
                             <div
-                                className="p-3 text-sm text-gray-500 italic"
+                                className="p-3 text-sm text-ink-faint italic"
                                 style={{ paddingLeft: `${paddingLeft + 48}px` }}
                             >
                                 Empty folder
@@ -318,13 +319,13 @@ export default function PublicPastPapersPage() {
         const getFileBadge = () => {
             const name = item.name.toLowerCase();
             if (name.includes('qp') || name.includes('question')) {
-                return { bg: 'bg-white', text: 'text-gray-700', border: 'border-gray-300', label: 'Question Paper' };
+                return { bg: 'bg-crimson-soft', text: 'text-crimson-ink', border: 'border-crimson/20', label: 'Question Paper' };
             } else if (name.includes('ms') || name.includes('mark') || name.includes('answer')) {
-                return { bg: 'bg-gray-900', text: 'text-white', border: 'border-gray-900', label: 'Mark Scheme' };
+                return { bg: 'bg-mint-soft', text: 'text-mint-ink', border: 'border-mint/20', label: 'Mark Scheme' };
             } else if (name.includes('er') || name.includes('examiner')) {
-                return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', label: 'Examiner Report' };
+                return { bg: 'bg-gold-soft', text: 'text-gold-ink', border: 'border-gold/20', label: 'Examiner Report' };
             } else {
-                return { bg: 'bg-white', text: 'text-gray-600', border: 'border-gray-200', label: 'Document' };
+                return { bg: 'bg-surface-soft', text: 'text-ink-muted', border: 'border-line', label: 'Document' };
             }
         };
 
@@ -333,7 +334,7 @@ export default function PublicPastPapersPage() {
         return (
             <div
                 key={item.id}
-                className="p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800 transition-all border-b border-gray-100 dark:border-slate-700 last:border-b-0 group"
+                className="p-3 flex items-center justify-between hover:bg-surface-soft transition-all border-b border-line last:border-b-0 group"
                 style={{ paddingLeft: `${paddingLeft + 12}px` }}
             >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -341,21 +342,21 @@ export default function PublicPastPapersPage() {
                         {fileIcon}
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
-                        <span className="text-sm text-gray-900 dark:text-gray-100 truncate font-medium">{item.name}</span>
+                        <span className="text-sm text-ink truncate font-medium">{item.name}</span>
                         <span className={`text-xs ${fileBadge.text} font-medium`}>{fileBadge.label}</span>
                     </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0 ml-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                         onClick={() => handleView(item)}
-                        className="p-2 text-white bg-gray-900 hover:bg-black rounded-lg transition-colors"
+                        className="p-2 text-white bg-crimson hover:bg-crimson-deep rounded-lg transition-colors"
                         title="View"
                     >
                         <Eye size={16} />
                     </button>
                     <button
                         onClick={() => handleDownload(item)}
-                        className="p-2 text-gray-900 bg-white hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+                        className="p-2 text-ink bg-surface hover:bg-surface-soft border border-line rounded-lg transition-colors"
                         title="Download"
                     >
                         <Download size={16} />
@@ -378,15 +379,15 @@ export default function PublicPastPapersPage() {
 
     if (initialLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+            <div className="min-h-screen bg-paper">
                 {/* Header */}
-                <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4">
+                <nav className="bg-surface/85 backdrop-blur-xl border-b border-line px-4 md:px-6 py-4">
                     <div className="max-w-7xl mx-auto flex justify-between items-center">
                         <Link href="/">
-                            <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                            <BrandLogo size={36} labelClassName="text-2xl text-crimson" />
                         </Link>
                         <div className="flex items-center gap-4">
-                            <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-brand-burgundy font-semibold">
+                            <Link href="/" className="flex items-center gap-2 text-ink-muted hover:text-crimson font-semibold transition-colors">
                                 <Home size={18} />
                                 Home
                             </Link>
@@ -396,8 +397,8 @@ export default function PublicPastPapersPage() {
 
                 <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
                     <div className="text-center">
-                        <Loader2 className="w-12 h-12 text-brand-burgundy animate-spin mx-auto mb-4" />
-                        <p className="text-gray-600">Loading past papers...</p>
+                        <Loader2 className="w-12 h-12 text-crimson animate-spin mx-auto mb-4" />
+                        <p className="text-ink-muted">Loading past papers...</p>
                     </div>
                 </div>
             </div>
@@ -406,15 +407,15 @@ export default function PublicPastPapersPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+            <div className="min-h-screen bg-paper">
                 <Navigation />
 
                 <div className="p-8 max-w-7xl mx-auto">
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-                        <p className="text-red-600 font-medium">{error}</p>
+                    <div className="bg-crimson-soft border border-crimson/20 rounded-[1.25rem] p-6 text-center">
+                        <p className="text-crimson-ink font-medium">{error}</p>
                         <button
                             onClick={loadRootFolder}
-                            className="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black"
+                            className="mt-4 inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 bg-crimson text-white font-bold shadow-crimson hover:bg-crimson-deep transition-all active:scale-[0.98]"
                         >
                             Retry
                         </button>
@@ -427,14 +428,14 @@ export default function PublicPastPapersPage() {
     const filteredItems = getFilteredItems();
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-            <nav className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4 sticky top-0 z-40">
+        <div className="min-h-screen bg-paper">
+            <nav className="bg-surface/85 backdrop-blur-xl border-b border-line px-4 md:px-6 py-4 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <Link href="/">
-                        <BrandLogo size={36} labelClassName="text-2xl text-brand-burgundy" />
+                        <BrandLogo size={36} labelClassName="text-2xl text-crimson" />
                     </Link>
                     <div className="flex items-center gap-4">
-                        <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-brand-burgundy font-semibold">
+                        <Link href="/" className="flex items-center gap-2 text-ink-muted hover:text-crimson font-semibold transition-colors">
                             <Home size={18} />
                             Home
                         </Link>
@@ -443,7 +444,7 @@ export default function PublicPastPapersPage() {
                                 profile.role === "teacher" ? "/teacher/dashboard" :
                                     profile.role === "admin" ? "/admin/dashboard" :
                                         "/student/dashboard"
-                            } className="flex items-center gap-2 px-4 py-2 bg-brand-burgundy text-white rounded-lg hover:bg-brand-burgundy/90 font-semibold">
+                            } className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-crimson text-white shadow-crimson hover:bg-crimson-deep font-bold transition-all active:scale-[0.98]">
                                 Dashboard
                             </Link>
                         ) : null}
@@ -455,19 +456,19 @@ export default function PublicPastPapersPage() {
                 {/* PDF Viewer Modal */}
                 {viewingPaper && (
                     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
-                            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-                                <h3 className="font-semibold text-gray-900">{viewingPaper.name}</h3>
+                        <div className="bg-surface rounded-[1.25rem] w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl">
+                            <div className="flex items-center justify-between p-4 border-b border-line bg-surface-soft">
+                                <h3 className="font-display font-semibold text-ink">{viewingPaper.name}</h3>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => handleDownload(viewingPaper)}
-                                        className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+                                        className="px-4 py-2 text-sm font-bold bg-crimson text-white rounded-full hover:bg-crimson-deep transition-colors"
                                     >
                                         Download
                                     </button>
                                     <button
                                         onClick={() => setViewingPaper(null)}
-                                        className="px-4 py-2 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                        className="px-4 py-2 text-sm font-bold bg-surface text-ink border border-line rounded-full hover:bg-surface-soft transition-colors"
                                     >
                                         Close
                                     </button>
@@ -483,39 +484,43 @@ export default function PublicPastPapersPage() {
                 )}
 
                 {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900 dark:text-white">Past Papers Library</h1>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">Browse past papers organized by subject, year, and session. Free access for everyone!</p>
-                    </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                            <input
-                                type="text"
-                                placeholder="Search subjects..."
-                                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-burgundy focus:border-brand-burgundy"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                <Reveal>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                        <div>
+                            <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">Past Papers <span className="italic text-crimson">Library</span></h1>
+                            <p className="text-ink-muted mt-1">Browse past papers organized by subject, year, and session. Free access for everyone!</p>
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <div className="relative flex-1 md:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint z-10" size={20} />
+                                <input
+                                    type="text"
+                                    placeholder="Search subjects..."
+                                    className="ed-input pl-10"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Reveal>
 
                 {/* Call to Action Banner - Only show for non-logged-in users */}
                 {!user && (
-                    <div className="bg-gradient-to-r from-brand-burgundy to-brand-pink text-white rounded-xl p-4 md:p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div>
-                            <h3 className="text-xl font-bold mb-2">Want to track your progress?</h3>
-                            <p className="text-white/90">Create an account from the home page top navigation to bookmark papers, track learning, and get personalized recommendations.</p>
+                    <Reveal delay={0.1}>
+                        <div className="bg-gradient-to-r from-[#A8123C] to-[#760B28] text-white rounded-[1.25rem] p-4 md:p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-crimson">
+                            <div>
+                                <h3 className="font-display text-xl font-semibold mb-2">Want to track your progress?</h3>
+                                <p className="text-white/90">Create an account from the home page top navigation to bookmark papers, track learning, and get personalized recommendations.</p>
+                            </div>
                         </div>
-                    </div>
+                    </Reveal>
                 )}
 
                 {/* Folder Tree */}
-                <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+                <div className="ed-card overflow-hidden">
                     {filteredItems.length === 0 ? (
-                        <div className="p-12 text-center text-gray-500">
+                        <div className="p-12 text-center text-ink-faint">
                             {searchTerm ? 'No subjects found matching your search.' : 'No folders found.'}
                         </div>
                     ) : (

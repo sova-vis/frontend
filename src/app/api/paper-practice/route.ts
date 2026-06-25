@@ -78,12 +78,22 @@ type DbQuestion = {
   requires_diagram: boolean;
   images: DbImage[] | null;
   reference: Record<string, unknown> | null;
+  sources: DbSource[] | null;
   source_note: string | null;
   dedup_group: string | null;
 };
 
+type DbSource = {
+  label?: string | null;
+  reference?: string | null;
+  translation?: string | null;
+  text?: string | null;
+  image?: { data_url?: string; url?: string; width?: number | null; height?: number | null } | null;
+  arabic_image?: { data_url?: string; width?: number | null; height?: number | null } | null;
+};
+
 const QUESTION_COLUMNS =
-  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,source_note,dedup_group";
+  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,sources,source_note,dedup_group";
 
 function getSupabaseClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -226,6 +236,27 @@ function normalizeImages(images: DbImage[] | null, questionNumber: number) {
     .filter((image) => image.src);
 }
 
+// Passage-style sources (Islamiyat ayats: translation + Arabic image) that the
+// student reads. Text-only sources (Pakistan Studies, already inlined into the
+// question text) are dropped so they don't render twice.
+function normalizeSources(sources: DbSource[] | null) {
+  if (!Array.isArray(sources)) return [];
+  return sources
+    .map((source) => {
+      const image = source.image || source.arabic_image || null;
+      const src = image && (image.data_url || (image as { url?: string }).url) ? image.data_url || (image as { url?: string }).url : null;
+      const translation = cleanText(source.translation);
+      if (!translation && !src) return null;
+      return {
+        label: cleanText(source.label) || null,
+        reference: cleanText(source.reference) || null,
+        translation: translation || null,
+        image: src ? { src, width: image?.width ?? null, height: image?.height ?? null } : null,
+      };
+    })
+    .filter((source): source is NonNullable<typeof source> => source !== null);
+}
+
 function normalizeOptions(options: DbQuestion["options"]) {
   if (!options) return [] as { label: string; text: string }[];
 
@@ -270,6 +301,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
     requiresDiagram: Boolean(question.requires_diagram),
     images: normalizeImages(question.images, question.question_number),
     reference: question.reference ?? null,
+    sources: normalizeSources(question.sources),
     sourceNote: cleanText(question.source_note) || null,
     dedupGroup: question.dedup_group ?? null,
     parts: parts

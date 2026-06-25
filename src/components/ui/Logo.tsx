@@ -6,18 +6,18 @@ interface LogoProps {
 export function CircularOLogo({ size = 32, className = "" }: LogoProps) {
   return (
     <div
-      className={`inline-flex items-center justify-center rounded-full ${className}`}
+      className={`relative inline-flex items-center justify-center rounded-full ${className}`}
       style={{
         width: `${size}px`,
         height: `${size}px`,
-        backgroundColor: "#880E4F",
-        boxShadow: "0 4px 6px rgba(136, 14, 79, 0.2)",
+        background: "linear-gradient(135deg, #A8123C 0%, #760B28 100%)",
+        boxShadow: "0 6px 16px rgba(168, 18, 60, 0.28)",
       }}
     >
       <span
         className="font-black text-white"
         style={{
-          fontSize: `${size * 0.65}px`,
+          fontSize: `${size * 0.62}px`,
           lineHeight: 1,
           letterSpacing: "-0.02em",
         }}
@@ -37,7 +37,7 @@ export function BrandLogo({
   size = 32,
   className = "",
   label = "Propel",
-  labelClassName = "text-brand-burgundy",
+  labelClassName = "text-crimson",
 }: BrandLogoProps) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>

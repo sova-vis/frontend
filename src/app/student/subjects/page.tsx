@@ -25,6 +25,7 @@ import {
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import StudentPageLoading from "@/components/student/StudentPageLoading";
+import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
 interface FolderItem {
   id: string;
@@ -120,122 +121,131 @@ export default function StudentSubjectsPage() {
   const clearAll = () => setSelected([]);
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-primary/5 text-primary text-xs font-semibold mb-3">
-            <Sparkles size={13} />
-            Personalization
+    <div className="min-h-full bg-transparent p-4 md:p-8 max-w-6xl mx-auto">
+      <Reveal>
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
+          <div>
+            <div className="ed-eyebrow inline-flex px-3 py-1 rounded-lg bg-crimson/5 text-crimson mb-3 normal-case tracking-normal text-xs">
+              <Sparkles size={13} />
+              Personalization
+            </div>
+            <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink">
+              Choose Your <span className="italic text-crimson">Subjects</span>
+            </h1>
+            <p className="text-ink-muted mt-1 max-w-2xl">
+              Pick the subjects you study. Past papers and goal planning will focus on these choices.
+            </p>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold font-display text-gray-900">Choose Your Subjects</h1>
-          <p className="text-gray-500 mt-1 max-w-2xl">
-            Pick the subjects you study. Past papers and goal planning will focus on these choices.
-          </p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={selectAll}
+              className="ed-btn-ghost px-4 py-2.5"
+            >
+              Select all
+            </button>
+            <button
+              onClick={clearAll}
+              className="ed-btn-ghost px-4 py-2.5"
+            >
+              Clear
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="ed-btn-ink px-5 py-2.5"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+              Save subjects
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={selectAll}
-            className="px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Select all
-          </button>
-          <button
-            onClick={clearAll}
-            className="px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Clear
-          </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-black disabled:opacity-60"
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            Save subjects
-          </button>
-        </div>
-      </div>
+      </Reveal>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-        <section className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search available subjects..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-              />
+        <Reveal delay={0.05} className="ed-card overflow-hidden">
+          <section>
+            <div className="p-4 border-b border-line">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" size={18} />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search available subjects..."
+                  className="ed-input pl-10"
+                />
+              </div>
             </div>
-          </div>
 
-          {loading && (
-            <StudentPageLoading label="Loading subjects..." />
-          )}
+            {loading && (
+              <StudentPageLoading label="Loading subjects..." />
+            )}
 
-          {!loading && error && (
-            <div className="p-12 text-center">
-              <p className="text-red-600 font-medium">{error}</p>
-            </div>
-          )}
+            {!loading && error && (
+              <div className="p-12 text-center">
+                <p className="text-crimson font-medium">{error}</p>
+              </div>
+            )}
 
-          {!loading && !error && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
-              {filteredSubjects.map((subject) => {
-                const active = selectedIds.has(subject.id) || selectedNames.has(subject.name.toLowerCase());
-                return (
-                  <button
-                    key={subject.id}
-                    onClick={() => toggleSubject(subject)}
-                    className={`text-left rounded-xl border p-4 transition-all ${
-                      active
-                        ? "border-primary/30 bg-primary/5 shadow-sm"
-                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className={`p-2.5 rounded-lg border ${active ? "text-primary border-primary/20 bg-white" : "text-gray-600 border-gray-200 bg-gray-50"}`}>
-                        <SubjectIcon name={subject.name} />
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${active ? "bg-primary border-primary text-white" : "border-gray-300 text-transparent"}`}>
-                        <Check size={14} />
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-gray-900 mt-4 leading-snug">{subject.name}</h3>
-                  </button>
-                );
-              })}
-              {filteredSubjects.length === 0 && (
-                <div className="sm:col-span-2 xl:col-span-3 p-10 text-center text-gray-500">
-                  No subjects found.
+            {!loading && !error && (
+              <Stagger className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
+                {filteredSubjects.map((subject) => {
+                  const active = selectedIds.has(subject.id) || selectedNames.has(subject.name.toLowerCase());
+                  return (
+                    <StaggerItem key={subject.id}>
+                      <button
+                        onClick={() => toggleSubject(subject)}
+                        className={`w-full h-full text-left rounded-xl border p-4 transition-all ${
+                          active
+                            ? "border-crimson/30 bg-crimson/5 shadow-card"
+                            : "border-line bg-surface hover:border-ink/20 hover:bg-surface-soft"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className={`p-2.5 rounded-lg border ${active ? "text-crimson border-crimson/20 bg-surface" : "text-ink-muted border-line bg-surface-soft"}`}>
+                            <SubjectIcon name={subject.name} />
+                          </div>
+                          <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${active ? "bg-crimson border-crimson text-white" : "border-line text-transparent"}`}>
+                            <Check size={14} />
+                          </div>
+                        </div>
+                        <h3 className="font-semibold text-ink mt-4 leading-snug">{subject.name}</h3>
+                      </button>
+                    </StaggerItem>
+                  );
+                })}
+                {filteredSubjects.length === 0 && (
+                  <div className="sm:col-span-2 xl:col-span-3 p-10 text-center text-ink-muted">
+                    No subjects found.
+                  </div>
+                )}
+              </Stagger>
+            )}
+          </section>
+        </Reveal>
+
+        <Reveal delay={0.1} className="h-fit">
+          <aside className="ed-card p-5">
+            <p className="ed-label mb-2">Selected</p>
+            <p className="font-display text-4xl font-semibold tracking-tight text-ink">{selected.length}</p>
+            <div className="mt-4 space-y-2">
+              {selected.slice(0, 8).map((subject) => (
+                <div key={subject.id} className="flex items-center gap-2 text-sm text-ink-muted">
+                  <span className="w-1.5 h-1.5 rounded-full bg-crimson" />
+                  <span className="truncate">{subject.name}</span>
                 </div>
+              ))}
+              {selected.length > 8 && (
+                <p className="text-xs text-ink-faint">+{selected.length - 8} more</p>
               )}
             </div>
-          )}
-        </section>
-
-        <aside className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 h-fit">
-          <p className="text-sm font-semibold text-gray-500 mb-2">Selected</p>
-          <p className="text-4xl font-bold text-gray-900">{selected.length}</p>
-          <div className="mt-4 space-y-2">
-            {selected.slice(0, 8).map((subject) => (
-              <div key={subject.id} className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="truncate">{subject.name}</span>
-              </div>
-            ))}
-            {selected.length > 8 && (
-              <p className="text-xs text-gray-400">+{selected.length - 8} more</p>
-            )}
-          </div>
-          <Link
-            href="/student/past-papers"
-            className="mt-6 inline-flex w-full items-center justify-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            View filtered papers
-          </Link>
-        </aside>
+            <Link
+              href="/student/past-papers"
+              className="ed-btn-ghost mt-6 w-full px-4 py-2.5"
+            >
+              View filtered papers
+            </Link>
+          </aside>
+        </Reveal>
       </div>
     </div>
   );

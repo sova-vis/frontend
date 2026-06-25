@@ -98,11 +98,11 @@ export default function StudentOnboarding() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden p-8 relative">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-paper p-4 font-sans">
+      <div className="ed-card w-full max-w-lg overflow-hidden p-8 relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-surface-soft">
           <motion.div
-            className="h-full bg-primary"
+            className="h-full bg-crimson"
             initial={{ width: "0%" }}
             animate={{ width: `${((step + 1) / 4) * 100}%` }}
             transition={{ duration: 0.3 }}
@@ -110,13 +110,13 @@ export default function StudentOnboarding() {
         </div>
 
         <div className="mb-8 mt-4">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2 font-display">
+          <h2 className="text-3xl font-bold text-ink mb-2 font-display tracking-tight">
             {step === 0 && "Welcome!"}
             {step === 1 && "Choose your level"}
             {step === 2 && "Pick your subjects"}
             {step === 3 && "Exam preparation"}
           </h2>
-          <p className="text-gray-500">
+          <p className="text-ink-muted">
             {step === 0 && "Let's get to know you. What's your name?"}
             {step === 1 && "Confirm you are studying for O Levels."}
             {step === 2 && "Select the subjects you are currently studying."}
@@ -143,7 +143,7 @@ export default function StudentOnboarding() {
                   placeholder="Your Name"
                   value={formData.name}
                   onChange={(e) => updateFormData("name", e.target.value)}
-                  className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-lg"
+                  className="ed-input p-4 text-lg"
                   autoFocus
                 />
               </motion.div>
@@ -165,8 +165,8 @@ export default function StudentOnboarding() {
                     key={lvl}
                     onClick={() => updateFormData("level", lvl)}
                     className={`w-full p-4 rounded-xl border-2 text-left transition-all ${formData.level === lvl
-                        ? "border-primary bg-primary/5 text-primary"
-                        : "border-gray-100 hover:border-gray-200 text-gray-700"
+                        ? "border-crimson bg-crimson/5 text-crimson"
+                        : "border-line hover:border-ink-faint/40 text-ink-muted"
                       }`}
                   >
                     <span className="font-semibold text-lg">{lvl}</span>
@@ -192,8 +192,8 @@ export default function StudentOnboarding() {
                       key={sub}
                       onClick={() => toggleSubject(sub)}
                       className={`p-3 rounded-lg border text-sm font-medium transition-all text-left ${formData.subjects.includes(sub)
-                          ? "bg-primary text-white border-primary"
-                          : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
+                          ? "bg-crimson text-white border-crimson"
+                          : "bg-surface text-ink-muted border-line hover:border-ink-faint/40"
                         }`}
                     >
                       {sub}
@@ -215,15 +215,15 @@ export default function StudentOnboarding() {
                 className="absolute w-full"
               >
                 <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">Exam Session</label>
+                  <label className="block text-sm font-medium text-ink-muted">Exam Session</label>
                   <div className="relative">
                     <input
                       type="month"
                       value={formData.examSession}
                       onChange={(e) => updateFormData("examSession", e.target.value)}
-                      className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="ed-input p-4"
                     />
-                    <Calendar className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+                    <Calendar className="absolute right-4 top-1/2 transform -translate-y-1/2 text-ink-faint pointer-events-none" size={20} />
                   </div>
                 </div>
               </motion.div>
@@ -231,11 +231,11 @@ export default function StudentOnboarding() {
           </AnimatePresence>
         </div>
 
-        <div className="flex justify-between mt-8 pt-4 border-t border-gray-50">
+        <div className="flex justify-between mt-8 pt-4 border-t border-line">
           <button
             onClick={prevStep}
             disabled={step === 0}
-            className={`flex items-center text-gray-500 hover:text-gray-900 transition-colors ${step === 0 ? "opacity-0 cursor-default" : ""
+            className={`flex items-center text-ink-muted hover:text-ink transition-colors ${step === 0 ? "opacity-0 cursor-default" : ""
               }`}
           >
             <ChevronLeft size={20} className="mr-1" />
@@ -245,8 +245,8 @@ export default function StudentOnboarding() {
             onClick={nextStep}
             disabled={!isStepValid()}
             className={`flex items-center px-6 py-3 rounded-full font-semibold transition-all ${isStepValid()
-                ? "bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-xl hover:-translate-y-0.5"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                ? "bg-crimson text-white shadow-crimson hover:bg-crimson-deep hover:-translate-y-0.5"
+                : "bg-surface-soft text-ink-faint cursor-not-allowed"
               }`}
           >
             {step === 3 ? "Get Started" : "Continue"}

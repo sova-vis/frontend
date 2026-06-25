@@ -73,7 +73,7 @@ export default function StudentNavbar() {
                   key={item.href}
                   href={item.href}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    active ? "bg-[#1C1714] text-[#FAF6F0]" : "text-[#6B5F57] hover:bg-white hover:text-[#1C1714]"
+                    active ? "bg-ink text-paper" : "text-ink-muted hover:bg-surface hover:text-ink"
                   }`}
                 >
                   {item.name}
