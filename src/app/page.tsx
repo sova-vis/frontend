@@ -1,24 +1,46 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Instagram, X, Menu } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, GraduationCap, PenTool, Loader2 } from 'lucide-react';
+import { motion, useScroll, useSpring } from 'framer-motion';
 import { useUser } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { BrandLogo } from '@/components/ui/Logo';
-import { Reveal, Stagger, StaggerItem } from '@/components/ui/Motion';
+import { Reveal, Stagger, StaggerItem, CountUp, Marquee } from '@/components/ui/Motion';
+
+const AuthLoading = () => (
+  <div className="flex items-center justify-center py-16">
+    <Loader2 className="h-7 w-7 animate-spin text-crimson" />
+  </div>
+);
 
 const FloatingHero = dynamic(() => import('@/components/FloatingHero'), {
   loading: () => <div className="h-[70vh] animate-pulse bg-surface-soft" />,
   ssr: false,
 });
-const SignIn = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignIn })), { ssr: false });
-const SignUp = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignUp })), { ssr: false });
+const SignIn = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignIn })), { ssr: false, loading: AuthLoading });
+const SignUp = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignUp })), { ssr: false, loading: AuthLoading });
+
+/** Preload the Clerk auth chunk so the modal opens instantly on first click. */
+function preloadClerk() {
+  import('@clerk/nextjs').catch(() => {});
+}
+
+function destForUser(user: any, profile: { role?: string } | null): string {
+  const email = (user?.primaryEmailAddress?.emailAddress || "").toLowerCase();
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
+    .split(",").map((i) => i.trim().toLowerCase()).filter(Boolean);
+  const metadataRole = typeof user?.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
+  const role = profile?.role || metadataRole || (adminEmails.includes(email) ? "admin" : "student");
+  if (role === "teacher") return "/teacher/dashboard";
+  if (role === "admin") return "/admin/dashboard";
+  return "/student/dashboard";
+}
 
 const clerkAppearance = (accent: 'sign-in' | 'sign-up') => ({
   elements: {
@@ -45,7 +67,7 @@ const clerkAppearance = (accent: 'sign-in' | 'sign-up') => ({
 
 function HomePageContent() {
   const { user, isLoaded } = useUser();
-  const { profile, signOut, loading: profileLoading } = useClerkAuth();
+  const { profile } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -53,6 +75,14 @@ function HomePageContent() {
   const lastScrollY = useRef(0);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const { scrollYProgress } = useScroll();
+  const progressX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 });
+
+  const openAuth = useCallback((mode: "sign-in" | "sign-up") => {
+    preloadClerk();
+    setAuthModal(mode);
+  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -67,41 +97,32 @@ function HomePageContent() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [searchParams]);
 
-  // Redirect signed-in users to their dashboard
+  // Instant redirect: the moment auth is confirmed, leave the landing page.
+  // Default to the student dashboard immediately (the common case) instead of
+  // waiting on the backend profile round-trip, so a new user never lingers here.
   useEffect(() => {
-    if (!isLoaded || !user || profileLoading) {
-      return;
-    }
+    if (!isLoaded || !user) return;
+    setAuthModal(null);
+    router.replace(destForUser(user, profile));
+  }, [isLoaded, user, profile?.role, router]);
 
-    const email = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
-    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean);
-    const isAdminByEmail = adminEmails.includes(email);
-    const metadataRole = typeof user.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
-    const role = profile?.role || metadataRole || (isAdminByEmail ? "admin" : null);
-
-    // Avoid forcing student redirects when role data has not been resolved yet.
-    if (!role) {
-      return;
-    }
-
-    if (role === "teacher") {
-      router.replace("/teacher/dashboard");
-    } else if (role === "admin") {
-      router.replace("/admin/dashboard");
-    } else {
-      router.replace("/student/dashboard");
-    }
-  }, [isLoaded, user, profile?.role, profileLoading, router]);
-
-  // Close modal immediately when user signs in
+  // Prefetch every dashboard + warm the Clerk auth chunk so both feel instant.
   useEffect(() => {
-    if (isLoaded && user) {
-      setAuthModal(null);
+    router.prefetch("/student/dashboard");
+    router.prefetch("/teacher/dashboard");
+    router.prefetch("/admin/dashboard");
+
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(preloadClerk);
+      return () => w.cancelIdleCallback?.(id);
     }
-  }, [user, isLoaded]);
+    const t = setTimeout(preloadClerk, 1200);
+    return () => clearTimeout(t);
+  }, [router]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -151,8 +172,39 @@ function HomePageContent() {
     { icon: TrendingUp, title: "Personalized path", desc: "Adaptive practice that targets your weak spots first for the fastest gains.", pill: "ed-pill-clay", iconWrap: "bg-clay-soft text-clay-ink" },
   ];
 
+  const subjects = ["Physics", "Chemistry", "Biology", "Mathematics", "Add Maths", "Computer Science", "Economics", "Business", "English", "Islamiyat", "Pakistan Studies", "Accounting"];
+
+  const stats = [
+    { to: 12000, suffix: "+", label: "Questions solved" },
+    { to: 50, suffix: "+", label: "Paper years" },
+    { to: 12, suffix: "", label: "Subjects covered" },
+    { to: 94, suffix: "%", label: "Hit their target" },
+  ];
+
+  // Once auth is confirmed, cover the page and redirect — the student never
+  // lingers on the landing page after signing in / up.
+  if (isLoaded && user) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-paper text-ink">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <BrandLogo size={46} labelClassName="text-2xl text-crimson" />
+        </motion.div>
+        <div className="flex items-center gap-3 text-ink-muted">
+          <Loader2 className="h-5 w-5 animate-spin text-crimson" />
+          <span className="text-sm font-semibold">Taking you to your dashboard…</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-paper text-ink font-sans overflow-x-hidden">
+      {/* Scroll progress bar */}
+      <motion.div
+        style={{ scaleX: progressX }}
+        className="fixed top-0 left-0 right-0 z-[60] h-1 origin-left bg-gradient-to-r from-crimson to-gold"
+      />
+
       {/* Navbar Container */}
       <div className="fixed top-3 md:top-6 left-0 right-0 z-50 flex justify-center px-3 md:px-4 w-full pointer-events-none">
         <motion.nav
@@ -182,39 +234,18 @@ function HomePageContent() {
               >
                 <Menu size={18} className="mx-auto" />
               </button>
-              {isLoaded && user ? (
-                <div className="flex items-center gap-2 md:gap-3">
-                  <Link href={
-                    (user.publicMetadata?.role === "teacher" || profile?.role === "teacher") ? "/teacher/dashboard" :
-                      (user.publicMetadata?.role === "admin" || profile?.role === "admin") ? "/admin/dashboard" :
-                        "/student/dashboard"
-                  }>
-                    <Button className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm">
-                      <span className="hidden sm:inline">
-                        {(user.publicMetadata?.role === "teacher" || profile?.role === "teacher") ? "Teacher " :
-                          (user.publicMetadata?.role === "admin" || profile?.role === "admin") ? "Admin " :
-                            ""}
-                      </span>
-                      <span>Dashboard</span>
-                    </Button>
-                  </Link>
-                  <button
-                    onClick={() => signOut()}
-                    className="hidden md:flex font-bold text-ink-muted hover:text-crimson transition-colors px-3 h-11 items-center"
-                  >
-                    Logout
-                  </button>
-                </div>
-              ) : isLoaded ? (
+              {isLoaded ? (
                 <div className="flex items-center gap-2 md:gap-3">
                   <button
-                    onClick={() => setAuthModal("sign-in")}
+                    onClick={() => openAuth("sign-in")}
+                    onMouseEnter={preloadClerk}
                     className="hidden md:block font-bold text-ink-muted hover:text-crimson transition-colors"
                   >
                     Log In
                   </button>
                   <Button
-                    onClick={() => setAuthModal("sign-up")}
+                    onClick={() => openAuth("sign-up")}
+                    onMouseEnter={preloadClerk}
                     className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
                   >
                     Sign up
@@ -234,18 +265,8 @@ function HomePageContent() {
             <a href="#features" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Features</a>
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
             <Link href="/past-papers" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Past Papers</Link>
-            {isLoaded && user ? (
-              <>
-                <Link href={
-                  (user.publicMetadata?.role === "teacher" || profile?.role === "teacher") ? "/teacher/dashboard" :
-                    (user.publicMetadata?.role === "admin" || profile?.role === "admin") ? "/admin/dashboard" :
-                      "/student/dashboard"
-                } className="block py-1 text-crimson" onClick={() => setIsMobileNavOpen(false)}>Dashboard</Link>
-                <button onClick={() => signOut()} className="w-full text-left py-1 text-crimson">Logout</button>
-              </>
-            ) : (
-              <button onClick={() => { setAuthModal("sign-in"); setIsMobileNavOpen(false); }} className="w-full text-left py-1">Log In</button>
-            )}
+            <button onClick={() => { openAuth("sign-in"); setIsMobileNavOpen(false); }} className="w-full text-left py-1">Log In</button>
+            <button onClick={() => { openAuth("sign-up"); setIsMobileNavOpen(false); }} className="w-full text-left py-1 text-crimson">Sign up</button>
           </div>
         </div>
       )}
@@ -305,11 +326,24 @@ function HomePageContent() {
       <FloatingHero
         user={user}
         profile={profile}
-        onSignUp={() => setAuthModal("sign-up")}
+        onSignUp={() => openAuth("sign-up")}
         onExplore={() => {
           document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
         }}
       />
+
+      {/* Subject ribbon marquee */}
+      <section aria-hidden className="relative border-y border-line bg-paper py-5 overflow-hidden">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-paper to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-paper to-transparent" />
+        <Marquee speed={42}>
+          {subjects.map((s) => (
+            <span key={s} className="mx-2.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-muted">
+              <GraduationCap size={15} className="text-crimson" /> {s}
+            </span>
+          ))}
+        </Marquee>
+      </section>
 
       {/* Features Section */}
       <section id="features" className="relative py-20 md:py-28 px-5 md:px-12 bg-surface-soft">
@@ -342,6 +376,46 @@ function HomePageContent() {
         </div>
       </section>
 
+      {/* Animated stats band */}
+      <section className="relative overflow-hidden bg-[#1C1714] py-16 md:py-24 px-5 md:px-12 text-white">
+        {[
+          { Icon: Sigma, top: "18%", left: "7%", d: 0, s: 46 },
+          { Icon: Atom, top: "64%", left: "13%", d: 1.2, s: 42 },
+          { Icon: FlaskConical, top: "26%", left: "86%", d: 0.6, s: 40 },
+          { Icon: Calculator, top: "70%", left: "80%", d: 1.8, s: 38 },
+          { Icon: PenTool, top: "12%", left: "60%", d: 0.9, s: 34 },
+        ].map((g, i) => (
+          <motion.div
+            key={i}
+            aria-hidden
+            className="pointer-events-none absolute text-white/[.07]"
+            style={{ top: g.top, left: g.left }}
+            animate={{ y: [0, -18, 0], rotate: [0, 8, 0] }}
+            transition={{ duration: 7 + i, repeat: Infinity, ease: "easeInOut", delay: g.d }}
+          >
+            <g.Icon size={g.s} />
+          </motion.div>
+        ))}
+
+        <div className="relative mx-auto max-w-[1200px]">
+          <Reveal className="mb-10 text-center md:mb-14">
+            <span className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-white/50">By the numbers</span>
+            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight">Momentum you can measure</h2>
+          </Reveal>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            {stats.map((stat, i) => (
+              <Reveal key={stat.label} delay={i * 0.1}>
+                <div className="font-display text-4xl md:text-6xl font-semibold text-white">
+                  <CountUp to={stat.to} suffix={stat.suffix} />
+                </div>
+                <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-crimson" />
+                <p className="mt-3 text-sm text-white/60">{stat.label}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How It Works Section */}
       <section id="how-it-works" className="py-20 md:py-28 px-5 md:px-12 bg-paper">
         <div className="max-w-[1200px] mx-auto">
@@ -359,18 +433,29 @@ function HomePageContent() {
               { step: "02", title: "Choose your path", desc: "Jump into past papers, topical practice, or AI-graded written answers." },
               { step: "03", title: "Track & excel", desc: "Watch your readiness score climb and lock in your target grades." }
             ].map((item, idx) => (
-              <Reveal key={idx} delay={idx * 0.12} className="relative">
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, x: idx % 2 === 0 ? -48 : 48, y: 16 }}
+                whileInView={{ opacity: 1, x: 0, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], delay: idx * 0.1 }}
+                className="relative"
+              >
                 <div className="font-display text-7xl md:text-8xl font-black text-crimson/10 absolute -top-6 md:-top-8 -left-1">{item.step}</div>
                 <div className="relative z-10 pt-10 md:pt-12">
                   <h3 className="font-display text-2xl font-semibold text-ink mb-3">{item.title}</h3>
                   <p className="text-base md:text-lg text-ink-muted leading-relaxed">{item.desc}</p>
                 </div>
                 {idx < 2 && (
-                  <div className="hidden md:block absolute top-1/2 -right-5 transform -translate-y-1/2">
+                  <motion.div
+                    className="hidden md:block absolute top-1/2 -right-5 transform -translate-y-1/2"
+                    animate={{ x: [0, 6, 0] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                  >
                     <ArrowRight className="w-7 h-7 text-crimson/30" />
-                  </div>
+                  </motion.div>
                 )}
-              </Reveal>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -413,31 +498,18 @@ function HomePageContent() {
       {/* CTA Section */}
       <section className="py-20 md:py-28 px-5 md:px-12 bg-[#1C1714] text-white">
         <Reveal className="max-w-[1200px] mx-auto text-center">
-          {user ? (
-            <>
-              <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Welcome back, <span className="italic text-crimson">{profile?.full_name?.split(' ')[0] || user.firstName || 'Student'}</span></h2>
-              <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">Continue your learning journey and achieve your goals.</p>
-              <Link href={
-                (user.publicMetadata?.role === "teacher" || profile?.role === "teacher") ? "/teacher/dashboard" :
-                  (user.publicMetadata?.role === "admin" || profile?.role === "admin") ? "/admin/dashboard" :
-                    "/student/dashboard"
-              }>
-                <Button size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
-                  Continue learning <ArrowRight className="ml-1" size={20} />
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-crimson">propel</span> your success?</h2>
-              <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">Join thousands of students achieving their dream grades.</p>
-              <Link href="/past-papers">
-                <Button size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
-                  Explore past papers <ArrowRight className="ml-1" size={20} />
-                </Button>
-              </Link>
-            </>
-          )}
+          <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-crimson">propel</span> your success?</h2>
+          <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">Join thousands of students achieving their dream grades.</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button onClick={() => openAuth("sign-up")} onMouseEnter={preloadClerk} size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
+              Get started free <ArrowRight className="ml-1" size={20} />
+            </Button>
+            <Link href="/past-papers">
+              <Button variant="ghost" size="lg" className="h-14 rounded-full border border-white/20 bg-white/5 px-10 text-base md:text-lg text-white hover:bg-white/10">
+                Explore past papers
+              </Button>
+            </Link>
+          </div>
         </Reveal>
       </section>
 

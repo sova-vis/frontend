@@ -93,6 +93,12 @@ function matchesQuery(question: PracticeQuestion, trimmed: string) {
 const questionImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role !== "answer");
 const answerImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role === "answer");
 
+// A "header" part is a lead-in that introduces sub-parts (e.g. "(a)" whose text
+// says "look at the graph and describe the following:", followed by "(a)(i)",
+// "(a)(ii)"). Its answer is given in the sub-parts, so it gets no answer box.
+const isHeaderPart = (parts: PracticePart[], label: string) =>
+  Boolean(label) && parts.some((p) => p.label && p.label !== label && p.label.startsWith(label) && p.label.length > label.length);
+
 function SourceNote({ note }: { note: string | null }) {
   if (!note) return null;
   return <p style={{ borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface-2)", padding: "8px 12px", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)" }}>{note}</p>;
@@ -206,6 +212,15 @@ function StructuredBody({ question, answers, showScheme, onAnswer }: {
         <div className="flex-col gap-16" style={{ display: "flex" }}>
           {question.parts.map((part, index) => {
             const partKey = `${question.id}::${index}`;
+            // Lead-in header: introduces the sub-parts below, so no answer box.
+            if (isHeaderPart(question.parts, part.label)) {
+              return (
+                <p key={partKey} style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5, padding: "0 2px" }}>
+                  {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
+                  {part.body}
+                </p>
+              );
+            }
             return (
               <div key={partKey} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 13 }}>
                 <div className="row-between" style={{ alignItems: "baseline" }}>

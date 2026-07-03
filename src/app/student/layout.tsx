@@ -6,12 +6,13 @@ import GeometricShapes from '@/components/ui/GeometricShapes';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
 	const { loading, profile } = useClerkAuth();
 	const { user, isLoaded } = useUser();
 	const router = useRouter();
+	const warmed = useRef(false);
 
 	useEffect(() => {
 		if (!isLoaded || loading) return;
@@ -25,6 +26,33 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 			router.replace('/');
 		}
 	}, [isLoaded, loading, user, profile, router]);
+
+	// Warm the practice bank + heavy route chunks once the student is in their
+	// workspace, so opening Practice / Past Papers is near-instant later.
+	useEffect(() => {
+		if (warmed.current) return;
+		if (loading || !isLoaded || !user || (profile && profile.role !== 'student')) return;
+		warmed.current = true;
+
+		const warm = () => {
+			// Prime the expensive practice metadata scan (server memory + browser HTTP cache).
+			fetch('/api/paper-practice').catch(() => {});
+			router.prefetch('/student/paper-practice');
+			router.prefetch('/student/past-papers');
+			router.prefetch('/student/practise');
+		};
+
+		const w = window as unknown as {
+			requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+			cancelIdleCallback?: (id: number) => void;
+		};
+		if (typeof w.requestIdleCallback === 'function') {
+			const id = w.requestIdleCallback(warm, { timeout: 2500 });
+			return () => w.cancelIdleCallback?.(id);
+		}
+		const t = setTimeout(warm, 900);
+		return () => clearTimeout(t);
+	}, [loading, isLoaded, user, profile, router]);
 
 	if (loading || !isLoaded || !user || (profile && profile.role !== 'student')) {
 		return (

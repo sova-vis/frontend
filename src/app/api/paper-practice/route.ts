@@ -215,6 +215,23 @@ function buildSubjectMeta(rows: Awaited<ReturnType<typeof fetchMetaRows>>) {
 }
 
 // ---------------------------------------------------------------------------
+// Metadata cache — the subject/topic aggregate below is an expensive full-table
+// scan, but it only changes when the question bank is re-ingested. Cache it
+// briefly in memory (per warm server instance) so the practice page's first
+// paint is fast, and let the browser reuse the response for a couple of minutes.
+// ---------------------------------------------------------------------------
+const META_TTL_MS = 5 * 60 * 1000;
+const META_CACHE_HEADERS = { "Cache-Control": "private, max-age=120, stale-while-revalidate=600" };
+let metaCache: { at: number; subjects: ReturnType<typeof buildSubjectMeta> } | null = null;
+
+async function getSubjectsMeta(supabase: SupabaseClient) {
+  if (metaCache && Date.now() - metaCache.at < META_TTL_MS) return metaCache.subjects;
+  const subjects = buildSubjectMeta(await fetchMetaRows(supabase));
+  metaCache = { at: Date.now(), subjects };
+  return subjects;
+}
+
+// ---------------------------------------------------------------------------
 // Question normalization for the client.
 // ---------------------------------------------------------------------------
 function imageSrc(image: DbImage) {
@@ -559,15 +576,15 @@ export async function GET(request: Request) {
       }
 
       // ---- Metadata requests: aggregate the whole bank (subjects list / dropdowns).
-      const subjects = buildSubjectMeta(await fetchMetaRows(supabase));
+      const subjects = await getSubjectsMeta(supabase);
       if (!rawSubject) {
-        return NextResponse.json({ subjects });
+        return NextResponse.json({ subjects }, { headers: META_CACHE_HEADERS });
       }
       const subjectMeta = subjects.find((s) => s.name.toLowerCase() === rawSubject.toLowerCase());
       if (!subjectMeta) {
         return NextResponse.json({ error: "Subject not found." }, { status: 404 });
       }
-      return NextResponse.json({ subject: subjectMeta });
+      return NextResponse.json({ subject: subjectMeta }, { headers: META_CACHE_HEADERS });
     } catch (error) {
       lastError = error;
       console.warn("Paper practice Supabase client failed:", error);
