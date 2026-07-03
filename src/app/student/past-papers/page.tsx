@@ -1,529 +1,442 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-    FileText, Download, Eye, Search, Loader2, ChevronRight, ChevronDown,
-    Atom, Calculator, BookOpen, Globe, Dna, FlaskConical, Languages,
-    Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Bookmark, Clock3, CheckCircle2,
-    Target, SlidersHorizontal
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { apiCall, getApiUrl } from "@/lib/api";
-import { useAuth, useUser } from "@clerk/nextjs";
 import {
-    PaperStatus,
-    TrackedPaper,
-    loadTrackedPapersForUser,
-    saveTrackedPapersForUser,
-    toggleTrackedStatus,
+  PaperStatus, TrackedPaper, loadTrackedPapersForUser, saveTrackedPapersForUser, toggleTrackedStatus,
 } from "@/lib/paperTracking";
-import { hydrateSubjectsFromProfile, StudentSubject } from "@/lib/studentPersonalization";
-import { useClerkAuth } from "@/lib/useClerkAuth";
-import StudentPageLoading from "@/components/student/StudentPageLoading";
-import { Reveal } from "@/components/ui/Motion";
+import { Icon } from "@/components/propel/Icon";
+import { SubjGlyph, EmptyState, ToastProvider, useToast } from "@/components/propel/primitives";
+import { subjectStyle } from "@/components/propel/subjects";
 
 interface FolderItem {
-    id: string;
-    name: string;
-    isFolder: boolean;
-    mimeType: string;
-    size?: string;
-    modifiedTime?: string;
-    viewUrl?: string;
-    downloadUrl?: string;
-    embedUrl?: string;
-    folderType?: string;
+  id: string; name: string; isFolder: boolean; folderType?: string;
+  mimeType?: string; size?: string; modifiedTime?: string;
+  viewUrl?: string; downloadUrl?: string; embedUrl?: string;
+}
+interface CollectedFile { file: FolderItem; trail: string[] }
+
+type FileKind = "qp" | "ms" | "er" | "gt" | "in";
+
+interface Paper {
+  key: string;
+  year: string;
+  session: string;       // May/Jun · Oct/Nov · Feb/Mar
+  paperCode: string;     // P1, P2 …
+  variant: string;       // 1, 2 …
+  files: Partial<Record<FileKind, FolderItem>> & { others: FolderItem[] };
+  primary: FolderItem;
 }
 
-interface FolderCache {
-    [folderId: string]: FolderItem[];
+const SESSION_LABEL = ["May/Jun", "Oct/Nov", "Feb/Mar"];
+// folders that are not practice papers — skip while collecting
+const SKIP_FOLDER = /examiner|grade[_\s-]?threshold|syllabus|reference|specimen[_\s-]?answer/i;
+
+function detectSession(s: string): string {
+  const t = s.toLowerCase();
+  if (/\bm[\s/_-]?j\b|may|jun|summer/.test(t)) return "May/Jun";
+  if (/\bo[\s/_-]?n\b|oct|nov|winter/.test(t)) return "Oct/Nov";
+  if (/\bf[\s/_-]?m\b|feb|mar/.test(t)) return "Feb/Mar";
+  return "";
+}
+function paperFromSeg(seg: string): string {
+  const m = seg.match(/^paper[_\s-]?(\d+)/i) || seg.match(/^p[_\s-]?(\d+)$/i);
+  return m ? "P" + m[1] : "";
+}
+function variantFromSeg(seg: string): string {
+  const m = seg.match(/^variant[_\s-]?(\d+)/i) || seg.match(/^v[_\s-]?(\d+)$/i);
+  return m ? m[1] : "";
+}
+// Exact file-kind from the Cambridge-style suffix (…_QP.pdf / …_MS.pdf / …_ER.pdf …).
+function detectKind(name: string): FileKind {
+  const t = name.toLowerCase().replace(/\.pdf$/i, "");
+  if (/(_|\b)ms(_|\b)$|(_|\b)ms(_|\b)|mark[_\s-]?scheme/.test(t)) return "ms";
+  if (/(_|\b)qp(_|\b)$|(_|\b)qp(_|\b)|question[_\s-]?paper/.test(t)) return "qp";
+  if (/(_|\b)er(_|\b)|examiner/.test(t)) return "er";
+  if (/(_|\b)gt(_|\b)|grade[_\s-]?threshold/.test(t)) return "gt";
+  if (/(_|\b)in(_|\b)|insert/.test(t)) return "in";
+  return "qp";
 }
 
-function getFileBadgeLabel(name: string): string {
-    const n = name.toLowerCase();
-    if (n.includes("qp") || n.includes("question")) return "Question Paper";
-    if (n.includes("ms") || n.includes("mark") || n.includes("answer")) return "Mark Scheme";
-    if (n.includes("er") || n.includes("examiner")) return "Examiner Report";
-    return "Document";
+function buildPapers(items: CollectedFile[], year: string): Paper[] {
+  const map = new Map<string, Paper>();
+  for (const { file, trail } of items) {
+    const paperCode = trail.map(paperFromSeg).find(Boolean) || paperFromSeg(file.name) || "";
+    const variant = trail.map(variantFromSeg).find(Boolean) || variantFromSeg(file.name) || "";
+    const session = trail.map(detectSession).find(Boolean) || detectSession(file.name) || "";
+    const kind = detectKind(file.name);
+    const groupKey = paperCode || variant ? `${year}|${session}|${paperCode}|${variant}` : file.id;
+    let p = map.get(groupKey);
+    if (!p) { p = { key: groupKey, year, session, paperCode, variant, files: { others: [] }, primary: file }; map.set(groupKey, p); }
+    if (!p.files[kind]) p.files[kind] = file;
+    else p.files.others.push(file);
+    p.primary = p.files.qp || p.files.ms || p.primary;
+  }
+  return Array.from(map.values())
+    // keep only real practice papers (a question paper or mark scheme); drop loose
+    // grade-thresholds / inserts / examiner reports that live beside them
+    .filter((p) => p.files.qp || p.files.ms)
+    .sort((a, b) => a.paperCode.localeCompare(b.paperCode) || a.variant.localeCompare(b.variant) || a.session.localeCompare(b.session));
+}
+
+async function browse(folderId?: string): Promise<{ folderId: string; items: FolderItem[] }> {
+  const res = await apiCall(folderId ? `/papers/browse/${folderId}` : "/papers/browse");
+  if (!res.ok) throw new Error("Failed to load papers");
+  return res.json();
+}
+
+// Recursively collect files under a single YEAR folder (small subtree; levels fetched
+// in parallel). Skips non-paper folders (Examiner_Report, Grade_Thresholds…).
+async function collectYear(folderId: string, trail: string[], depth = 0): Promise<CollectedFile[]> {
+  if (depth > 4) return [];
+  const { items } = await browse(folderId);
+  const files = items.filter((i) => !i.isFolder).map((file) => ({ file, trail }));
+  const folders = items.filter((i) => i.isFolder && !SKIP_FOLDER.test(i.name));
+  const nested = await Promise.all(folders.map((f) => collectYear(f.id, [...trail, f.name], depth + 1)));
+  return files.concat(...nested);
+}
+
+function PapersInner() {
+  const router = useRouter();
+  const { getToken } = useAuth();
+  const toast = useToast();
+
+  const [subjects, setSubjects] = useState<FolderItem[]>([]);
+  const [loadingRoot, setLoadingRoot] = useState(true);
+  const [rootError, setRootError] = useState<string | null>(null);
+
+  const [activeSubject, setActiveSubject] = useState<FolderItem | null>(null);
+  const [years, setYears] = useState<FolderItem[]>([]);
+  const [loadingYears, setLoadingYears] = useState(false);
+  const [activeYear, setActiveYear] = useState<FolderItem | null>(null);
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [loadingPapers, setLoadingPapers] = useState(false);
+
+  const yearCache = useRef<Map<string, Paper[]>>(new Map()); // key: subjectId|yearId
+  const subjToken = useRef(0);
+  const yearToken = useRef(0);
+
+  const [tracked, setTracked] = useState<TrackedPaper[]>([]);
+  const [viewing, setViewing] = useState<{ file: FolderItem; kind: FileKind } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  const [session, setSession] = useState("all");
+  const [viewType, setViewType] = useState<"qp" | "ms">("qp");
+  const [q, setQ] = useState("");
+
+  useEffect(() => setMounted(true), []);
+
+  // root subjects
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const root = await browse();
+        let folders = root.items.filter((i) => i.isFolder);
+        if (folders.length === 1 && folders[0].folderType === "category") {
+          const inner = await browse(folders[0].id);
+          folders = inner.items.filter((i) => i.isFolder);
+        }
+        if (active) setSubjects(folders);
+      } catch (e) {
+        if (active) setRootError(e instanceof Error ? e.message : "Failed to load papers");
+      } finally {
+        if (active) setLoadingRoot(false);
+      }
+    })();
+    loadTrackedPapersForUser(getToken).then((items) => active && setTracked(items));
+    return () => { active = false; };
+  }, [getToken]);
+
+  useEffect(() => {
+    if (!activeSubject && subjects.length) selectSubject(subjects[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects]);
+
+  async function selectSubject(folder: FolderItem) {
+    setActiveSubject(folder);
+    setSession("all"); setQ(""); setPapers([]); setActiveYear(null); setYears([]);
+    const token = ++subjToken.current;
+    setLoadingYears(true);
+    try {
+      // subject → (Past_Papers) → year folders
+      const inside = await browse(folder.id);
+      let container = inside;
+      const pp = inside.items.find((i) => i.isFolder && /past[_\s-]?papers/i.test(i.name));
+      if (pp) container = await browse(pp.id);
+      const yearFolders = container.items
+        .filter((i) => i.isFolder && /^\d{4}$/.test(i.name.trim()))
+        .sort((a, b) => b.name.localeCompare(a.name));
+      if (token !== subjToken.current) return;
+      setYears(yearFolders);
+      if (yearFolders.length) void selectYear(yearFolders[0], folder);
+    } catch {
+      if (token === subjToken.current) setYears([]);
+    } finally {
+      if (token === subjToken.current) setLoadingYears(false);
+    }
+  }
+
+  async function selectYear(yearFolder: FolderItem, subjectOverride?: FolderItem) {
+    const subject = subjectOverride || activeSubject;
+    if (!subject) return;
+    setActiveYear(yearFolder);
+    setSession("all"); setQ("");
+    const cacheKey = `${subject.id}|${yearFolder.id}`;
+    const cached = yearCache.current.get(cacheKey);
+    if (cached) { setPapers(cached); return; }
+    const token = ++yearToken.current;
+    setLoadingPapers(true);
+    setPapers([]);
+    try {
+      const files = await collectYear(yearFolder.id, [subject.name, yearFolder.name]);
+      if (token !== yearToken.current) return;
+      const built = buildPapers(files, yearFolder.name);
+      yearCache.current.set(cacheKey, built);
+      setPapers(built);
+    } catch {
+      if (token === yearToken.current) setPapers([]);
+    } finally {
+      if (token === yearToken.current) setLoadingPapers(false);
+    }
+  }
+
+  const list = papers.filter((p) =>
+    (session === "all" || p.session === session) &&
+    (!q || `${p.year} ${p.session} ${p.paperCode} ${p.variant} ${p.primary.name}`.toLowerCase().includes(q.toLowerCase()))
+  );
+
+  const hasStatus = (id: string, s: PaperStatus) => tracked.find((t) => t.id === id)?.statuses.includes(s) ?? false;
+  const toggle = (p: Paper, status: PaperStatus) => {
+    const was = hasStatus(p.primary.id, status);
+    const next = toggleTrackedStatus(tracked, {
+      id: p.primary.id,
+      name: `${activeSubject?.name ?? ""} ${p.year} ${p.session} ${p.paperCode} V${p.variant}`.replace(/\s+/g, " ").trim() || p.primary.name,
+      type: p.paperCode || "Paper",
+      viewUrl: p.primary.viewUrl, downloadUrl: p.primary.downloadUrl, embedUrl: p.primary.embedUrl,
+    }, status);
+    setTracked(next);
+    void saveTrackedPapersForUser(next, getToken);
+    const labels: Record<PaperStatus, string> = { goal: "goals", in_progress: "in progress", completed: "completed", bookmarked: "bookmarks" };
+    toast(was ? `Removed from ${labels[status]}` : `Added to ${labels[status]}`, status === "bookmarked" ? "bookmark" : status === "completed" ? "check_circle" : status === "goal" ? "target" : "clock");
+  };
+
+  const statusBadge = (p: Paper) => {
+    if (hasStatus(p.primary.id, "completed")) return <span className="badge teal"><Icon name="check_circle" size={13} /> Completed</span>;
+    if (hasStatus(p.primary.id, "in_progress")) return <span className="badge amber"><Icon name="clock" size={13} /> In progress</span>;
+    if (hasStatus(p.primary.id, "goal")) return <span className="badge purple"><Icon name="target" size={13} /> Goal</span>;
+    return <span className="badge neutral">Not started</span>;
+  };
+
+  const curSubj = subjectStyle(activeSubject?.name);
+  const totalTracked = tracked.length;
+
+  return (
+    <div className="pr">
+      <div className="main stagger flex-col gap-24">
+        <div className="row-between wrap" style={{ gap: 12 }}>
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>Library</div>
+            <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Past papers</h1>
+            <p className="muted mt-6">Pick a subject and year, then practise the question paper or open the mark scheme.</p>
+          </div>
+          {totalTracked > 0 && <span className="badge crimson" style={{ alignSelf: "center" }}><Icon name="bookmark" size={13} /> {totalTracked} tracked</span>}
+        </div>
+
+        {loadingRoot ? (
+          <LoadingCard label="Loading library…" />
+        ) : rootError ? (
+          <div className="card"><EmptyState icon="alert" title="Couldn't load papers" body={rootError} cta="Retry" onCta={() => location.reload()} /></div>
+        ) : subjects.length === 0 ? (
+          <div className="card"><EmptyState icon="book" title="No subjects available yet" body="The paper library is empty or still syncing." /></div>
+        ) : (
+          <div className="papers-layout">
+            {/* subject rail */}
+            <aside className="card card-pad papers-rail" style={{ padding: 14, alignSelf: "start" }}>
+              <div className="eyebrow" style={{ padding: "4px 8px 10px" }}>Subjects</div>
+              <div className="flex-col" style={{ gap: 3 }}>
+                {subjects.map((s) => {
+                  const on = activeSubject?.id === s.id;
+                  const st = subjectStyle(s.name);
+                  return (
+                    <button key={s.id} onClick={() => selectSubject(s)} className="flex items-center gap-10"
+                      style={{ padding: "9px 10px", borderRadius: 11, textAlign: "left",
+                        background: on ? st.color + "16" : "transparent", color: on ? st.color : "var(--ink-soft)", fontWeight: on ? 600 : 500 }}>
+                      <Icon name={st.icon} size={18} />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name.trim()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            {/* main */}
+            <div className="flex-col gap-16">
+              {/* year chips + filters */}
+              <div className="card card-pad" style={{ padding: 14 }}>
+                {loadingYears ? (
+                  <div className="flex items-center gap-8 faint" style={{ fontSize: 13 }}><Icon name="refresh" size={15} className="spin" /> Loading years…</div>
+                ) : years.length === 0 ? (
+                  <div className="faint" style={{ fontSize: 13 }}>No years found for this subject.</div>
+                ) : (
+                  <div className="flex gap-10 wrap items-center">
+                    <div className="search" style={{ flex: 1, minWidth: 170 }}>
+                      <Icon name="search" size={17} className="faint" />
+                      <input placeholder={`Search ${activeSubject?.name?.trim() ?? ""} papers…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search papers" />
+                    </div>
+                    <FilterSelect label="Year" value={activeYear?.id ?? ""}
+                      onChange={(id) => { const y = years.find((f) => f.id === id); if (y) selectYear(y); }}
+                      options={years.map((y) => [y.id, y.name] as [string, string])} />
+                    <FilterSelect label="Session" value={session} onChange={setSession} options={[["all", "All sessions"], ...SESSION_LABEL.map((s) => [s, s] as [string, string])]} />
+                    <FilterSelect label="View" value={viewType} onChange={(v) => setViewType(v as "qp" | "ms")} options={[["qp", "Question paper"], ["ms", "Mark scheme"]]} />
+                    <span className="faint" style={{ fontSize: 12.5, alignSelf: "center" }}>{list.length} papers</span>
+                  </div>
+                )}
+              </div>
+
+              {/* results */}
+              {loadingPapers ? (
+                <LoadingCard label={`Loading ${activeYear?.name ?? ""} papers…`} />
+              ) : list.length === 0 ? (
+                <div className="card"><EmptyState icon="search" title="No papers here"
+                  body={papers.length === 0 ? "No question papers found for this year." : "Try another session or clear your search."}
+                  cta={papers.length === 0 ? undefined : "Clear filters"} onCta={() => { setSession("all"); setQ(""); }} /></div>
+              ) : (
+                <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
+                  {list.map((p) => (
+                    <PaperCard key={p.key} p={p} subj={curSubj} viewType={viewType}
+                      bookmarked={hasStatus(p.primary.id, "bookmarked")}
+                      onToggle={(s) => toggle(p, s)} statusBadge={statusBadge(p)} hasStatus={(s) => hasStatus(p.primary.id, s)}
+                      onView={(file, kind) => setViewing({ file, kind })}
+                      onPractice={() => router.push("/student/paper-practice")} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* viewer modal — portalled to <body> so it sits above the sticky navbar */}
+      {mounted && viewing && createPortal(
+        <div className="pr" onClick={() => setViewing(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 9999, background: "transparent", minHeight: 0, display: "grid", placeItems: "center", padding: 16 }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(20,16,12,.6)", backdropFilter: "blur(3px)" }} />
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
+            style={{ position: "relative", maxWidth: "min(96vw,1400px)", width: "100%", height: "min(92vh,1000px)", padding: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div className="row-between" style={{ padding: 16, borderBottom: "1px solid var(--line)", gap: 10 }}>
+              <div className="flex items-center gap-8" style={{ minWidth: 0 }}>
+                <span className={"badge " + (viewing.kind === "ms" ? "teal" : "crimson")} style={{ flex: "none" }}>{viewing.kind === "ms" ? "Mark scheme" : "Question paper"}</span>
+                <h3 style={{ fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewing.file.name.replace(/\.pdf$/i, "")}</h3>
+              </div>
+              <div className="flex gap-8" style={{ flex: "none" }}>
+                <a className="btn btn-secondary btn-sm" href={`${getApiUrl()}${viewing.file.downloadUrl}`} target="_blank" rel="noreferrer"><Icon name="download" size={15} /> <span className="hide-sm">Download</span></a>
+                <button className="icon-btn" onClick={() => setViewing(null)} aria-label="Close" style={{ border: "1px solid var(--line-strong)" }}><Icon name="x" /></button>
+              </div>
+            </div>
+            <iframe src={`${getApiUrl()}${viewing.file.embedUrl || viewing.file.viewUrl}`} title="Paper viewer" style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }} />
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function LoadingCard({ label }: { label: string }) {
+  return (
+    <div className="card card-pad" style={{ display: "grid", placeItems: "center", padding: 60 }}>
+      <div className="flex-col items-center gap-12" style={{ display: "flex" }}>
+        <Icon name="refresh" size={28} className="spin" style={{ color: "var(--crimson)" }} />
+        <span className="faint">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: [string, string][] }) {
+  return (
+    <label className="chip" style={{ padding: "0 6px 0 13px", gap: 4, cursor: "pointer" }}>
+      <span className="faint" style={{ fontSize: 12 }}>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        style={{ border: "none", background: "transparent", padding: "8px 4px", fontWeight: 500, cursor: "pointer", outline: "none", color: "var(--ink)" }}>
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function PaperCard({ p, subj, viewType, bookmarked, onToggle, statusBadge, hasStatus, onView, onPractice }: {
+  p: Paper; subj: { color: string; icon: string }; viewType: "qp" | "ms"; bookmarked: boolean;
+  onToggle: (s: PaperStatus) => void; statusBadge: React.ReactNode; hasStatus: (s: PaperStatus) => boolean;
+  onView: (file: FolderItem, kind: FileKind) => void; onPractice: () => void;
+}) {
+  const title = [p.year, p.session].filter(Boolean).join(" · ") || p.primary.name.replace(/\.pdf$/i, "");
+  const sub = [p.paperCode && p.paperCode.replace("P", "Paper "), p.variant && "Variant " + p.variant].filter(Boolean).join(" · ") || "Past paper";
+  const qp = p.files.qp;
+  const ms = p.files.ms;
+  // eye opens the document chosen via the "View" dropdown, falling back to whatever exists
+  const viewDoc = p.files[viewType] || qp || ms || p.primary;
+  const viewKind: FileKind = p.files[viewType] ? viewType : qp ? "qp" : ms ? "ms" : "qp";
+  const viewLabel = viewKind === "ms" ? "mark scheme" : "question paper";
+  return (
+    <div className="card card-pad card-hover" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="row-between">
+        <div className="flex items-center gap-10" style={{ minWidth: 0 }}>
+          <SubjGlyph subj={subj} size={38} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+            <div className="faint" style={{ fontSize: 12.5 }}>{sub}</div>
+          </div>
+        </div>
+        <button className="icon-btn" style={{ width: 34, height: 34, color: bookmarked ? "var(--crimson)" : "var(--ink-faint)", flex: "none" }}
+          onClick={() => onToggle("bookmarked")} aria-label="Bookmark">
+          <Icon name="bookmark" size={18} fill={bookmarked ? "currentColor" : "none"} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-8 wrap" style={{ fontSize: 12.5 }}>
+        {statusBadge}
+        {qp && <span className="badge crimson" style={{ fontSize: 11 }}>QP</span>}
+        {ms && <span className="badge teal" style={{ fontSize: 11 }}>MS</span>}
+        {p.files.er && <span className="badge neutral" style={{ fontSize: 11 }}>ER</span>}
+      </div>
+
+      {/* status toggles (feed the dashboard) */}
+      <div className="flex gap-6">
+        {([["goal", "target"], ["in_progress", "clock"], ["completed", "check_circle"]] as [PaperStatus, string][]).map(([s, ic]) => {
+          const on = hasStatus(s);
+          const tone = s === "goal" ? "var(--purple)" : s === "in_progress" ? "var(--amber-deep)" : "var(--teal-deep)";
+          const bg = s === "goal" ? "var(--purple-soft)" : s === "in_progress" ? "var(--amber-soft)" : "var(--teal-soft)";
+          return (
+            <button key={s} className="icon-btn" title={s.replace("_", " ")} onClick={() => onToggle(s)}
+              style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", color: on ? tone : "var(--ink-faint)", background: on ? bg : "var(--surface)" }}>
+              <Icon name={ic} size={15} />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-8 items-center" style={{ marginTop: "auto" }}>
+        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={onPractice}>
+          <Icon name="play" size={13} fill="#fff" stroke={0} /> Practice
+        </button>
+        <button className="icon-btn" title={`View ${viewLabel}`} aria-label={`View ${viewLabel}`} onClick={() => onView(viewDoc, viewKind)}
+          style={{ width: 36, height: 36, borderRadius: "50%", border: "1px solid var(--line-strong)", color: "var(--ink-soft)", flex: "none" }}>
+          <Icon name="eye" size={16} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function PastPapersPage() {
-    const { user } = useUser();
-    const { getToken } = useAuth();
-    const { profile } = useClerkAuth();
-    const [rootFolderId, setRootFolderId] = useState<string | null>(null);
-    const [folderCache, setFolderCache] = useState<FolderCache>({});
-    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
-    const [viewingPaper, setViewingPaper] = useState<FolderItem | null>(null);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [initialLoading, setInitialLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [trackedPapers, setTrackedPapers] = useState<TrackedPaper[]>([]);
-    const [selectedSubjects, setSelectedSubjects] = useState<StudentSubject[]>([]);
-    const [mounted, setMounted] = useState(false);
-
-    // Load root folder + tracked statuses on mount
-    useEffect(() => {
-        setMounted(true);
-        loadRootFolder();
-        let active = true;
-
-        const load = async () => {
-            const items = await loadTrackedPapersForUser(getToken);
-            if (!active) return;
-            setTrackedPapers(items);
-        };
-
-        load();
-
-        return () => {
-            active = false;
-        };
-    }, [getToken]);
-
-    useEffect(() => {
-        setSelectedSubjects(hydrateSubjectsFromProfile(profile));
-
-        const onChange = (event: Event) => {
-            const customEvent = event as CustomEvent<StudentSubject[]>;
-            setSelectedSubjects(customEvent.detail ?? []);
-        };
-
-        window.addEventListener("propel:selected-subjects-change", onChange);
-        return () => window.removeEventListener("propel:selected-subjects-change", onChange);
-    }, [profile]);
-
-    const hasStatus = (itemId: string, status: PaperStatus) => {
-        const item = trackedPapers.find((paper) => paper.id === itemId);
-        return item?.statuses.includes(status) ?? false;
-    };
-
-    const togglePaperStatus = (item: FolderItem, status: PaperStatus) => {
-        if (!user) return;
-
-        const next = toggleTrackedStatus(
-            trackedPapers,
-            {
-                id: item.id,
-                name: item.name,
-                type: getFileBadgeLabel(item.name),
-                viewUrl: item.viewUrl,
-                downloadUrl: item.downloadUrl,
-                embedUrl: item.embedUrl,
-            },
-            status
-        );
-
-        setTrackedPapers(next);
-        void saveTrackedPapersForUser(next, getToken);
-    };
-
-    const loadRootFolder = async () => {
-        try {
-            setInitialLoading(true);
-            setError(null);
-
-            const response = await apiCall('/papers/browse');
-
-            if (!response.ok) {
-                let backendMessage = 'Failed to load folders';
-                try {
-                    const errorData = await response.json();
-                    backendMessage = errorData?.error || backendMessage;
-                } catch { }
-                throw new Error(backendMessage);
-            }
-
-            const data = await response.json();
-            setRootFolderId(data.folderId);
-            setFolderCache({ [data.folderId]: data.items });
-        } catch (err) {
-            console.error('Error loading root folder:', err);
-            setError(err instanceof Error ? err.message : 'Failed to load past papers.');
-        } finally {
-            setInitialLoading(false);
-        }
-    };
-
-    const loadFolder = async (folderId: string) => {
-        if (folderCache[folderId]) return;
-        try {
-            setLoadingFolders(prev => new Set(prev).add(folderId));
-            const response = await apiCall(`/papers/browse/${folderId}`);
-            if (!response.ok) throw new Error('Failed to load folder');
-            const data = await response.json();
-            setFolderCache(prev => ({ ...prev, [folderId]: data.items }));
-        } catch (err) {
-            console.error('Error loading folder:', err);
-        } finally {
-            setLoadingFolders(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(folderId);
-                return newSet;
-            });
-        }
-    };
-
-    const toggleFolder = async (folderId: string) => {
-        const isExpanded = expandedFolders.has(folderId);
-        if (isExpanded) {
-            setExpandedFolders(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(folderId);
-                return newSet;
-            });
-        } else {
-            if (!folderCache[folderId]) await loadFolder(folderId);
-            setExpandedFolders(prev => new Set(prev).add(folderId));
-        }
-    };
-
-    const handleView = (paper: FolderItem) => setViewingPaper(paper);
-
-    const handleDownload = (paper: FolderItem) => {
-        if (paper.downloadUrl) {
-            const link = document.createElement('a');
-            link.href = `${getApiUrl()}${paper.downloadUrl}`;
-            link.download = paper.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    };
-
-    const getSubjectIcon = (subjectName: string) => {
-        const name = subjectName.toLowerCase();
-        if (name.includes('chemistry') || name.includes('5070')) return <FlaskConical className="w-5 h-5" />;
-        if (name.includes('physics') || name.includes('5054')) return <Atom className="w-5 h-5" />;
-        if (name.includes('math') || name.includes('4037')) return <Calculator className="w-5 h-5" />;
-        if (name.includes('biology') || name.includes('5090')) return <Dna className="w-5 h-5" />;
-        if (name.includes('english') || name.includes('1123')) return <Languages className="w-5 h-5" />;
-        if (name.includes('islamiyat') || name.includes('2058')) return <BookOpen className="w-5 h-5" />;
-        if (name.includes('pakistan') || name.includes('2059')) return <Globe className="w-5 h-5" />;
-        return <BookMarked className="w-5 h-5" />;
-    };
-
-    const getPaperIcon = (fileName: string) => {
-        const name = fileName.toLowerCase();
-        if (name.includes('qp') || name.includes('question')) return <FileText className="w-4 h-4" />;
-        if (name.includes('ms') || name.includes('mark') || name.includes('answer')) return <FileCheck className="w-4 h-4" />;
-        if (name.includes('er') || name.includes('examiner')) return <ClipboardList className="w-4 h-4" />;
-        return <FileText className="w-4 h-4" />;
-    };
-
-    const renderStatusButtons = (item: FolderItem, compact: boolean = false) => {
-        if (!user) return null;
-
-        const iconSize = compact ? 14 : 16;
-        const baseClass = compact
-            ? "p-1.5 rounded-lg transition-colors border"
-            : "p-2 rounded-lg transition-colors border";
-
-        const statusActions: Array<{
-            status: PaperStatus;
-            label: string;
-            icon: any;
-            active: string;
-            inactive: string;
-            fillOnActive?: boolean;
-        }> = [
-            {
-                status: "goal",
-                label: "goal",
-                icon: Target,
-                active: "text-gold-ink bg-gold-soft border-gold/30",
-                inactive: "text-ink-faint bg-surface border-line hover:text-gold-ink hover:border-gold/30 hover:bg-gold-soft",
-            },
-            {
-                status: "in_progress",
-                label: "in progress",
-                icon: Clock3,
-                active: "text-clay-ink bg-clay-soft border-clay/30",
-                inactive: "text-ink-faint bg-surface border-line hover:text-clay-ink hover:border-clay/30 hover:bg-clay-soft",
-            },
-            {
-                status: "completed",
-                label: "completed",
-                icon: CheckCircle2,
-                active: "text-mint-ink bg-mint-soft border-mint/30",
-                inactive: "text-ink-faint bg-surface border-line hover:text-mint-ink hover:border-mint/30 hover:bg-mint-soft",
-            },
-            {
-                status: "bookmarked",
-                label: "bookmarked",
-                icon: Bookmark,
-                active: "text-crimson bg-crimson-soft border-crimson/20",
-                inactive: "text-ink-faint bg-surface border-line hover:text-crimson hover:border-crimson/20 hover:bg-crimson-soft",
-                fillOnActive: true,
-            },
-        ];
-
-        return statusActions.map((action) => {
-            const active = hasStatus(item.id, action.status);
-            const Icon = action.icon;
-            return (
-                <button
-                    key={action.status}
-                    onClick={() => togglePaperStatus(item, action.status)}
-                    className={`${baseClass} ${active ? action.active : action.inactive}`}
-                    title={active ? `Remove ${action.label}` : `Mark as ${action.label}`}
-                >
-                    <Icon size={iconSize} fill={action.fillOnActive && active ? "currentColor" : "none"} />
-                </button>
-            );
-        });
-    };
-
-    const renderFolder = (item: FolderItem, depth: number = 0) => {
-        const isExpanded = expandedFolders.has(item.id);
-        const isLoading = loadingFolders.has(item.id);
-        const children = folderCache[item.id] || [];
-        const paddingLeft = depth * 24;
-
-        const getFolderStyle = () => {
-            switch (item.folderType) {
-                case 'subject':
-                    return { icon: getSubjectIcon(item.name), color: 'text-crimson', bgColor: 'bg-crimson-soft', borderColor: 'border-crimson/20', label: 'Subject' };
-                case 'category':
-                    return { icon: <FolderOpen className="w-5 h-5" />, color: 'text-ink-muted', bgColor: 'bg-surface-soft', borderColor: 'border-line', label: 'Category' };
-                case 'year':
-                    return { icon: <Calendar className="w-5 h-5" />, color: 'text-ink-muted', bgColor: 'bg-surface-soft', borderColor: 'border-line', label: 'Year' };
-                case 'month':
-                    return { icon: <Calendar className="w-5 h-5" />, color: 'text-ink-muted', bgColor: 'bg-surface-soft', borderColor: 'border-line', label: 'Session' };
-                default:
-                    return { icon: <FolderOpen className="w-5 h-5" />, color: 'text-ink-muted', bgColor: 'bg-surface-soft', borderColor: 'border-line', label: '' };
-            }
-        };
-
-        const folderStyle = getFolderStyle();
-
-        return (
-            <div key={item.id} className="border-b border-line last:border-b-0">
-                <button
-                    onClick={() => toggleFolder(item.id)}
-                    className="w-full p-3 flex items-center gap-3 hover:bg-surface-soft transition-colors"
-                    style={{ paddingLeft: `${paddingLeft + 12}px` }}
-                >
-                    {isLoading ? (
-                        <Loader2 className="w-4 h-4 text-ink-faint animate-spin flex-shrink-0" />
-                    ) : (
-                        <div className="flex-shrink-0">
-                            {isExpanded ? <ChevronDown className="w-5 h-5 text-ink-muted" /> : <ChevronRight className="w-5 h-5 text-ink-muted" />}
-                        </div>
-                    )}
-                    <div className={`p-2.5 rounded-xl ${folderStyle.bgColor} border ${folderStyle.borderColor} flex-shrink-0 ${folderStyle.color}`}>
-                        {folderStyle.icon}
-                    </div>
-                    <div className="flex-1 text-left">
-                        <span className={`font-semibold ${folderStyle.color}`}>{item.name}</span>
-                        {folderStyle.label && (
-                            <span className="ml-2 text-xs text-ink-faint">({folderStyle.label})</span>
-                        )}
-                    </div>
-                </button>
-
-                {isExpanded && !isLoading && (
-                    <div>
-                        {children.map(child => child.isFolder ? renderFolder(child, depth + 1) : renderFile(child, depth + 1))}
-                        {children.length === 0 && (
-                            <div className="p-3 text-sm text-ink-muted italic" style={{ paddingLeft: `${paddingLeft + 48}px` }}>
-                                Empty folder
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const renderFile = (item: FolderItem, depth: number = 0) => {
-        const paddingLeft = depth * 24;
-        const fileIcon = getPaperIcon(item.name);
-
-        const getFileBadge = () => {
-            const name = item.name.toLowerCase();
-            if (name.includes('qp') || name.includes('question'))
-                return { bg: 'bg-crimson-soft', text: 'text-crimson-ink', border: 'border-crimson/20', label: 'Question Paper' };
-            if (name.includes('ms') || name.includes('mark') || name.includes('answer'))
-                return { bg: 'bg-ink', text: 'text-paper', border: 'border-ink', label: 'Mark Scheme' };
-            if (name.includes('er') || name.includes('examiner'))
-                return { bg: 'bg-gold-soft', text: 'text-gold-ink', border: 'border-gold/30', label: 'Examiner Report' };
-            return { bg: 'bg-surface-soft', text: 'text-ink-muted', border: 'border-line', label: 'Document' };
-        };
-
-        const fileBadge = getFileBadge();
-
-        return (
-            <div
-                key={item.id}
-                className="p-3 flex items-center justify-between hover:bg-surface-soft transition-all border-b border-line last:border-b-0 group"
-                style={{ paddingLeft: `${paddingLeft + 12}px` }}
-            >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`p-2 rounded-lg ${fileBadge.bg} border ${fileBadge.border} ${fileBadge.text} flex-shrink-0`}>
-                        {fileIcon}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                        <span className="text-sm text-ink truncate font-medium">{item.name}</span>
-                        <span className="text-xs text-ink-muted font-medium">{fileBadge.label}</span>
-                    </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0 ml-2 flex-wrap">
-                    {renderStatusButtons(item)}
-                    <button
-                        onClick={() => handleView(item)}
-                        className="p-2 text-paper bg-crimson hover:bg-crimson-deep rounded-lg transition-colors"
-                        title="View"
-                    >
-                        <Eye size={16} />
-                    </button>
-                    <button
-                        onClick={() => handleDownload(item)}
-                        className="p-2 text-ink bg-surface hover:bg-surface-soft border border-line rounded-lg transition-colors"
-                        title="Download"
-                    >
-                        <Download size={16} />
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    const getFilteredItems = () => {
-        if (!rootFolderId || !folderCache[rootFolderId]) return [];
-        const selectedIds = new Set(selectedSubjects.map((subject) => subject.id));
-        const selectedNames = new Set(selectedSubjects.map((subject) => subject.name.toLowerCase()));
-        const scopedItems = selectedIds.size === 0
-            ? folderCache[rootFolderId]
-            : folderCache[rootFolderId].filter((item) => {
-                if (!item.isFolder) return true;
-                return selectedIds.has(item.id) || selectedNames.has(item.name.toLowerCase());
-            });
-        if (!searchTerm) return scopedItems;
-        return scopedItems.filter(item =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    };
-
-    if (initialLoading) {
-        return <StudentPageLoading label="Loading past papers..." />;
-    }
-
-    if (error) {
-        return (
-            <div className="p-8 max-w-7xl mx-auto">
-                <div className="bg-crimson-soft border border-crimson/20 rounded-[1.25rem] p-6 text-center">
-                    <p className="text-crimson-ink font-medium">{error}</p>
-                    <button onClick={loadRootFolder} className="mt-4 px-4 py-2 bg-crimson text-white rounded-xl hover:bg-crimson-deep transition-colors">
-                        Retry
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const filteredItems = getFilteredItems();
-
-    return (
-        <div className="min-h-full bg-transparent p-4 md:p-8 max-w-7xl mx-auto text-ink">
-            {/* PDF Viewer Modal */}
-            {mounted && viewingPaper && createPortal(
-                <div className="fixed inset-0 bg-ink/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6">
-                    <div className="bg-surface w-[min(96vw,1500px)] h-[min(94dvh,1100px)] flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-line">
-                        <div className="p-4 sm:p-5 border-b border-line bg-surface-soft space-y-3 sm:space-y-4">
-                            <h3 className="font-display font-semibold text-ink text-center text-base sm:text-lg break-words leading-snug max-h-20 overflow-y-auto px-2">
-                                {viewingPaper.name}
-                            </h3>
-                            <div className="flex gap-2 items-center flex-wrap justify-center sm:justify-end">
-                                {renderStatusButtons(viewingPaper, true)}
-                                <button
-                                    onClick={() => handleDownload(viewingPaper)}
-                                    className="px-4 py-2 text-sm bg-crimson text-white rounded-lg hover:bg-crimson-deep transition-colors"
-                                >
-                                    Download
-                                </button>
-                                <button
-                                    onClick={() => setViewingPaper(null)}
-                                    className="px-4 py-2 text-sm bg-surface text-ink-muted border border-line rounded-lg hover:bg-surface-soft transition-colors"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                        <iframe
-                            src={`${getApiUrl()}${viewingPaper.embedUrl}`}
-                            className="flex-1 w-full min-h-0"
-                            title="PDF Viewer"
-                        />
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {/* Header */}
-            <Reveal>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold font-display tracking-tight text-ink">Past Papers <span className="italic text-crimson">Library</span></h1>
-                        <p className="text-ink-muted mt-1">
-                            {selectedSubjects.length > 0
-                                ? `Showing ${selectedSubjects.length} selected subject${selectedSubjects.length > 1 ? "s" : ""}.`
-                                : "Browse past papers organized by subject, year, and session."}
-                        </p>
-                    </div>
-                    <div className="flex gap-2 w-full md:w-auto items-center flex-wrap">
-                        <a
-                            href="/student/subjects"
-                            className="flex items-center gap-1.5 px-3 py-2 bg-surface border border-line text-ink-muted rounded-xl text-sm font-semibold hover:bg-surface-soft transition-colors flex-shrink-0"
-                        >
-                            <SlidersHorizontal size={14} />
-                            Subjects
-                        </a>
-                        <a
-                            href="/student/goals"
-                            className="flex items-center gap-1.5 px-3 py-2 bg-gold-soft border border-gold/30 text-gold-ink rounded-xl text-sm font-semibold hover:bg-gold-soft/70 transition-colors flex-shrink-0"
-                        >
-                            <Target size={14} />
-                            Goals
-                        </a>
-                        {user && trackedPapers.length > 0 && (
-                            <a
-                                href="/student/bookmarks"
-                                className="flex items-center gap-1.5 px-3 py-2 bg-crimson-soft border border-crimson/20 text-crimson rounded-xl text-sm font-semibold hover:bg-crimson-soft/70 transition-colors flex-shrink-0"
-                            >
-                                <Bookmark size={14} fill="currentColor" />
-                                {trackedPapers.length}
-                            </a>
-                        )}
-                        <div className="relative flex-1 md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint z-10" size={20} />
-                            <input
-                                type="text"
-                                placeholder="Search subjects..."
-                                className="ed-input pl-10"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </Reveal>
-
-            {/* Folder Tree */}
-            <Reveal delay={0.1}>
-                <div className="ed-card overflow-hidden">
-                    {filteredItems.length === 0 ? (
-                        <div className="p-12 text-center text-ink-muted">
-                            {searchTerm ? 'No subjects found matching your search.' : 'No folders found.'}
-                        </div>
-                    ) : (
-                        <div>
-                            {filteredItems.map(item => item.isFolder ? renderFolder(item) : renderFile(item))}
-                        </div>
-                    )}
-                </div>
-            </Reveal>
-        </div>
-    );
+  return (
+    <ToastProvider>
+      <PapersInner />
+    </ToastProvider>
+  );
 }

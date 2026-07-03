@@ -358,7 +358,9 @@ async function fetchQuestions(
     .order("question_number", { ascending: true });
 
   if (variant && variant.toLowerCase() !== "all") query = query.eq("variant", variant);
-  if (topic && topic.toLowerCase() !== "all") query = query.eq("topic", topic);
+  if (topic && topic.toLowerCase() !== "all") {
+    query = topic.toLowerCase() === "uncategorised" ? query.or("topic.is.null,topic.eq.Uncategorised") : query.eq("topic", topic);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -391,7 +393,9 @@ async function fetchTopicQuestions(
     .order("question_number", { ascending: true })
     .range(0, 9999);
 
-  if (topic && topic.toLowerCase() !== "all") scan = scan.eq("topic", topic);
+  if (topic && topic.toLowerCase() !== "all") {
+    scan = topic.toLowerCase() === "uncategorised" ? scan.or("topic.is.null,topic.eq.Uncategorised") : scan.eq("topic", topic);
+  }
 
   const { data: lite, error: scanError } = await scan;
   if (scanError) throw scanError;

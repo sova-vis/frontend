@@ -1,19 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertCircle,
-  BookOpenCheck,
-  CheckCircle2,
-  FileQuestion,
-  FileText,
-  Layers,
-  Loader2,
-  RefreshCcw,
-  Search,
-  Sparkles,
-  XCircle,
-} from "lucide-react";
+import { Icon } from "@/components/propel/Icon";
+import { Segmented, EmptyState } from "@/components/propel/primitives";
 
 type QuestionType = "mcq" | "structured";
 type PracticeMode = "topic" | "paper";
@@ -101,221 +90,152 @@ function matchesQuery(question: PracticeQuestion, trimmed: string) {
     .some((value) => value.toLowerCase().includes(trimmed));
 }
 
-// Mark-scheme answers can be images (e.g. Mathematics answer_image). Keep those
-// behind the reveal toggle; everything else is part of the question itself.
 const questionImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role !== "answer");
 const answerImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role === "answer");
 
 function SourceNote({ note }: { note: string | null }) {
   if (!note) return null;
-  return (
-    <p className="rounded-md border border-[#1C1714]/[.08] bg-[#FAF6F0] px-3 py-2 text-xs italic leading-5 text-[#9A8D83]">{note}</p>
-  );
+  return <p style={{ borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface-2)", padding: "8px 12px", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)" }}>{note}</p>;
 }
 
-// Read-only passages/sources (e.g. Islamiyat ayats): each Arabic-text image is
-// shown together with its translation. These are part of the question — no answer box.
 function Passages({ sources }: { sources: PracticeSource[] }) {
   if (!sources.length) return null;
   return (
-    <div className="space-y-3">
+    <div className="flex-col gap-12" style={{ display: "flex" }}>
       {sources.map((source, index) => (
-        <figure key={index} className="rounded-lg border border-[#1C1714]/[.1] bg-[#FAF6F0]/70 p-3">
+        <figure key={index} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 12 }}>
           {(source.label || source.reference) && (
-            <figcaption className="flex flex-wrap items-baseline gap-2 text-xs font-bold text-[#A8123C]">
+            <figcaption className="flex wrap items-center gap-8" style={{ fontSize: 12, fontWeight: 700, color: "var(--crimson)" }}>
               {source.label && <span>{source.label}</span>}
-              {source.reference && <span className="font-semibold text-[#9A8D83]">{source.reference}</span>}
+              {source.reference && <span style={{ fontWeight: 600, color: "var(--ink-faint)" }}>{source.reference}</span>}
             </figcaption>
           )}
           {source.image?.src && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={source.image.src} alt={source.label || "passage"} className="mx-auto mt-2 max-h-[300px] w-full max-w-2xl object-contain" loading="lazy" />
+            <img src={source.image.src} alt={source.label || "passage"} style={{ margin: "8px auto 0", maxHeight: 300, width: "100%", maxWidth: 640, objectFit: "contain" }} loading="lazy" />
           )}
-          {source.translation && (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#33291F]">{source.translation}</p>
-          )}
+          {source.translation && <p style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.7 }}>{source.translation}</p>}
         </figure>
       ))}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
 function QuestionImage({ image }: { image: PracticeImage }) {
   if (!image.src) return null;
   return (
-    <figure className="rounded-lg border border-[#1C1714]/[.09] bg-[#FAF6F0]/70 p-3">
+    <figure style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 12 }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image.src} alt={image.alt} className="mx-auto max-h-[520px] w-full max-w-3xl object-contain" loading="lazy" />
-      {image.caption && <figcaption className="mt-2 text-center text-xs font-semibold text-[#9A8D83]">{image.caption}</figcaption>}
+      <img src={image.src} alt={image.alt} style={{ margin: "0 auto", maxHeight: 520, width: "100%", maxWidth: 760, objectFit: "contain" }} loading="lazy" />
+      {image.caption && <figcaption style={{ marginTop: 8, textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--ink-faint)" }}>{image.caption}</figcaption>}
     </figure>
   );
 }
 
-function McqBody({
-  question,
-  answer,
-  checked,
-  showScheme,
-  onAnswer,
-}: {
-  question: PracticeQuestion;
-  answer?: string;
-  checked: boolean;
-  showScheme: boolean;
-  onAnswer: (value: string) => void;
+function McqBody({ question, answer, checked, showScheme, onAnswer }: {
+  question: PracticeQuestion; answer?: string; checked: boolean; showScheme: boolean; onAnswer: (value: string) => void;
 }) {
   const correct = question.correctOption;
   const isAnswered = Boolean(answer?.trim());
-
   return (
-    <div className="space-y-4 p-4 sm:p-5">
-      <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>
+    <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
+      <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{question.questionText}</p>
       <SourceNote note={question.sourceNote} />
       <Passages sources={question.sources} />
-
       {questionImagesOf(question.images).length > 0 && (
-        <div className="space-y-3">
-          {questionImagesOf(question.images).map((image, index) => (
-            <QuestionImage key={`${question.id}-img-${index}`} image={image} />
-          ))}
+        <div className="flex-col gap-12" style={{ display: "flex" }}>
+          {questionImagesOf(question.images).map((image, index) => <QuestionImage key={`${question.id}-img-${index}`} image={image} />)}
         </div>
       )}
 
       {question.options.length >= 2 ? (
-        <div className="grid grid-cols-1 gap-2">
+        <div className="flex-col gap-10">
           {question.options.map((option) => {
             const selected = answer === option.label;
             const optionCorrect = checked && correct === option.label;
             const optionWrong = checked && selected && correct !== option.label;
+            const border = optionCorrect ? "var(--teal)" : optionWrong ? "var(--coral-bright)" : selected && !checked ? "var(--crimson)" : "var(--line-strong)";
+            const bg = optionCorrect ? "var(--teal-soft)" : optionWrong ? "var(--coral-soft)" : selected && !checked ? "var(--crimson-soft)" : "var(--surface)";
             return (
-              <label
-                key={option.label}
-                className={cx(
-                  "flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors",
-                  selected && !checked && "border-[#A8123C] bg-[#F6E1E7]/60",
-                  !selected && !checked && "border-[#1C1714]/[.12] hover:border-[#1C1714]/25 hover:bg-[#1C1714]/[.03]",
-                  optionCorrect && "border-[#16876B] bg-[#DBEFE8]",
-                  optionWrong && "border-[#CF5128] bg-[#F9E2D7]",
-                  checked && !optionCorrect && !optionWrong && "border-[#1C1714]/[.1] bg-[#1C1714]/[.03]",
-                )}
-              >
-                <input
-                  type="radio"
-                  name={question.id}
-                  value={option.label}
-                  checked={selected}
-                  onChange={() => onAnswer(option.label)}
-                  className="mt-1 h-4 w-4 accent-[#A8123C]"
-                />
-                <div className="flex min-w-0 flex-1 items-start gap-2">
-                  <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-white text-xs font-bold text-[#6B5F57] shadow-sm">
-                    {option.label}
-                  </span>
-                  <span className="text-sm leading-6 text-[#33291F]">{option.text}</span>
-                </div>
+              <label key={option.label} className="flex items-center gap-12"
+                style={{ padding: "13px 15px", borderRadius: 13, cursor: "pointer", border: `1.5px solid ${border}`, background: bg, transition: "all .14s" }}>
+                <input type="radio" name={question.id} value={option.label} checked={selected} onChange={() => onAnswer(option.label)} style={{ display: "none" }} />
+                <span style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", flex: "none", fontWeight: 600, fontSize: 13,
+                  border: `1.5px solid ${selected || optionCorrect ? border : "var(--line-strong)"}`, color: selected || optionCorrect ? border : "var(--ink-faint)" }}>{option.label}</span>
+                <span style={{ fontSize: 14.5, flex: 1 }}>{option.text}</span>
+                {optionCorrect && <Icon name="check_circle" size={18} style={{ color: "var(--teal-deep)", flex: "none" }} />}
               </label>
             );
           })}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-[#1C1714]/[.14] bg-[#FAF6F0] p-3 text-xs font-semibold text-[#9A8D83]">
+        <p style={{ borderRadius: 12, border: "1px dashed var(--line-strong)", background: "var(--surface-2)", padding: 12, fontSize: 12.5, fontWeight: 600, color: "var(--ink-faint)" }}>
           The answer options for this question are shown in the figure above.
         </p>
       )}
 
       {checked && correct && (
-        <div
-          className={cx(
-            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold",
-            isAnswered && answer === correct && "bg-[#DBEFE8] text-[#16876B]",
-            isAnswered && answer !== correct && "bg-[#F9E2D7] text-[#CF5128]",
-            !isAnswered && "bg-[#FFF6E9] text-[#8A4F12]",
-          )}
-        >
-          {isAnswered && answer === correct ? <CheckCircle2 size={17} /> : isAnswered ? <XCircle size={17} /> : <AlertCircle size={17} />}
+        <div className={"badge " + (isAnswered && answer === correct ? "teal" : isAnswered ? "coral" : "amber")} style={{ fontSize: 13.5, padding: "8px 12px" }}>
+          <Icon name={isAnswered && answer === correct ? "check_circle" : isAnswered ? "x" : "alert"} size={16} />
           Correct option: {correct}
         </div>
       )}
 
       {showScheme && question.markingScheme && (
-        <div className="rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-3 text-sm leading-6 text-[#6F4A14]">{question.markingScheme}</div>
+        <div style={{ borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12, fontSize: 14, lineHeight: 1.5, color: "var(--amber-deep)" }}>{question.markingScheme}</div>
       )}
     </div>
   );
 }
 
-function StructuredBody({
-  question,
-  answers,
-  showScheme,
-  onAnswer,
-}: {
-  question: PracticeQuestion;
-  answers: Record<string, string>;
-  showScheme: boolean;
-  onAnswer: (partKey: string, value: string) => void;
+function StructuredBody({ question, answers, showScheme, onAnswer }: {
+  question: PracticeQuestion; answers: Record<string, string>; showScheme: boolean; onAnswer: (partKey: string, value: string) => void;
 }) {
   return (
-    <div className="space-y-4 p-4 sm:p-5">
-      {question.questionText && <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#1C1714]">{question.questionText}</p>}
+    <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
+      {question.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{question.questionText}</p>}
       <SourceNote note={question.sourceNote} />
-
       {questionImagesOf(question.images).length > 0 && (
-        <div className="space-y-3">
-          {questionImagesOf(question.images).map((image, index) => (
-            <QuestionImage key={`${question.id}-img-${index}`} image={image} />
-          ))}
+        <div className="flex-col gap-12" style={{ display: "flex" }}>
+          {questionImagesOf(question.images).map((image, index) => <QuestionImage key={`${question.id}-img-${index}`} image={image} />)}
         </div>
       )}
-
       <Passages sources={question.sources} />
 
       {question.parts.length > 0 ? (
-        <div className="space-y-4">
+        <div className="flex-col gap-16" style={{ display: "flex" }}>
           {question.parts.map((part, index) => {
             const partKey = `${question.id}::${index}`;
             return (
-              <div key={partKey} className="rounded-lg border border-[#1C1714]/[.08] bg-[#FAF6F0]/60 p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="whitespace-pre-wrap text-sm font-semibold leading-6 text-[#1C1714]">
-                    {part.label && <span className="mr-1 text-[#A8123C]">{part.label}</span>}
+              <div key={partKey} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 13 }}>
+                <div className="row-between" style={{ alignItems: "baseline" }}>
+                  <p style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>
+                    {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
                     {part.body}
                   </p>
-                  {part.marks !== null && <span className="flex-none text-xs font-bold text-[#9A8D83]">[{part.marks}]</span>}
+                  {part.marks !== null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
                 </div>
-                <textarea
-                  value={answers[partKey] ?? ""}
-                  onChange={(event) => onAnswer(partKey, event.target.value)}
-                  placeholder="Write your answer..."
-                  className="mt-2 min-h-[90px] w-full resize-y rounded-lg border border-[#1C1714]/[.14] bg-white px-3 py-2 text-sm text-[#1C1714] outline-none transition focus:border-[#A8123C] focus:ring-2 focus:ring-[#A8123C]/15"
-                />
+                <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
+                  className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
                 {showScheme && part.answer && (
-                  <div className="mt-2 rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-2 text-xs leading-5 text-[#6F4A14]">{part.answer}</div>
+                  <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 8, fontSize: 12.5, lineHeight: 1.4, color: "var(--amber-deep)" }}>{part.answer}</div>
                 )}
               </div>
             );
           })}
         </div>
       ) : (
-        <textarea
-          value={answers[`${question.id}::0`] ?? ""}
-          onChange={(event) => onAnswer(`${question.id}::0`, event.target.value)}
-          placeholder="Write your answer..."
-          className="min-h-[120px] w-full resize-y rounded-lg border border-[#1C1714]/[.14] bg-white px-3 py-2 text-sm text-[#1C1714] outline-none transition focus:border-[#A8123C] focus:ring-2 focus:ring-[#A8123C]/15"
-        />
+        <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
       )}
 
       {showScheme && question.markingScheme && (
-        <div className="rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-3 text-sm leading-6 text-[#6F4A14]">{question.markingScheme}</div>
+        <div style={{ borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12, fontSize: 14, lineHeight: 1.5, color: "var(--amber-deep)" }}>{question.markingScheme}</div>
       )}
 
       {showScheme && answerImagesOf(question.images).length > 0 && (
-        <div className="space-y-2 rounded-lg border border-[#E7C9A1] bg-[#FFF6E9] p-3">
-          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[#8A4F12]">Mark scheme</p>
-          {answerImagesOf(question.images).map((image, index) => (
-            <QuestionImage key={`${question.id}-ans-${index}`} image={image} />
-          ))}
+        <div className="flex-col gap-8" style={{ display: "flex", borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12 }}>
+          <p className="eyebrow" style={{ color: "var(--amber-deep)" }}>Mark scheme</p>
+          {answerImagesOf(question.images).map((image, index) => <QuestionImage key={`${question.id}-ans-${index}`} image={image} />)}
         </div>
       )}
     </div>
@@ -323,37 +243,25 @@ function StructuredBody({
 }
 
 function QuestionCard(props: {
-  question: PracticeQuestion;
-  showYear: boolean;
-  mcqAnswer?: string;
-  partAnswers: Record<string, string>;
-  checked: boolean;
-  showScheme: boolean;
-  onMcqAnswer: (value: string) => void;
-  onPartAnswer: (partKey: string, value: string) => void;
+  question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
+  checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
 }) {
   const { question } = props;
   return (
-    <article className="overflow-hidden rounded-lg border border-[#1C1714]/[.09] bg-white shadow-sm">
-      <div className="border-b border-[#1C1714]/[.07] p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9A8D83]">
-          <span className="rounded-full bg-[#1C1714]/[.06] px-2.5 py-1 font-bold text-[#1C1714]">Q{question.questionNumber}</span>
-          {props.showYear && question.year && <span className="font-bold text-[#A8123C]">{question.year}</span>}
-          {question.marks !== null && (
-            <span>
-              {question.marks} mark{question.marks === 1 ? "" : "s"}
-            </span>
-          )}
+    <article className="card card-pad flex-col gap-16">
+      <div className="row-between wrap" style={{ gap: 10 }}>
+        <div className="flex gap-8 wrap items-center">
+          <span className="chip-tag badge neutral">Q{question.questionNumber}</span>
+          {question.topic && <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}><Icon name="hash" size={12} /> {question.topic}</span>}
+          {question.theme && <span className="chip-tag badge teal">{question.theme}</span>}
+        </div>
+        <div className="flex gap-8 items-center faint" style={{ fontSize: 12.5 }}>
+          {props.showYear && question.year && <span style={{ fontWeight: 700, color: "var(--crimson)" }}>{question.year}</span>}
+          {question.marks !== null && <span>{question.marks} mark{question.marks === 1 ? "" : "s"}</span>}
           {question.session && <span>{question.session.replace(/_/g, " ")}</span>}
           {question.paper && <span>{question.paper.replace(/_/g, " ")}</span>}
-          {question.variant && <span>{question.variant.replace(/_/g, " ")}</span>}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {question.topic && <span className="rounded-md bg-[#F6E1E7] px-2.5 py-1 text-[11px] font-bold text-[#A8123C]">{question.topic}</span>}
-          {question.theme && <span className="rounded-md bg-[#DBEFE8] px-2.5 py-1 text-[11px] font-bold text-[#16876B]">{question.theme}</span>}
         </div>
       </div>
-
       {question.type === "mcq" ? (
         <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} />
       ) : (
@@ -363,9 +271,10 @@ function QuestionCard(props: {
   );
 }
 
-const selectClass =
-  "h-11 w-full rounded-lg border border-[#1C1714]/[.14] bg-white px-3 text-sm font-semibold text-[#33291F] outline-none transition focus:border-[#A8123C] focus:ring-2 focus:ring-[#A8123C]/15 disabled:cursor-not-allowed disabled:bg-[#1C1714]/[.03] disabled:text-[#9A8D83]";
-const labelClass = "mb-1 block text-[11px] font-bold uppercase tracking-[.12em] text-[#9A8D83]";
+const selectStyle: React.CSSProperties = {
+  height: 42, width: "100%", borderRadius: 12, border: "1px solid var(--line-strong)", background: "var(--surface)",
+  padding: "0 12px", fontSize: 13.5, fontWeight: 500, color: "var(--ink)", outline: "none",
+};
 
 // ---------------------------------------------------------------------------
 export default function PaperPracticePage() {
@@ -416,9 +325,7 @@ export default function PaperPracticePage() {
         if (mounted) setLoadingMeta(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
@@ -434,7 +341,7 @@ export default function PaperPracticePage() {
     setShowScheme(false);
   }
 
-  // ---- TOPIC mode: load first page of deduped questions (paginated) ----
+  // ---- TOPIC mode ----
   useEffect(() => {
     if (practiceMode !== "topic" || !selectedSubject || !selectedTopic) return;
     let mounted = true;
@@ -444,44 +351,25 @@ export default function PaperPracticePage() {
       clearQuestions();
       setTopicTotal(0);
       try {
-        const params = new URLSearchParams({
-          subject: selectedSubject,
-          type: questionType,
-          topic: selectedTopic,
-          mode: "topic",
-          limit: String(TOPIC_PAGE),
-          offset: "0",
-        });
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: "0" });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load topic questions.");
         const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
-        if (mounted) {
-          setQuestions(data.questions ?? []);
-          setTopicTotal(data.total ?? 0);
-        }
+        if (mounted) { setQuestions(data.questions ?? []); setTopicTotal(data.total ?? 0); }
       } catch (loadError) {
         if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load topic questions.");
       } finally {
         if (mounted) setLoadingQuestions(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [practiceMode, selectedSubject, questionType, selectedTopic]);
 
   async function loadMoreTopic() {
     setLoadingMore(true);
     setError("");
     try {
-      const params = new URLSearchParams({
-        subject: selectedSubject,
-        type: questionType,
-        topic: selectedTopic,
-        mode: "topic",
-        limit: String(TOPIC_PAGE),
-        offset: String(questions.length),
-      });
+      const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: String(questions.length) });
       const response = await fetch(`/api/paper-practice?${params.toString()}`);
       if (!response.ok) throw new Error("Could not load more questions.");
       const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
@@ -494,12 +382,9 @@ export default function PaperPracticePage() {
     }
   }
 
-  // ---- PAPER mode: load available papers for subject+type+year ----
+  // ---- PAPER mode: available papers ----
   useEffect(() => {
-    if (practiceMode !== "paper" || !selectedSubject || !selectedYear) {
-      setPapers([]);
-      return;
-    }
+    if (practiceMode !== "paper" || !selectedSubject || !selectedYear) { setPapers([]); return; }
     let mounted = true;
     (async () => {
       try {
@@ -511,12 +396,10 @@ export default function PaperPracticePage() {
         if (mounted) setPapers([]);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [practiceMode, selectedSubject, questionType, selectedYear]);
 
-  // ---- PAPER mode: load the whole selected paper via the RPC ----
+  // ---- PAPER mode: load paper ----
   useEffect(() => {
     if (practiceMode !== "paper" || !selectedPaperKey) return;
     const paper = papers.find((p) => p.key === selectedPaperKey);
@@ -527,13 +410,7 @@ export default function PaperPracticePage() {
       setError("");
       clearQuestions();
       try {
-        const params = new URLSearchParams({
-          subject: selectedSubject,
-          year: paper.year,
-          session: paper.session,
-          paper: paper.paper,
-          variant: paper.variant,
-        });
+        const params = new URLSearchParams({ subject: selectedSubject, year: paper.year, session: paper.session, paper: paper.paper, variant: paper.variant });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load the paper.");
         const data = (await response.json()) as { questions: PracticeQuestion[] };
@@ -544,9 +421,7 @@ export default function PaperPracticePage() {
         if (mounted) setLoadingQuestions(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [practiceMode, selectedPaperKey, papers, selectedSubject]);
 
   const displayQuestions = useMemo(() => {
@@ -554,15 +429,9 @@ export default function PaperPracticePage() {
     const filtered = questions.filter((q) => matchesQuery(q, trimmed));
     return [...filtered].sort((a, b) => {
       if (practiceMode === "topic") {
-        return (
-          Number.parseInt(b.year, 10) - Number.parseInt(a.year, 10) ||
-          questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber)
-        );
+        return Number.parseInt(b.year, 10) - Number.parseInt(a.year, 10) || questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber);
       }
-      return (
-        questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) ||
-        a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true })
-      );
+      return questionNumberValue(a.questionNumber) - questionNumberValue(b.questionNumber) || a.questionNumber.localeCompare(b.questionNumber, undefined, { numeric: true });
     });
   }, [questions, query, practiceMode]);
 
@@ -575,284 +444,151 @@ export default function PaperPracticePage() {
         ? q.parts.some((_, index) => Boolean(partAnswers[`${q.id}::${index}`]?.trim()))
         : Boolean(partAnswers[`${q.id}::0`]?.trim()),
   ).length;
-  const hasScheme = displayQuestions.some(
-    (q) => q.markingScheme || q.parts.some((p) => p.answer) || q.images.some((i) => i.role === "answer"),
-  );
+  const hasScheme = displayQuestions.some((q) => q.markingScheme || q.parts.some((p) => p.answer) || q.images.some((i) => i.role === "answer"));
 
-  const ready =
-    practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
+  const ready = practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
   const selectedPaper = papers.find((p) => p.key === selectedPaperKey) ?? null;
 
-  // ---- handlers ----
-  function handleSubjectChange(name: string) {
-    setSelectedSubject(name);
-    setSelectedTopic("");
-    setSelectedYear("");
-    setSelectedPaperKey("");
-    setQuery("");
-    clearQuestions();
-  }
-  function handleTypeChange(type: QuestionType) {
-    setQuestionType(type);
-    setSelectedTopic("");
-    setSelectedYear("");
-    setSelectedPaperKey("");
-    setQuery("");
-    clearQuestions();
-  }
-  function handleModeChange(mode: PracticeMode) {
-    setPracticeMode(mode);
-    setSelectedTopic("");
-    setSelectedYear("");
-    setSelectedPaperKey("");
-    setQuery("");
-    clearQuestions();
-  }
-  function handleYearChange(year: string) {
-    setSelectedYear(year);
-    setSelectedPaperKey("");
-    setQuery("");
-    clearQuestions();
-  }
-  function resetPractice() {
-    setMcqAnswers({});
-    setPartAnswers({});
-    setChecked(false);
-    setShowScheme(false);
-  }
+  function handleSubjectChange(name: string) { setSelectedSubject(name); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function handleTypeChange(type: QuestionType) { setQuestionType(type); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function handleModeChange(mode: PracticeMode) { setPracticeMode(mode); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function handleYearChange(year: string) { setSelectedYear(year); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function resetPractice() { setMcqAnswers({}); setPartAnswers({}); setChecked(false); setShowScheme(false); }
 
-  const summary =
-    practiceMode === "topic"
-      ? `${selectedSubject} · ${questionType === "mcq" ? "MCQs" : "Paper questions"} · ${selectedTopic}`
-      : selectedPaper
-        ? `${selectedSubject} · ${selectedPaper.year} · ${selectedPaper.session.replace(/_/g, " ")} · ${selectedPaper.paper.replace(/_/g, " ")} · ${selectedPaper.variant.replace(/_/g, " ")}`
-        : `${selectedSubject} · ${selectedYear || "—"}`;
+  const summary = practiceMode === "topic"
+    ? `${selectedSubject} · ${questionType === "mcq" ? "MCQs" : "Paper questions"} · ${selectedTopic}`
+    : selectedPaper
+      ? `${selectedSubject} · ${selectedPaper.year} · ${selectedPaper.session.replace(/_/g, " ")} · ${selectedPaper.paper.replace(/_/g, " ")} · ${selectedPaper.variant.replace(/_/g, " ")}`
+      : `${selectedSubject} · ${selectedYear || "—"}`;
 
   return (
-    <div className="min-h-full bg-[#FAF6F0] px-4 py-6 text-[#1C1714] md:px-8 md:py-8">
-      <div className="mx-auto max-w-[1180px] space-y-5">
+    <div className="pr">
+      <div className="main flex-col gap-24">
         {/* Header */}
-        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div className="row-between wrap" style={{ gap: 14, alignItems: "flex-end" }}>
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#F6E1E7] px-3 py-1 text-[11px] font-bold uppercase tracking-[.12em] text-[#A8123C]">
-              <BookOpenCheck size={14} />
-              O Level question bank
-            </div>
-            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight md:text-4xl">Paper Practice</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-[#6B5F57]">
-              Practice by topic to drill every unique question across all years, or load a complete past paper exactly as it was sat.
+            <div className="eyebrow" style={{ marginBottom: 12 }}>O-Level question bank</div>
+            <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Practice</h1>
+            <p className="muted mt-6" style={{ maxWidth: 560 }}>
+              Drill every unique question across all years by topic, or load a complete past paper exactly as it was sat.
             </p>
           </div>
 
           {ready && (
-            <div className="grid grid-cols-3 gap-2 rounded-lg border border-[#1C1714]/[.09] bg-white p-2 shadow-sm sm:min-w-[340px]">
+            <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
               {[
                 { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
                 { label: "Answered", value: answeredCount },
                 { label: "Score", value: questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—" },
               ].map((stat) => (
-                <div key={stat.label} className="px-3 py-2">
-                  <p className="text-[11px] font-bold uppercase tracking-[.1em] text-[#9A8D83]">{stat.label}</p>
-                  <p className="font-display text-xl font-semibold text-[#1C1714]">{stat.value}</p>
+                <div key={stat.label} style={{ padding: "8px 14px" }}>
+                  <div className="eyebrow">{stat.label}</div>
+                  <div className="big-num" style={{ fontSize: 22 }}>{stat.value}</div>
                 </div>
               ))}
             </div>
           )}
-        </header>
+        </div>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-[#E7B7B7] bg-[#F9E2D7] px-4 py-3 text-sm font-bold text-[#CF5128]">
-            <AlertCircle size={18} />
-            {error}
+          <div className="badge coral" style={{ fontSize: 13.5, padding: "10px 14px", alignSelf: "flex-start" }}>
+            <Icon name="alert" size={16} /> {error}
           </div>
         )}
 
         {/* Filter card */}
-        <section className="rounded-lg border border-[#1C1714]/[.09] bg-white p-4 shadow-sm md:p-5">
+        <div className="card card-pad">
           {loadingMeta ? (
-            <div className="flex min-h-[140px] items-center justify-center text-sm font-semibold text-[#9A8D83]">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading practice library...
+            <div className="flex items-center justify-center gap-8" style={{ minHeight: 120, color: "var(--ink-faint)", display: "flex" }}>
+              <Icon name="refresh" size={16} className="spin" /> Loading practice library…
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_200px_220px_minmax(200px,1.2fr)_minmax(180px,1fr)]">
+            <div className="flex-col gap-16">
+              <div className="flex gap-12 wrap items-end">
                 {/* Subject */}
-                <label className="block">
-                  <span className={labelClass}>Subject</span>
-                  <select value={selectedSubject} onChange={(e) => handleSubjectChange(e.target.value)} className={selectClass}>
+                <label style={{ flex: "1 1 200px", minWidth: 180 }}>
+                  <span className="eyebrow" style={{ marginBottom: 6 }}>Subject</span>
+                  <select value={selectedSubject} onChange={(e) => handleSubjectChange(e.target.value)} style={selectStyle}>
                     <option value="">Select subject</option>
-                    {subjects.map((subject) => (
-                      <option key={subject.name} value={subject.name}>
-                        {subject.name}
-                      </option>
-                    ))}
+                    {subjects.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
                   </select>
                 </label>
 
                 {/* Type */}
-                <div className="block">
-                  <span className={labelClass}>Question Type</span>
-                  <div className={cx("grid h-11 grid-cols-2 rounded-lg border border-[#1C1714]/[.12] bg-[#1C1714]/[.04] p-1", !currentSubject && "opacity-60")}>
-                    {([
-                      ["structured", "Questions"],
-                      ["mcq", "MCQs"],
-                    ] as const).map(([value, label]) => (
-                      <button
-                        key={value}
-                        onClick={() => handleTypeChange(value)}
-                        disabled={!currentSubject}
-                        className={cx(
-                          "rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
-                          questionType === value ? "bg-white text-[#A8123C] shadow-sm" : "text-[#6B5F57] hover:text-[#1C1714]",
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                <div>
+                  <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>Question type</span>
+                  <Segmented value={questionType} onChange={(v) => handleTypeChange(v)}
+                    options={[{ value: "structured", label: "Questions", icon: "file_text" }, { value: "mcq", label: "MCQs", icon: "list" }]} />
                 </div>
 
                 {/* Mode */}
-                <div className="block">
-                  <span className={labelClass}>Practice mode</span>
-                  <div className={cx("grid h-11 grid-cols-2 rounded-lg border border-[#1C1714]/[.12] bg-[#1C1714]/[.04] p-1", !currentSubject && "opacity-60")}>
-                    {([
-                      ["topic", "By topic", Sparkles],
-                      ["paper", "Full paper", FileText],
-                    ] as const).map(([value, label, Icon]) => (
-                      <button
-                        key={value}
-                        onClick={() => handleModeChange(value)}
-                        disabled={!currentSubject}
-                        className={cx(
-                          "inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-bold transition-colors disabled:cursor-not-allowed",
-                          practiceMode === value ? "bg-white text-[#A8123C] shadow-sm" : "text-[#6B5F57] hover:text-[#1C1714]",
-                        )}
-                      >
-                        <Icon size={14} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                <div>
+                  <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>Practice mode</span>
+                  <Segmented value={practiceMode} onChange={(v) => handleModeChange(v)}
+                    options={[{ value: "topic", label: "By topic", icon: "sparkles" }, { value: "paper", label: "Full paper", icon: "book" }]} />
                 </div>
+              </div>
 
-                {/* Mode-specific selector(s) */}
+              <div className="flex gap-12 wrap items-end">
+                {/* Mode-specific selectors */}
                 {practiceMode === "topic" ? (
-                  <label className="block">
-                    <span className={labelClass}>Topic</span>
-                    <select
-                      value={selectedTopic}
-                      onChange={(e) => setSelectedTopic(e.target.value)}
-                      disabled={!currentSubject || loadingQuestions}
-                      className={selectClass}
-                    >
+                  <label style={{ flex: "1 1 240px", minWidth: 200 }}>
+                    <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
+                    <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || loadingQuestions} style={selectStyle}>
                       <option value="">Select a topic</option>
-                      {availableTopics.map((topic) => (
-                        <option key={topic.name} value={topic.name}>
-                          {topic.name} ({topic.count})
-                        </option>
-                      ))}
+                      {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
                     </select>
                   </label>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className={labelClass}>Year</span>
-                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject} className={selectClass}>
+                  <>
+                    <label style={{ flex: "0 0 130px" }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>Year</span>
+                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject} style={selectStyle}>
                         <option value="">Year</option>
-                        {availableYears.map((year) => (
-                          <option key={year.year} value={year.year}>
-                            {year.year}
-                          </option>
-                        ))}
+                        {availableYears.map((y) => <option key={y.year} value={y.year}>{y.year}</option>)}
                       </select>
                     </label>
-                    <label className="block">
-                      <span className={labelClass}>Paper</span>
-                      <select
-                        value={selectedPaperKey}
-                        onChange={(e) => setSelectedPaperKey(e.target.value)}
-                        disabled={!selectedYear || papers.length === 0 || loadingQuestions}
-                        className={selectClass}
-                      >
+                    <label style={{ flex: "1 1 220px", minWidth: 180 }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>Paper</span>
+                      <select value={selectedPaperKey} onChange={(e) => setSelectedPaperKey(e.target.value)} disabled={!selectedYear || papers.length === 0 || loadingQuestions} style={selectStyle}>
                         <option value="">{selectedYear ? "Select paper" : "Pick year first"}</option>
-                        {papers.map((paper) => (
-                          <option key={paper.key} value={paper.key}>
-                            {paper.session.replace(/_/g, " ")} · {paper.paper.replace(/_/g, " ")} · {paper.variant.replace(/_/g, " ")} ({paper.count})
-                          </option>
-                        ))}
+                        {papers.map((p) => <option key={p.key} value={p.key}>{p.session.replace(/_/g, " ")} · {p.paper.replace(/_/g, " ")} · {p.variant.replace(/_/g, " ")} ({p.count})</option>)}
                       </select>
                     </label>
-                  </div>
+                  </>
                 )}
 
                 {/* Search */}
-                <label className="block">
-                  <span className={labelClass}>Find</span>
-                  <div
-                    className={cx(
-                      "flex h-11 items-center gap-2 rounded-lg border border-[#1C1714]/[.14] bg-white px-3 transition focus-within:border-[#A8123C] focus-within:ring-2 focus-within:ring-[#A8123C]/15",
-                      (!ready || loadingQuestions) && "bg-[#1C1714]/[.03]",
-                    )}
-                  >
-                    <Search size={16} className="text-[#9A8D83]" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      disabled={!ready || loadingQuestions}
-                      placeholder="Search questions"
-                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#33291F] outline-none disabled:cursor-not-allowed disabled:text-[#9A8D83]"
-                    />
+                <label style={{ flex: "1 1 200px", minWidth: 180 }}>
+                  <span className="eyebrow" style={{ marginBottom: 6 }}>Find</span>
+                  <div className="search">
+                    <Icon name="search" size={16} className="faint" />
+                    <input value={query} onChange={(e) => setQuery(e.target.value)} disabled={!ready || loadingQuestions} placeholder="Search questions" />
                   </div>
                 </label>
               </div>
 
               {ready && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1C1714]/[.07] pt-4">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[#6B5F57]">
-                    {practiceMode === "topic" ? <Sparkles size={15} className="text-[#A8123C]" /> : <FileText size={15} className="text-[#A8123C]" />}
+                <div className="row-between wrap" style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+                  <p className="flex items-center gap-8 muted" style={{ fontSize: 13.5 }}>
+                    <Icon name={practiceMode === "topic" ? "sparkles" : "file_text"} size={15} style={{ color: "var(--crimson)" }} />
                     {summary}
                     {practiceMode === "topic"
-                      ? topicTotal > 0 && (
-                          <span className="text-[#9A8D83]">
-                            · {displayQuestions.length} of {topicTotal} unique question{topicTotal === 1 ? "" : "s"} across all years
-                          </span>
-                        )
-                      : displayQuestions.length > 0 && (
-                          <span className="text-[#9A8D83]">
-                            · {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}
-                          </span>
-                        )}
+                      ? topicTotal > 0 && <span className="faint">· {displayQuestions.length} of {topicTotal} unique across all years</span>
+                      : displayQuestions.length > 0 && <span className="faint">· {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}</span>}
                   </p>
-
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex gap-8 wrap items-center">
                     {questionType === "mcq" && (
-                      <button
-                        onClick={() => setChecked(true)}
-                        disabled={gradable.length === 0}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#A8123C] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#760B28] disabled:cursor-not-allowed disabled:bg-[#1C1714]/20"
-                      >
-                        <CheckCircle2 size={17} />
-                        Check
+                      <button onClick={() => setChecked(true)} disabled={gradable.length === 0} className="btn btn-primary">
+                        <Icon name="check_circle" size={16} /> Check
                       </button>
                     )}
-                    <button
-                      onClick={resetPractice}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#1C1714]/[.12] text-[#6B5F57] transition hover:bg-[#1C1714]/[.04]"
-                      title="Reset answers"
-                    >
-                      <RefreshCcw size={17} />
+                    <button onClick={resetPractice} className="icon-btn" title="Reset answers" style={{ border: "1px solid var(--line-strong)" }}>
+                      <Icon name="rotate" size={17} />
                     </button>
                     {hasScheme && (
-                      <button
-                        onClick={() => setShowScheme((v) => !v)}
-                        className={cx(
-                          "inline-flex h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-bold transition",
-                          showScheme ? "border-[#E7C9A1] bg-[#FFF6E9] text-[#8A4F12]" : "border-[#1C1714]/[.12] text-[#6B5F57] hover:bg-[#1C1714]/[.04]",
-                        )}
-                      >
-                        {questionType === "mcq" ? "Marking scheme" : "Answers"}
+                      <button onClick={() => setShowScheme((v) => !v)} className={"btn " + (showScheme ? "btn-soft" : "btn-secondary")}>
+                        <Icon name="shield" size={15} /> {questionType === "mcq" ? "Marking scheme" : "Answers"}
                       </button>
                     )}
                   </div>
@@ -860,71 +596,46 @@ export default function PaperPracticePage() {
               )}
             </div>
           )}
-        </section>
+        </div>
 
         {/* Questions */}
-        <section className="space-y-4">
+        <div className="flex-col gap-16">
           {loadingQuestions ? (
-            <div className="flex min-h-[340px] items-center justify-center rounded-lg border border-[#1C1714]/[.09] bg-white text-sm font-semibold text-[#9A8D83] shadow-sm">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading questions...
+            <div className="card flex items-center justify-center gap-8" style={{ minHeight: 320, color: "var(--ink-faint)", display: "flex" }}>
+              <Icon name="refresh" size={16} className="spin" /> Loading questions…
             </div>
           ) : !ready ? (
-            <div className="rounded-lg border border-dashed border-[#1C1714]/[.18] bg-white p-10 text-center shadow-sm">
-              <FileQuestion className="mx-auto h-10 w-10 text-[#C9BDB2]" />
-              <h2 className="mt-3 font-display text-lg font-semibold">Nothing selected yet</h2>
-              <p className="mt-1 text-sm text-[#6B5F57]">
-                {practiceMode === "topic"
-                  ? "Pick a subject, question type and topic to start drilling."
-                  : "Pick a subject, year and a paper to load the full paper."}
-              </p>
+            <div className="card">
+              <EmptyState icon="file_text" title="Nothing selected yet"
+                body={practiceMode === "topic" ? "Pick a subject, question type and topic to start drilling." : "Pick a subject, year and a paper to load the full paper."} />
             </div>
           ) : displayQuestions.length > 0 ? (
             <>
               {practiceMode === "topic" && (
-                <div className="flex items-center gap-2 rounded-lg border border-[#1C1714]/[.08] bg-white px-4 py-2.5 text-xs font-semibold text-[#6B5F57] shadow-sm">
-                  <Layers size={14} className="text-[#A8123C]" />
+                <div className="flex items-center gap-8 card" style={{ padding: "10px 16px", fontSize: 12.5, color: "var(--ink-soft)" }}>
+                  <Icon name="layers" size={14} style={{ color: "var(--crimson)" }} />
                   Deduplicated — each unique question is shown once, even if it appeared in several years or variants.
                 </div>
               )}
               {displayQuestions.map((question) => (
-                <QuestionCard
-                  key={question.id}
-                  question={question}
-                  showYear={practiceMode === "topic"}
-                  mcqAnswer={mcqAnswers[question.id]}
-                  partAnswers={partAnswers}
-                  checked={checked}
-                  showScheme={showScheme}
-                  onMcqAnswer={(value) => setMcqAnswers((current) => ({ ...current, [question.id]: value }))}
-                  onPartAnswer={(partKey, value) => setPartAnswers((current) => ({ ...current, [partKey]: value }))}
-                />
+                <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
+                  mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
+                  onMcqAnswer={(value) => setMcqAnswers((c) => ({ ...c, [question.id]: value }))}
+                  onPartAnswer={(partKey, value) => setPartAnswers((c) => ({ ...c, [partKey]: value }))} />
               ))}
 
               {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
-                <button
-                  onClick={loadMoreTopic}
-                  disabled={loadingMore}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-[#1C1714]/[.12] bg-white text-sm font-bold text-[#A8123C] shadow-sm transition hover:bg-[#F6E1E7]/40 disabled:cursor-not-allowed disabled:text-[#9A8D83]"
-                >
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-                    </>
-                  ) : (
-                    `Load more (${questions.length} of ${topicTotal})`
-                  )}
+                <button onClick={loadMoreTopic} disabled={loadingMore} className="btn btn-secondary btn-block" style={{ height: 48 }}>
+                  {loadingMore ? <><Icon name="refresh" size={16} className="spin" /> Loading…</> : `Load more (${questions.length} of ${topicTotal})`}
                 </button>
               )}
             </>
           ) : (
-            <div className="rounded-lg border border-[#1C1714]/[.09] bg-white p-10 text-center shadow-sm">
-              <FileQuestion className="mx-auto h-10 w-10 text-[#C9BDB2]" />
-              <h2 className="mt-3 font-display text-lg font-semibold">No questions found</h2>
-              <p className="mt-1 text-sm text-[#6B5F57]">Try another topic, paper, or search term.</p>
+            <div className="card">
+              <EmptyState icon="search" title="No questions found" body="Try another topic, paper, or search term." />
             </div>
           )}
-        </section>
+        </div>
       </div>
     </div>
   );

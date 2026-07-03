@@ -7,10 +7,11 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const navItems = [
   { name: "Dashboard", href: "/student/dashboard" },
-  { name: "Paper Practice", href: "/student/paper-practice" },
+  { name: "Practice", href: "/student/paper-practice" },
   { name: "Papers", href: "/student/past-papers" },
   { name: "Ask AI", href: "/student/ask" },
 ];
@@ -73,7 +74,9 @@ export default function StudentNavbar() {
                   key={item.href}
                   href={item.href}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    active ? "bg-ink text-paper" : "text-ink-muted hover:bg-surface hover:text-ink"
+                    active
+                      ? "bg-gradient-to-br from-crimson to-crimson-deep text-white shadow-crimson"
+                      : "text-ink-muted hover:bg-surface hover:text-ink"
                   }`}
                 >
                   {item.name}
@@ -83,7 +86,8 @@ export default function StudentNavbar() {
           </div>
         </div>
 
-        <div className="relative hidden lg:block">
+        <div className="relative hidden items-center gap-2 lg:flex">
+          <ThemeToggle />
           <button
             onClick={() => setProfileOpen((value) => !value)}
             className="flex items-center gap-2 rounded-full border border-[#1C1714]/[.09] bg-white/75 py-1 pl-1 pr-3 shadow-sm transition hover:border-[#1C1714]/[.16]"

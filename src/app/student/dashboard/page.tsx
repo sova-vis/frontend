@@ -1,368 +1,365 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
-import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
-import {
-  ArrowRight,
-  Check,
-  Circle,
-  FileText,
-  Flame,
-  GraduationCap,
-  LineChart,
-  Pencil,
-  Sparkles,
-  Star,
-  Target,
-  TrendingUp,
-} from "lucide-react";
+import { useStudentStats, timeAgo } from "@/lib/useStudentStats";
+import { Icon } from "@/components/propel/Icon";
+import { Bar, CountUp, Delta, Ring, SubjGlyph, EmptyState } from "@/components/propel/primitives";
+import { subjectStyle } from "@/components/propel/subjects";
+import type { TrackedPaper } from "@/lib/paperTracking";
 
-const weakSpots = [
-  { topic: "Projectile motion", subject: "Physics", score: 44, tone: "red" },
-  { topic: "Electrolysis", subject: "Chemistry", score: 38, tone: "teal" },
-  { topic: "Trigonometry", subject: "Mathematics", score: 52, tone: "amber" },
-  { topic: "Forces and motion", subject: "Physics", score: 55, tone: "red" },
-];
-
-const mastery = [
-  ["Mathematics", 76, "#16876B"],
-  ["Chemistry", 71, "#16876B"],
-  ["Physics", 64, "#D9852A"],
-  ["English", 66, "#D9852A"],
-  ["Islamiyat", 70, "#D9852A"],
-  ["Pakistan Studies", 62, "#CF5128"],
-] as const;
-
-const goals = [
-  { title: "Physics 2022 Paper 1", detail: "Completed / scored 82%", done: true },
-  { title: "Chemistry 2021 Paper 2", detail: "Completed / scored 74%", done: true },
-  { title: "Physics 2019 MCQs", detail: "In progress / 18 of 40", done: false },
-  { title: "Mathematics 2024 Paper 1", detail: "Not started", done: false },
-];
-
-const activities = [
-  { icon: Check, title: "Chemistry / Atomic structure", detail: "9 of 10 correct", time: "2h ago", color: "text-[#16876B] bg-[#DBEFE8]" },
-  { icon: Pencil, title: "Graded a written answer", detail: "Physics, 6 of 8 marks", time: "5h ago", color: "text-[#A8123C] bg-[#F6E1E7]" },
-  { icon: Star, title: "Mastered a topic", detail: "Stoichiometry", time: "Yesterday", color: "text-[#8A4F12] bg-[#F8E7CD]" },
-  { icon: FileText, title: "Finished a paper", detail: "Physics 2023 Paper 1", time: "2 days ago", color: "text-[#CF5128] bg-[#F9E2D7]" },
-];
+/* next O-Level session target (no exam date is stored per student yet) */
+const EXAM_DATE = new Date("2026-10-06T00:00:00");
 
 function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-function scoreColor(score: number) {
-  if (score < 45) return "#CF5128";
-  if (score < 60) return "#D9852A";
-  return "#16876B";
-}
-
-function subjectPill(tone: string) {
-  if (tone === "teal") return "bg-mint-soft text-mint-ink";
-  if (tone === "amber") return "bg-gold-soft text-gold-ink";
-  return "bg-crimson-soft text-crimson-ink";
-}
-
-function ReadinessRing() {
-  const score = 64;
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (circumference * score) / 100;
-
-  return (
-    <div className="relative h-36 w-36 shrink-0">
-      <svg viewBox="0 0 140 140" className="-rotate-90">
-        <circle cx="70" cy="70" r={radius} fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="12" />
-        <circle
-          cx="70"
-          cy="70"
-          r={radius}
-          fill="none"
-          stroke="#FBE9CF"
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <b className="font-display text-4xl font-semibold leading-none">64%</b>
-        <span className="mt-1 text-[11px] font-bold uppercase tracking-[.12em] text-white/70">Ready</span>
-      </div>
-    </div>
-  );
-}
-
-function TrendChart() {
-  const points = "10,132 64,118 118,122 172,96 226,86 280,74 334,68 388,54";
-
-  return (
-    <div className="mt-4 h-[230px] rounded-lg border border-line bg-surface-soft p-4">
-      <svg viewBox="0 0 400 160" className="h-full w-full" preserveAspectRatio="none">
-        <path d="M0 70 H400" stroke="#9A8D83" strokeDasharray="6 6" strokeWidth="1.5" opacity=".75" />
-        <path d={`M${points}`} fill="none" stroke="#A8123C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={`M${points} L388,160 L10,160 Z`} fill="rgba(168,18,60,.08)" />
-        {points.split(" ").map((point) => {
-          const [x, y] = point.split(",");
-          return <circle key={point} cx={x} cy={y} r="4" fill="#A8123C" stroke="#fff" strokeWidth="2" />;
-        })}
-      </svg>
-    </div>
-  );
+/** subject label guessed from a tracked paper name, for glyphs */
+function paperSubject(p: TrackedPaper): string {
+  const known = ["physics", "chemistry", "biology", "mathematics", "add maths", "additional mathematics",
+    "computer science", "business", "economics", "english", "islamiyat", "pakistan studies", "accounting"];
+  const lower = (p.name || "").toLowerCase();
+  for (const k of known) if (lower.includes(k)) return k;
+  return (p.name || "Paper").split(/[\s/_-]/)[0] || "Paper";
 }
 
 export default function StudentDashboard() {
+  const router = useRouter();
   const { user } = useUser();
   const { profile } = useClerkAuth();
-  const name = profile?.full_name || user?.firstName || "Student";
+  const stats = useStudentStats();
+  const name = (profile?.full_name || user?.firstName || "there").split(" ")[0];
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const daysToExam = Math.max(0, Math.ceil((EXAM_DATE.getTime() - Date.now()) / 86_400_000));
+
+  // readiness = goal completion when goals exist (real), else completed-paper momentum
+  const readiness = stats.goalsTotal > 0
+    ? Math.round((stats.goalsDone / stats.goalsTotal) * 100)
+    : Math.min(100, stats.completedCount * 8);
+  const readinessLabel = readiness >= 75 ? "On track" : readiness >= 45 ? "Building up" : "Getting started";
+
+  // completed-this-week (real momentum)
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const completedThisWeek = stats.papers.filter(
+    (p) => p.statuses.includes("completed" as never) && new Date(p.savedAt).getTime() >= weekAgo
+  ).length;
+
+  // per-subject completed counts (real)
+  const bySubject = new Map<string, number>();
+  stats.papers.forEach((p) => {
+    if (!p.statuses.includes("completed" as never)) return;
+    const s = paperSubject(p);
+    bySubject.set(s, (bySubject.get(s) || 0) + 1);
+  });
+  const subjectRows = Array.from(bySubject.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const maxSubject = Math.max(1, ...subjectRows.map(([, c]) => c));
+
+  // weekly completed series for the trend (real)
+  const weeks = 8;
+  const series = Array.from({ length: weeks }, (_, i) => {
+    const start = Date.now() - (weeks - i) * 7 * 86_400_000;
+    const end = start + 7 * 86_400_000;
+    const v = stats.papers.filter((p) => {
+      if (!p.statuses.includes("completed" as never)) return false;
+      const t = new Date(p.savedAt).getTime();
+      return t >= start && t < end;
+    }).length;
+    return { wk: "W" + (i + 1), v };
+  });
+  const hasTrend = series.some((s) => s.v > 0);
+
+  const go = (path: string) => router.push(path);
+
+  const statCards = [
+    { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
+    { key: "prog", label: "In progress", value: stats.inProgressCount, icon: "clock", tone: "amber" },
+    { key: "marks", label: "Bookmarked", value: stats.bookmarkedCount, icon: "bookmark", tone: "teal" },
+    { key: "goals", label: "Goals set", value: stats.goalsTotal, icon: "target", tone: "purple" },
+  ];
 
   return (
-    <div className="min-h-full bg-paper px-4 py-6 text-ink md:px-8 md:py-8">
-      <div className="mx-auto max-w-[1180px] space-y-5">
-        <Reveal as="section" className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div className="pr">
+      <div className="main stagger flex-col gap-24">
+        {/* greeting + countdown */}
+        <div className="row-between wrap" style={{ gap: 14 }}>
           <div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
-              {greeting()}, <span className="italic text-crimson">{name}</span>
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">
-              Your dashboard is focused on paper practice, weak topics, and exam readiness.
+            <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
+            <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
+            <p className="muted mt-6" style={{ fontSize: 15.5 }}>
+              You&apos;re <b style={{ color: "var(--ink)" }}>{daysToExam} days</b> from the next O-Level session. A focused paper today keeps your momentum.
             </p>
           </div>
-          <div className="flex items-center gap-4 rounded-lg bg-ink px-5 py-4 text-paper">
+          <div className="card card-pad" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flex: "none" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 13, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center" }}>
+              <Icon name="calendar" size={22} />
+            </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[.14em] text-paper/60">O Level prep</p>
-              <p className="mt-1 text-xs text-paper/80">Current paper cycle</p>
-            </div>
-            <div className="text-right">
-              <p className="font-display text-3xl font-semibold leading-none">64%</p>
-              <p className="mt-1 text-xs text-paper/75">ready</p>
+              <div className="stat-num" style={{ fontSize: 30, color: "var(--crimson)" }}><CountUp value={daysToExam} /></div>
+              <div className="faint" style={{ fontSize: 12 }}>days · Oct 2026 session</div>
             </div>
           </div>
-        </Reveal>
+        </div>
 
-        <Reveal as="section" delay={0.05} className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-[#A8123C] to-[#760B28] p-6 text-white shadow-sm">
-            <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/[.06]" />
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-              <ReadinessRing />
-              <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.12em] text-white/70">
-                  <GraduationCap size={15} />
-                  Exam readiness
-                </div>
-                <h2 className="mt-3 font-display text-3xl font-semibold">On track</h2>
-                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-bold">
-                  <TrendingUp size={15} />
-                  +8% this week
-                </div>
-                <div className="mt-5 grid grid-cols-3 gap-5">
-                  <div>
-                    <b className="font-display text-2xl font-semibold">5</b>
-                    <p className="text-xs text-white/70">strong subjects</p>
-                  </div>
-                  <div>
-                    <b className="font-display text-2xl font-semibold">3</b>
-                    <p className="text-xs text-white/70">need work</p>
-                  </div>
-                  <div>
-                    <b className="font-display text-2xl font-semibold">2</b>
-                    <p className="text-xs text-white/70">at risk</p>
-                  </div>
-                </div>
+        {/* HERO ROW */}
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
+          {/* readiness */}
+          <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <Ring value={readiness} size={168} label={readinessLabel} sub={stats.goalsTotal > 0 ? "of your goals" : "momentum"} />
+            <div style={{ flex: 1, minWidth: 180, position: "relative", zIndex: 1 }}>
+              <div className="eyebrow" style={{ color: "rgba(255,255,255,.75)" }}>North-star metric</div>
+              <h2 style={{ color: "#fff", fontSize: 24, marginTop: 4 }}>Exam readiness</h2>
+              <p style={{ color: "rgba(255,255,255,.86)", marginTop: 8, fontSize: 14.5, lineHeight: 1.5 }}>
+                {stats.goalsTotal > 0
+                  ? <>You&apos;ve completed <b>{stats.goalsDone} of {stats.goalsTotal}</b> goal papers. Finish the rest to reach the green zone.</>
+                  : <>Set a few goal papers in <b>Papers</b> and complete them — your readiness builds from real progress.</>}
+              </p>
+              <div className="flex gap-8 wrap mt-16">
+                <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}><Icon name="book" size={13} /> {stats.completedCount} solved</span>
+                <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}><Icon name="target" size={13} /> target 100%</span>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-4">
-            <div className="rounded-lg border border-line bg-paper-soft p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#D9852A] text-white">
-                    <Flame size={22} />
-                  </div>
-                  <div>
-                    <b className="font-display text-3xl font-semibold text-gold-deep">12</b>
-                    <p className="text-[11px] font-bold uppercase tracking-[.12em] text-gold-deep/70">day streak</p>
-                  </div>
+          {/* right column: this-week + library */}
+          <div className="grid" style={{ gridTemplateRows: "1fr 1fr", gap: 18 }}>
+            <div className="card card-pad hero-amber" style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}>
+              <div className="flex items-center gap-10">
+                <Icon name="flame" size={30} fill="rgba(255,255,255,.25)" />
+                <div>
+                  <div className="big-num" style={{ fontSize: 30, color: "#fff" }}><CountUp value={completedThisWeek} /> this week</div>
+                  <div style={{ color: "rgba(255,255,255,.82)", fontSize: 12.5 }}>papers completed</div>
                 </div>
-                <span className="text-xs font-bold text-gold-deep/75">Best: 21</span>
               </div>
-              <div className="mt-4 grid grid-cols-7 gap-1.5">
-                {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => (
-                  <div
-                    key={`${day}-${index}`}
-                    className={`flex h-8 items-center justify-center rounded-md text-[11px] font-bold ${
-                      index < 5 ? "bg-[#D9852A] text-white" : index === 5 ? "border-2 border-[#8A4F12] text-gold-deep" : "bg-[#D9852A]/10 text-gold-deep/60"
-                    }`}
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-sm font-medium text-gold-deep">Practice 10 questions today to keep your streak alive.</p>
+              <button className="btn btn-sm" style={{ background: "#fff", color: "var(--amber-deep)", alignSelf: "flex-start" }} onClick={() => go("/student/paper-practice")}>
+                Keep it going
+              </button>
             </div>
 
-            <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[.12em] text-ink-faint">Pick up where you left off</p>
-              <h3 className="mt-2 font-display text-xl font-semibold">Physics / Paper 1 / 2019</h3>
-              <p className="mt-1 text-sm text-ink-muted">14 of 40 questions done / Mechanics and Waves</p>
-              <Link
-                href="/student/paper-practice"
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-crimson px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-crimson-deep"
-              >
-                Resume paper practice <ArrowRight size={16} />
-              </Link>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}>
+              <div className="flex items-center gap-10">
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--purple-soft)", color: "var(--purple)", display: "grid", placeItems: "center" }}>
+                  <Icon name="layers" size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>Your library</div>
+                  <div className="faint" style={{ fontSize: 12.5 }}>{stats.papers.length} papers tracked</div>
+                </div>
+              </div>
+              <div className="flex gap-8 wrap">
+                <span className="badge teal">{stats.completedCount} done</span>
+                <span className="badge amber">{stats.inProgressCount} in progress</span>
+                <span className="badge crimson">{stats.bookmarkedCount} saved</span>
+              </div>
             </div>
           </div>
-        </Reveal>
+        </div>
 
-        <Stagger as="section" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icon: FileText, value: "47", label: "Papers solved", change: "+6", color: "bg-crimson-soft text-crimson-ink" },
-            { icon: Pencil, value: "1,284", label: "Questions answered", change: "+142", color: "bg-mint-soft text-mint-ink" },
-            { icon: Circle, value: "71%", label: "Average accuracy", change: "+3%", color: "bg-gold-soft text-gold-ink" },
-            { icon: Star, value: "38/90", label: "Topics mastered", change: "+4", color: "bg-clay-soft text-clay-ink" },
-          ].map((stat) => (
-            <StaggerItem key={stat.label} className="rounded-lg border border-line bg-surface p-5 shadow-sm transition hover:shadow-card-hover">
-              <div className="flex items-center justify-between">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${stat.color}`}>
-                  <stat.icon size={18} />
+        {/* STAT STRIP (real) */}
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+          {statCards.map((st) => (
+            <div className="card card-pad card-hover" key={st.key} style={{ padding: 18 }}>
+              <div className="row-between" style={{ marginBottom: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-2)", color: "var(--ink-soft)", display: "grid", placeItems: "center" }}>
+                  <Icon name={st.icon} size={18} />
                 </div>
-                <span className="text-xs font-bold text-mint">+ {stat.change.replace("+", "")}</span>
+                <span className={"badge " + st.tone} style={{ flex: "none" }}>{st.label.split(" ")[0]}</span>
               </div>
-              <p className="mt-4 font-display text-3xl font-semibold">{stat.value}</p>
-              <p className="mt-1 text-sm text-ink-muted">{stat.label}</p>
-            </StaggerItem>
+              <div className="stat-num"><CountUp value={st.value} /></div>
+              <div className="faint" style={{ fontSize: 13, marginTop: 2 }}>{st.label}</div>
+            </div>
           ))}
-        </Stagger>
+        </div>
 
-        <Reveal as="section">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="font-display text-2xl font-semibold">Your weak spots</h2>
-              <p className="text-sm text-ink-muted">Fixing these first lifts your score the fastest.</p>
-            </div>
-            <Link href="/student/paper-practice" className="inline-flex items-center gap-2 text-sm font-bold text-crimson">
-              Open paper practice <ArrowRight size={15} />
-            </Link>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-            <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-              {weakSpots.map((item, index) => (
-                <div key={item.topic} className="flex flex-col gap-3 border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
-                  <div className="w-6 font-display text-lg font-semibold text-ink-faint">{index + 1}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{item.topic}</p>
-                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${subjectPill(item.tone)}`}>{item.subject}</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/[.09]">
-                      <div className="h-full rounded-full" style={{ width: `${item.score}%`, background: scoreColor(item.score) }} />
-                    </div>
+        {/* two-column body */}
+        <div className="grid dash-cols" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", alignItems: "start" }}>
+          <div className="flex-col gap-18">
+            {/* weak spots — needs attempt data we don't persist yet */}
+            <div className="card card-pad">
+              <div className="card-head">
+                <div>
+                  <div className="flex items-center gap-8">
+                    <Icon name="target" size={19} style={{ color: "var(--coral)" }} />
+                    <span className="card-title">Your weak spots</span>
                   </div>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <span className="w-12 text-right font-display text-lg font-semibold" style={{ color: scoreColor(item.score) }}>
-                      {item.score}%
-                    </span>
-                    <Link
-                      href="/student/paper-practice"
-                      className="inline-flex items-center rounded-lg border border-crimson-soft bg-surface px-3 py-2 text-sm font-bold text-crimson transition hover:bg-crimson-soft"
-                    >
-                      Practice
-                    </Link>
-                  </div>
+                  <div className="card-sub mt-6">These surface once you start grading answers in Practice.</div>
                 </div>
-              ))}
+              </div>
+              <EmptyState
+                icon="target"
+                title="No weak spots yet"
+                body="Grade a few written answers in Practice and your toughest topics will rank here, worst-first."
+                cta="Start practising"
+                onCta={() => go("/student/paper-practice")}
+              />
             </div>
 
-            <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.12em] text-ink-faint">
-                <LineChart size={15} />
-                Accuracy trend / last 8 weeks
+            {/* completed trend (real) */}
+            <div className="card card-pad">
+              <div className="card-head">
+                <div>
+                  <span className="card-title">Papers completed</span>
+                  <div className="card-sub mt-6">Last 8 weeks of your real progress</div>
+                </div>
+                <span className="badge teal"><Icon name="trend_up" size={13} /> {stats.completedCount} total</span>
               </div>
-              <div className="mt-3 flex gap-4 text-xs text-ink-muted">
-                <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-sm bg-[#A8123C]" />Your accuracy</span>
-                <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-sm bg-[#9A8D83]" />Target 75%</span>
-              </div>
-              <TrendChart />
+              {hasTrend ? <CompletedTrend series={series} /> : (
+                <EmptyState icon="chart" title="Complete a paper to see your trend" body="Mark papers complete in Papers or Practice — your weekly pace appears here." />
+              )}
             </div>
           </div>
-        </Reveal>
 
-        <Reveal as="section">
-          <h2 className="mb-3 font-display text-2xl font-semibold">Subject mastery</h2>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {[mastery.slice(0, 3), mastery.slice(3)].map((group, groupIndex) => (
-              <div key={groupIndex} className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-                <div className="space-y-4">
-                  {group.map(([subject, score, color]) => (
-                    <div key={subject} className="grid grid-cols-[130px_1fr_42px] items-center gap-3">
-                      <p className="truncate text-sm font-semibold">{subject}</p>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-ink/[.09]">
-                        <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
+          <div className="flex-col gap-18">
+            {/* resume (real) */}
+            <div className="card card-pad" style={{ background: "var(--ink)", color: "var(--canvas)", border: "none" }}>
+              <div className="eyebrow" style={{ color: "var(--ink-faint)" }}>Resume where you left off</div>
+              {stats.resume ? (
+                <>
+                  <div className="flex items-center gap-12 mt-12">
+                    <SubjGlyph subj={subjectStyle(paperSubject(stats.resume))} size={44} radius={12} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stats.resume.name}</div>
+                      <div style={{ fontSize: 12.5, opacity: 0.7 }}>{stats.resume.type} · in progress</div>
+                    </div>
+                  </div>
+                  <button className="btn btn-block mt-16" style={{ background: "var(--crimson)", color: "#fff" }} onClick={() => go("/student/paper-practice")}>
+                    <Icon name="play" size={15} fill="#fff" stroke={0} /> Continue paper
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ marginTop: 12, fontSize: 14, opacity: 0.85 }}>Nothing in progress. Pick a paper and start a session.</p>
+                  <button className="btn btn-block mt-16" style={{ background: "var(--crimson)", color: "#fff" }} onClick={() => go("/student/past-papers")}>
+                    <Icon name="book" size={15} /> Browse papers
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* goals (real) */}
+            <div className="card card-pad">
+              <div className="card-head">
+                <span className="card-title">Goals</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => go("/student/past-papers")}>Set goals <Icon name="chevron_right" size={15} /></button>
+              </div>
+              {stats.goalsTotal > 0 ? (
+                <div className="flex-col gap-10">
+                  {stats.papers.filter((p) => p.statuses.includes("goal" as never)).slice(0, 4).map((g) => {
+                    const done = g.statuses.includes("completed" as never);
+                    const subj = subjectStyle(paperSubject(g));
+                    return (
+                      <div key={g.id} className="flex items-center gap-12">
+                        <div style={{ width: 30, height: 30, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: done ? "var(--teal-soft)" : subj.color + "1e", color: done ? "var(--teal)" : subj.color }}>
+                          <Icon name={done ? "check_circle" : subj.icon} size={16} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                          <div className="faint" style={{ fontSize: 11.5 }}>{done ? "Completed" : "In your goals"}</div>
+                        </div>
+                        {done && <span className="badge teal" style={{ flex: "none" }}>Done</span>}
                       </div>
-                      <p className="text-right font-display text-sm font-semibold text-ink-muted">{score}%</p>
+                    );
+                  })}
+                  <div className="row-between mt-6" style={{ fontSize: 12.5 }}>
+                    <span className="muted">{stats.goalsDone} of {stats.goalsTotal} done</span>
+                    <Bar value={Math.round((stats.goalsDone / stats.goalsTotal) * 100)} tone="teal" height={6} />
+                  </div>
+                </div>
+              ) : (
+                <p className="faint" style={{ fontSize: 13.5 }}>No goals yet. Mark papers as a goal from the Papers tab to track them here.</p>
+              )}
+            </div>
+
+            {/* subject activity (real) */}
+            <div className="card card-pad">
+              <div className="card-head"><span className="card-title">Papers by subject</span></div>
+              {subjectRows.length > 0 ? (
+                <div className="flex-col gap-16">
+                  {subjectRows.map(([s, c]) => {
+                    const subj = subjectStyle(s);
+                    return (
+                      <div key={s} className="flex items-center gap-12">
+                        <SubjGlyph subj={subj} size={34} />
+                        <div style={{ flex: 1 }}>
+                          <div className="row-between" style={{ fontSize: 13.5, marginBottom: 5 }}>
+                            <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{s}</span>
+                            <span className="tnum" style={{ fontWeight: 600, color: subj.color }}>{c}</span>
+                          </div>
+                          <div className="bar" style={{ height: 8 }}>
+                            <i style={{ width: Math.round((c / maxSubject) * 100) + "%", background: subj.color }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="faint" style={{ fontSize: 13.5 }}>Complete papers to see your subject breakdown.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* activity feed (real) */}
+        <div className="card card-pad">
+          <div className="card-head"><span className="card-title">Recent activity</span></div>
+          {stats.activity.length > 0 ? (
+            <div className="flex-col" style={{ gap: 2 }}>
+              {stats.activity.map(({ paper, status, at }) => {
+                const tone = status === "completed" ? "teal" : status === "in_progress" ? "amber" : status === "goal" ? "purple" : "crimson";
+                const icon = status === "completed" ? "check_circle" : status === "in_progress" ? "clock" : status === "goal" ? "target" : "bookmark";
+                const label = status === "completed" ? "Completed" : status === "in_progress" ? "Working on" : status === "goal" ? "Set as goal" : "Bookmarked";
+                return (
+                  <div key={paper.id + status} className="flex items-center gap-12" style={{ padding: "9px 0" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: `var(--${tone}-soft)`, color: `var(--${tone === "crimson" ? "crimson" : tone})` }}>
+                      <Icon name={icon} size={16} />
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-
-        <Reveal as="section" className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.12em] text-ink-faint">
-              <Target size={15} />
-              Paper goals / 2 of 4 done
-            </div>
-            <div className="my-4 h-2.5 overflow-hidden rounded-full bg-ink/[.09]">
-              <div className="h-full w-1/2 rounded-full bg-crimson" />
-            </div>
-            <div>
-              {goals.map((goal) => (
-                <div key={goal.title} className="flex items-center gap-3 border-t border-line py-3 first:border-t-0">
-                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${goal.done ? "bg-mint text-white" : "border-2 border-ink/20 text-transparent"}`}>
-                    <Check size={14} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label} · {paper.name}</div>
+                      <div className="faint" style={{ fontSize: 11.5 }}>{timeAgo(at)}</div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{goal.title}</p>
-                    <p className="text-xs text-ink-faint">{goal.detail}</p>
-                  </div>
-                  <span className="text-[11px] font-bold text-ink-faint">{goal.done ? "DONE" : "TODO"}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-
-          <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.12em] text-ink-faint">
-              <Sparkles size={15} />
-              Recent activity
-            </div>
-            <div className="mt-3">
-              {activities.map((activity) => (
-                <div key={`${activity.title}-${activity.time}`} className="flex items-center gap-3 border-t border-line py-3 first:border-t-0">
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${activity.color}`}>
-                    <activity.icon size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{activity.title}</p>
-                    <p className="truncate text-xs text-ink-muted">{activity.detail}</p>
-                  </div>
-                  <span className="text-xs text-ink-faint">{activity.time}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Reveal>
+          ) : (
+            <p className="faint" style={{ fontSize: 13.5 }}>Your paper activity will show up here as you study.</p>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ---- completed-papers weekly trend (real series) ---- */
+function CompletedTrend({ series }: { series: { wk: string; v: number }[] }) {
+  const w = 520, h = 190, pad = 28;
+  const max = Math.max(2, ...series.map((d) => d.v));
+  const x = (i: number) => pad + (i / (series.length - 1)) * (w - pad * 2);
+  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
+  const line = series.map((d, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(d.v)}`).join(" ");
+  const area = `${line} L${x(series.length - 1)},${h - pad} L${x(0)},${h - pad} Z`;
+  return (
+    <div style={{ width: "100%", overflow: "hidden" }}>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        <defs>
+          <linearGradient id="tgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--crimson)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--crimson)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#tgrad)" />
+        <path d={line} fill="none" stroke="var(--crimson)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {series.map((d, i) => (
+          <g key={i}>
+            <circle cx={x(i)} cy={y(d.v)} r={i === series.length - 1 ? 5 : 3} fill="var(--surface)" stroke="var(--crimson)" strokeWidth="2.5" />
+            <text x={x(i)} y={h - 8} fontSize="10" fill="var(--ink-faint)" textAnchor="middle">{d.wk}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
