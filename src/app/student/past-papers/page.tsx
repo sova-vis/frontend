@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { apiCall, getApiUrl } from "@/lib/api";
+import { LEVEL_LABEL, PaperLevel, usePaperLevel } from "@/lib/paperLevel";
 import {
   PaperStatus, TrackedPaper, loadTrackedPapersForUser, saveTrackedPapersForUser, toggleTrackedStatus,
 } from "@/lib/paperTracking";
@@ -64,9 +65,14 @@ function detectKind(name: string): FileKind {
 function buildPapers(items: CollectedFile[], year: string): Paper[] {
   const map = new Map<string, Paper>();
   for (const { file, trail } of items) {
-    const paperCode = trail.map(paperFromSeg).find(Boolean) || paperFromSeg(file.name) || "";
-    const variant = trail.map(variantFromSeg).find(Boolean) || variantFromSeg(file.name) || "";
+    let paperCode = trail.map(paperFromSeg).find(Boolean) || paperFromSeg(file.name) || "";
+    let variant = trail.map(variantFromSeg).find(Boolean) || variantFromSeg(file.name) || "";
     const session = trail.map(detectSession).find(Boolean) || detectSession(file.name) || "";
+    // A-Level trees use combined 2-digit codes ("Variant 12" = Paper 1, Variant 2)
+    if (!paperCode && variant.length === 2) {
+      paperCode = "P" + variant[0];
+      variant = variant[1];
+    }
     const kind = detectKind(file.name);
     const groupKey = paperCode || variant ? `${year}|${session}|${paperCode}|${variant}` : file.id;
     let p = map.get(groupKey);
@@ -82,8 +88,9 @@ function buildPapers(items: CollectedFile[], year: string): Paper[] {
     .sort((a, b) => a.paperCode.localeCompare(b.paperCode) || a.variant.localeCompare(b.variant) || a.session.localeCompare(b.session));
 }
 
-async function browse(folderId?: string): Promise<{ folderId: string; items: FolderItem[] }> {
-  const res = await apiCall(folderId ? `/papers/browse/${folderId}` : "/papers/browse");
+async function browse(folderId?: string, level?: PaperLevel): Promise<{ folderId: string; items: FolderItem[] }> {
+  // level only matters for the root listing — subfolder ids are globally unique
+  const res = await apiCall(folderId ? `/papers/browse/${folderId}` : `/papers/browse?level=${level ?? "olevel"}`);
   if (!res.ok) throw new Error("Failed to load papers");
   return res.json();
 }
@@ -103,6 +110,7 @@ function PapersInner() {
   const router = useRouter();
   const { getToken } = useAuth();
   const toast = useToast();
+  const { level, ready: levelReady } = usePaperLevel();
 
   const [subjects, setSubjects] = useState<FolderItem[]>([]);
   const [loadingRoot, setLoadingRoot] = useState(true);
@@ -129,12 +137,26 @@ function PapersInner() {
 
   useEffect(() => setMounted(true), []);
 
-  // root subjects
+  // tracked papers (independent of the selected level)
   useEffect(() => {
     let active = true;
+    loadTrackedPapersForUser(getToken).then((items) => active && setTracked(items));
+    return () => { active = false; };
+  }, [getToken]);
+
+  // root subjects — reloads whenever the O/A Levels toggle changes
+  useEffect(() => {
+    if (!levelReady) return; // wait for the persisted level to restore
+    let active = true;
+    subjToken.current++; yearToken.current++;   // cancel in-flight subject/year loads
+    yearCache.current.clear();
+    setLoadingRoot(true); setRootError(null);
+    setSubjects([]); setActiveSubject(null);
+    setYears([]); setActiveYear(null); setPapers([]);
+    setSession("all"); setQ("");
     (async () => {
       try {
-        const root = await browse();
+        const root = await browse(undefined, level);
         let folders = root.items.filter((i) => i.isFolder);
         if (folders.length === 1 && folders[0].folderType === "category") {
           const inner = await browse(folders[0].id);
@@ -147,9 +169,8 @@ function PapersInner() {
         if (active) setLoadingRoot(false);
       }
     })();
-    loadTrackedPapersForUser(getToken).then((items) => active && setTracked(items));
     return () => { active = false; };
-  }, [getToken]);
+  }, [level, levelReady]);
 
   useEffect(() => {
     if (!activeSubject && subjects.length) selectSubject(subjects[0]);
@@ -240,7 +261,7 @@ function PapersInner() {
         <div className="row-between wrap" style={{ gap: 12 }}>
           <div>
             <div className="eyebrow" style={{ marginBottom: 12 }}>Library</div>
-            <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Past papers</h1>
+            <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>{LEVEL_LABEL[level]} past papers</h1>
             <p className="muted mt-6">Pick a subject and year, then practise the question paper or open the mark scheme.</p>
           </div>
           {totalTracked > 0 && <span className="badge crimson" style={{ alignSelf: "center" }}><Icon name="bookmark" size={13} /> {totalTracked} tracked</span>}

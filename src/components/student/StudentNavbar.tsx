@@ -8,6 +8,7 @@ import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import LevelToggle from "@/components/student/LevelToggle";
 
 const navItems = [
   { name: "Dashboard", href: "/student/dashboard" },
@@ -28,6 +29,9 @@ export default function StudentNavbar() {
   const { user } = useUser();
   const { profile } = useClerkAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // O/A Levels switch is only relevant while browsing the paper library
+  const showLevelToggle = isActivePath(pathname, "/student/past-papers");
 
   const name = profile?.full_name || user?.firstName || "Student";
   const initial = name.trim().charAt(0).toUpperCase() || "S";
@@ -65,7 +69,7 @@ export default function StudentNavbar() {
           </div>
         </div>
 
-        <div className="flex min-w-0 justify-start overflow-x-auto lg:justify-center">
+        <div className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto lg:justify-center">
           <div className="inline-flex shrink-0 gap-1 rounded-full border border-[#1C1714]/[.09] bg-white/70 p-1 shadow-sm backdrop-blur">
             {navItems.map((item) => {
               const active = isActivePath(pathname, item.href);
@@ -84,9 +88,12 @@ export default function StudentNavbar() {
               );
             })}
           </div>
+          {/* mobile-only spot — the desktop toggle lives beside the theme switch */}
+          {showLevelToggle && <LevelToggle className="lg:hidden" />}
         </div>
 
         <div className="relative hidden items-center gap-2 lg:flex">
+          {showLevelToggle && <LevelToggle />}
           <ThemeToggle />
           <button
             onClick={() => setProfileOpen((value) => !value)}

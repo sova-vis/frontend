@@ -26,6 +26,21 @@ const BY_KEY: Record<string, SubjectStyle> = {
   economics: { color: "#0E7C86", icon: "chart" },
   accounting: { color: "#B5123F", icon: "briefcase" },
   islamiyat: { color: "#16876B", icon: "book" },
+  "further mathematics": { color: "#0E7C86", icon: "function" },
+  "art and design": { color: "#D9852A", icon: "pencil" },
+  "art & design": { color: "#D9852A", icon: "pencil" },
+  geography: { color: "#16876B", icon: "globe" },
+  history: { color: "#8A4F12", icon: "flag" },
+  law: { color: "#2A6FB0", icon: "shield" },
+  psychology: { color: "#6B4BC4", icon: "lightbulb" },
+  sociology: { color: "#B5123F", icon: "users" },
+  "information technology": { color: "#2A6FB0", icon: "grid" },
+  "global perspectives": { color: "#0E7C86", icon: "layers" },
+  literature: { color: "#5A6B2A", icon: "file_text" },
+  statistics: { color: "#D9852A", icon: "chart" },
+  commerce: { color: "#8A4F12", icon: "briefcase" },
+  "environmental management": { color: "#16876B", icon: "globe" },
+  "religious studies": { color: "#6B4BC4", icon: "book" },
 };
 
 const FALLBACK_COLORS = ["#A8123C", "#16876B", "#6B4BC4", "#D9852A", "#2A6FB0", "#0E7C86", "#B5123F", "#5A6B2A", "#8A4F12"];
@@ -35,10 +50,13 @@ export function subjectStyle(name: string | null | undefined): SubjectStyle {
   if (!name) return { color: FALLBACK_COLORS[0], icon: "book" };
   const key = name.trim().toLowerCase();
   if (BY_KEY[key]) return BY_KEY[key];
-  // partial match (e.g. "Physics 5054")
+  // partial match (e.g. "Physics 5054"); longest key wins so
+  // "Literature in English" hits "literature", not "english"
+  let best: string | null = null;
   for (const k of Object.keys(BY_KEY)) {
-    if (key.includes(k)) return BY_KEY[k];
+    if (key.includes(k) && (!best || k.length > best.length)) best = k;
   }
+  if (best) return BY_KEY[best];
   // stable hash → fallback color
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;

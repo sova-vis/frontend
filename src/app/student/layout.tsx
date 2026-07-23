@@ -3,6 +3,7 @@
 import React from 'react';
 import StudentNavbar from '@/components/student/StudentNavbar';
 import GeometricShapes from '@/components/ui/GeometricShapes';
+import { PaperLevelProvider } from '@/lib/paperLevel';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
@@ -66,12 +67,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 	}
 
 	return (
-		<div className="flex flex-col h-screen bg-paper overflow-hidden relative">
-			<GeometricShapes />
-			<StudentNavbar />
-			<main className="flex-1 overflow-auto relative z-10">
-				{children}
-			</main>
-		</div>
+		<PaperLevelProvider>
+			<div className="flex flex-col h-screen bg-paper overflow-hidden relative">
+				<GeometricShapes />
+				<StudentNavbar />
+				<main className="flex-1 overflow-auto relative z-10">
+					{children}
+				</main>
+			</div>
+		</PaperLevelProvider>
 	);
 }
