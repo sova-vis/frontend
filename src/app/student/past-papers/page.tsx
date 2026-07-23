@@ -332,7 +332,14 @@ function PapersInner() {
                       bookmarked={hasStatus(p.primary.id, "bookmarked")}
                       onToggle={(s) => toggle(p, s)} statusBadge={statusBadge(p)} hasStatus={(s) => hasStatus(p.primary.id, s)}
                       onView={(file, kind) => setViewing({ file, kind })}
-                      onPractice={() => router.push("/student/paper-practice")} />
+                      // the practice bank is O-Level only — deep-link straight to this exact paper
+                      onPractice={level === "olevel" && activeSubject ? () => {
+                        const params = new URLSearchParams({
+                          subject: activeSubject.name.trim(), year: p.year, session: p.session,
+                          paper: p.paperCode, variant: p.variant,
+                        });
+                        router.push(`/student/paper-practice?${params.toString()}`);
+                      } : undefined} />
                   ))}
                 </div>
               )}
@@ -393,7 +400,7 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 function PaperCard({ p, subj, viewType, bookmarked, onToggle, statusBadge, hasStatus, onView, onPractice }: {
   p: Paper; subj: { color: string; icon: string }; viewType: "qp" | "ms"; bookmarked: boolean;
   onToggle: (s: PaperStatus) => void; statusBadge: React.ReactNode; hasStatus: (s: PaperStatus) => boolean;
-  onView: (file: FolderItem, kind: FileKind) => void; onPractice: () => void;
+  onView: (file: FolderItem, kind: FileKind) => void; onPractice?: () => void;
 }) {
   const title = [p.year, p.session].filter(Boolean).join(" · ") || p.primary.name.replace(/\.pdf$/i, "");
   const sub = [p.paperCode && p.paperCode.replace("P", "Paper "), p.variant && "Variant " + p.variant].filter(Boolean).join(" · ") || "Past paper";
@@ -442,9 +449,15 @@ function PaperCard({ p, subj, viewType, bookmarked, onToggle, statusBadge, hasSt
       </div>
 
       <div className="flex gap-8 items-center" style={{ marginTop: "auto" }}>
-        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={onPractice}>
-          <Icon name="play" size={13} fill="#fff" stroke={0} /> Practice
-        </button>
+        {onPractice ? (
+          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={onPractice}>
+            <Icon name="play" size={13} fill="#fff" stroke={0} /> Practice
+          </button>
+        ) : (
+          <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => onView(viewDoc, viewKind)}>
+            <Icon name="eye" size={14} /> Open paper
+          </button>
+        )}
         <button className="icon-btn" title={`View ${viewLabel}`} aria-label={`View ${viewLabel}`} onClick={() => onView(viewDoc, viewKind)}
           style={{ width: 36, height: 36, borderRadius: "50%", border: "1px solid var(--line-strong)", color: "var(--ink-soft)", flex: "none" }}>
           <Icon name="eye" size={16} />

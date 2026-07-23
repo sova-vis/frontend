@@ -1,13 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { useStudentStats, timeAgo } from "@/lib/useStudentStats";
 import { Icon } from "@/components/propel/Icon";
 import { Bar, CountUp, Delta, Ring, SubjGlyph, EmptyState } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
 import type { TrackedPaper } from "@/lib/paperTracking";
+import {
+  PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
+} from "@/lib/practiceProgress";
 
 /* next O-Level session target (no exam date is stored per student yet) */
 const EXAM_DATE = new Date("2026-10-06T00:00:00");
@@ -26,12 +30,29 @@ function paperSubject(p: TrackedPaper): string {
   return (p.name || "Paper").split(/[\s/_-]/)[0] || "Paper";
 }
 
+/** short display label for a practice session, e.g. "2024 · May June · Paper 2 · V1" */
+function practiceLabel(p: PracticeProgress): string {
+  const un = (value: string) => value.replace(/_/g, " ");
+  return [p.year, un(p.session), un(p.paper), un(p.variant).replace(/^Variant\s*/i, "V")].filter(Boolean).join(" · ");
+}
+
 export default function StudentDashboard() {
   const router = useRouter();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { profile } = useClerkAuth();
   const stats = useStudentStats();
   const name = (profile?.full_name || user?.firstName || "there").split(" ")[0];
+
+  // practice-paper sessions (autosaved answers/timer) — for resume + progress
+  const [practice, setPractice] = useState<PracticeProgress[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadPracticeProgressList(() => getToken()).then((items) => { if (!cancelled) setPractice(items); });
+    return () => { cancelled = true; };
+  }, [getToken]);
+  const practiceInProgress = practice.filter((p) => p.status === "in_progress");
+  const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const daysToExam = Math.max(0, Math.ceil((EXAM_DATE.getTime() - Date.now()) / 86_400_000));
@@ -213,10 +234,34 @@ export default function StudentDashboard() {
           </div>
 
           <div className="flex-col gap-18">
-            {/* resume (real) */}
+            {/* resume (real) — practice sessions carry exact saved state, so they win */}
             <div className="card card-pad" style={{ background: "var(--ink)", color: "var(--canvas)", border: "none" }}>
               <div className="eyebrow" style={{ color: "var(--ink-faint)" }}>Resume where you left off</div>
-              {stats.resume ? (
+              {practiceResume ? (
+                <>
+                  <div className="flex items-center gap-12 mt-12">
+                    <SubjGlyph subj={subjectStyle(practiceResume.subject)} size={44} radius={12} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {practiceResume.subject} · {practiceLabel(practiceResume)}
+                      </div>
+                      <div style={{ fontSize: 12.5, opacity: 0.7 }}>
+                        {practiceResume.solveMode === "handwritten"
+                          ? `Handwritten · ${practiceResume.uploads.length} file${practiceResume.uploads.length === 1 ? "" : "s"} uploaded`
+                          : `${practiceResume.answeredCount}/${practiceResume.totalCount} answered · ${progressPercent(practiceResume)}%`}
+                      </div>
+                    </div>
+                  </div>
+                  {practiceResume.solveMode === "digital" && (
+                    <div style={{ marginTop: 12, height: 6, borderRadius: 4, background: "rgba(255,255,255,.16)", overflow: "hidden" }}>
+                      <div style={{ width: `${progressPercent(practiceResume)}%`, height: "100%", borderRadius: 4, background: "var(--crimson)" }} />
+                    </div>
+                  )}
+                  <button className="btn btn-block mt-16" style={{ background: "var(--crimson)", color: "#fff" }} onClick={() => go(practiceHref(practiceResume))}>
+                    <Icon name="play" size={15} fill="#fff" stroke={0} /> Continue paper
+                  </button>
+                </>
+              ) : stats.resume ? (
                 <>
                   <div className="flex items-center gap-12 mt-12">
                     <SubjGlyph subj={subjectStyle(paperSubject(stats.resume))} size={44} radius={12} />
@@ -238,6 +283,43 @@ export default function StudentDashboard() {
                 </>
               )}
             </div>
+
+            {/* practice sessions in progress (real, cross-device) */}
+            {practiceInProgress.length > 0 && (
+              <div className="card card-pad">
+                <div className="card-head">
+                  <span className="card-title">Continue practising</span>
+                  <span className="badge amber"><Icon name="clock" size={13} /> {practiceInProgress.length}</span>
+                </div>
+                <div className="flex-col gap-12">
+                  {practiceInProgress.slice(0, 4).map((session) => {
+                    const subj = subjectStyle(session.subject);
+                    return (
+                      <button key={session.paperKey} className="flex items-center gap-12" onClick={() => go(practiceHref(session))}
+                        style={{ textAlign: "left", padding: "8px 10px", margin: "-4px -10px", borderRadius: 12, background: "transparent" }}>
+                        <SubjGlyph subj={subj} size={34} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {session.subject} · {practiceLabel(session)}
+                          </div>
+                          <div className="flex items-center gap-8" style={{ marginTop: 4 }}>
+                            {session.solveMode === "handwritten" ? (
+                              <span className="faint" style={{ fontSize: 11.5 }}>Handwritten · {session.uploads.length} file{session.uploads.length === 1 ? "" : "s"}</span>
+                            ) : (
+                              <>
+                                <div style={{ flex: 1, maxWidth: 140 }}><Bar value={progressPercent(session)} tone="teal" height={5} /></div>
+                                <span className="faint" style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{progressPercent(session)}%</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <Icon name="chevron_right" size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* goals (real) */}
             <div className="card card-pad">

@@ -34,6 +34,7 @@ export const ICON_PATHS: Record<string, string> = {
   trend_up: '<path d="M3 17 9 11l4 4 8-8"/><path d="M17 7h4v4"/>',
   trend_down: '<path d="M3 7l6 6 4-4 8 8"/><path d="M17 17h4v-4"/>',
   play: '<path d="M7 4.5 19 12 7 19.5Z"/>',
+  pause: '<path d="M9 5v14M15 5v14"/>',
   file_text: '<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
   lightbulb: '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.2 1 2.5h6c0-1.3.3-1.8 1-2.5A6 6 0 0 0 12 3Z"/>',
   flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 3 2 3H5"/>',
