@@ -1,15 +1,17 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
-  PracticeProgress, PracticeUpload, SolveMode, PracticeStatus,
+  PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, SolveMode, PracticeStatus,
   loadPracticeProgressList, savePracticeProgress, deletePracticeProgress,
-  uploadPracticeFile, removePracticeUpload, makePaperKey,
+  uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
 } from "@/lib/practiceProgress";
+import { gradePractice, gradeOneQuestion, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { paperDurationSeconds, durationLabel, clockLabel } from "@/lib/paperDurations";
 
 type QuestionType = "mcq" | "structured";
@@ -301,7 +303,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly }: {
 function QuestionCard(props: {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
-  readOnly?: boolean;
+  readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
 }) {
   const { question } = props;
   return (
@@ -323,6 +325,16 @@ function QuestionCard(props: {
         <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
       ) : (
         <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly} />
+      )}
+
+      {/* per-question AI marking (topic drills) */}
+      {props.onGradeOne && (
+        <div className="flex-col gap-10">
+          <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
+            {props.gradingOne ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : "Mark my answer"}</>}
+          </button>
+          {props.gradeResult && <QuestionResultRow q={props.gradeResult} />}
+        </div>
       )}
     </article>
   );
@@ -362,10 +374,16 @@ function PracticeInner() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [timerRunning, setTimerRunning] = useState(false);
+  const [timerStarted, setTimerStarted] = useState(false); // the exam clock never auto-starts
   const [timerDuration, setTimerDuration] = useState(0);
   const [timerStartElapsed, setTimerStartElapsed] = useState(0);
   const [timerNonce, setTimerNonce] = useState(0);
   const timerElapsedRef = useRef(0);
+  // AI marking
+  const [grading, setGrading] = useState(false);
+  const [report, setReport] = useState<PracticeReport | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [portalMounted, setPortalMounted] = useState(false);
   const restoredKeyRef = useRef<string | null>(null);
   const interactedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,6 +436,8 @@ function PracticeInner() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => setPortalMounted(true), []);
+
   // ---- saved practice sessions (remote, local fallback) ----
   useEffect(() => {
     let mounted = true;
@@ -444,7 +464,12 @@ function PracticeInner() {
     setPaperStatus("in_progress");
     setUploads([]);
     setTimerRunning(false);
+    setTimerStarted(false);
     setSavingState("idle");
+    setReport(null);
+    setReportOpen(false);
+    setOneResults({});
+    setOneGrading({});
     restoredKeyRef.current = null;
     interactedRef.current = false;
   }
@@ -681,10 +706,14 @@ function PracticeInner() {
       setSolveMode(saved.solveMode);
       setPaperStatus(saved.status);
       setUploads(saved.uploads ?? []);
+      setReport(saved.report ?? null);
       setTimerDuration(saved.timerDurationSeconds || fallbackDuration);
       timerElapsedRef.current = saved.timerElapsedSeconds || 0;
       setTimerStartElapsed(saved.timerElapsedSeconds || 0);
-      setTimerRunning(saved.status !== "completed" && saved.solveMode === "digital");
+      // never auto-run — a resumed paper waits for the student to hit resume;
+      // "started" reflects whether the clock was ever running before
+      setTimerStarted((saved.timerElapsedSeconds || 0) > 0);
+      setTimerRunning(false);
       startedAtRef.current = saved.startedAt;
       hasRowRef.current = true;
       setSavingState("saved");
@@ -692,7 +721,8 @@ function PracticeInner() {
       setTimerDuration(fallbackDuration);
       timerElapsedRef.current = 0;
       setTimerStartElapsed(0);
-      setTimerRunning(true); // the paper is open — the exam clock starts
+      setTimerStarted(false); // fresh paper — the exam clock waits for Start
+      setTimerRunning(false);
       startedAtRef.current = null;
       hasRowRef.current = false;
       setSavingState("idle");
@@ -737,7 +767,6 @@ function PracticeInner() {
     if (mode === solveMode) return;
     interactedRef.current = true;
     setSolveMode(mode);
-    setTimerRunning(mode === "digital" && paperStatus !== "completed");
     void doSave({ solveMode: mode });
   }
 
@@ -745,12 +774,19 @@ function PracticeInner() {
     interactedRef.current = true;
     const next: PracticeStatus = paperStatus === "completed" ? "in_progress" : "completed";
     setPaperStatus(next);
-    setTimerRunning(next !== "completed" && solveMode === "digital");
+    if (next === "completed") setTimerRunning(false); // stop the clock; un-completing leaves it paused
     void doSave({ status: next });
+  }
+
+  // the student explicitly starts the exam clock (it never auto-runs)
+  function startTimer() {
+    setTimerStarted(true);
+    setTimerRunning(true);
   }
 
   function handleTimerToggle() {
     const next = !timerRunning;
+    if (next) setTimerStarted(true);
     setTimerRunning(next);
     if (!next && hasRowRef.current) void doSave();
   }
@@ -804,7 +840,8 @@ function PracticeInner() {
       timerElapsedRef.current = 0;
       setTimerStartElapsed(0);
       setTimerNonce((n) => n + 1);
-      setTimerRunning(solveMode === "digital");
+      setTimerRunning(false);
+      setTimerStarted(false); // reset → clock waits for Start again
       interactedRef.current = false;
       if (hasRowRef.current) {
         void deletePracticeProgress(currentPaperKey, getToken);
@@ -814,6 +851,101 @@ function PracticeInner() {
         setUploads([]);
         setSavingState("idle");
       }
+      setReport(null);
+      setReportOpen(false);
+    }
+  }
+
+  // ---- AI marking (whole paper, and single questions in topic mode) ----
+  const maxMarksOf = (q: PracticeQuestion): number => {
+    if (typeof q.marks === "number" && q.marks > 0) return q.marks;
+    const partsSum = q.parts.reduce((sum, part) => sum + (part.marks ?? 0), 0);
+    return partsSum > 0 ? partsSum : 1;
+  };
+
+  const toGradeInput = useCallback((q: PracticeQuestion): GradeQuestionInput => {
+    if (q.type === "mcq") {
+      return {
+        id: q.id, questionNumber: q.questionNumber, type: "mcq", questionText: q.questionText,
+        maxMarks: maxMarksOf(q), correctOption: q.correctOption, markingScheme: q.markingScheme || null,
+        studentOption: mcqAnswers[q.id] || null,
+      };
+    }
+    const studentParts: Record<string, string> = {};
+    if (q.parts.length) {
+      q.parts.forEach((part, index) => {
+        if (isHeaderPart(q.parts, part.label)) return;
+        const value = partAnswers[`${q.id}::${index}`];
+        if (value && value.trim()) studentParts[part.label || `Part ${index + 1}`] = value.trim();
+      });
+    } else {
+      const value = partAnswers[`${q.id}::0`];
+      if (value && value.trim()) studentParts["Answer"] = value.trim();
+    }
+    return {
+      id: q.id, questionNumber: q.questionNumber, type: "structured", questionText: q.questionText,
+      maxMarks: maxMarksOf(q), markingScheme: q.markingScheme || null,
+      parts: q.parts.map((part) => ({ label: part.label, body: part.body, marks: part.marks, answer: part.answer })),
+      studentParts,
+    };
+  }, [mcqAnswers, partAnswers]);
+
+  const buildGradeQuestions = (): GradeQuestionInput[] => questions.map(toGradeInput);
+
+  // per-question grading (topic drills): id -> result, and in-flight ids
+  const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
+  const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
+
+  async function gradeOne(q: PracticeQuestion) {
+    if (!selectedSubject || oneGrading[q.id]) return;
+    setOneGrading((prev) => ({ ...prev, [q.id]: true }));
+    setError("");
+    try {
+      const result = await gradeOneQuestion(selectedSubject, toGradeInput(q), getToken);
+      setOneResults((prev) => ({ ...prev, [q.id]: result }));
+    } catch (gradeError) {
+      setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
+    } finally {
+      setOneGrading((prev) => ({ ...prev, [q.id]: false }));
+    }
+  }
+
+  const hasAnyAnswer = useMemo(() => {
+    if (solveMode === "handwritten") return uploads.length > 0;
+    return questions.some((q) =>
+      q.type === "mcq"
+        ? Boolean(mcqAnswers[q.id]?.trim())
+        : q.parts.length
+          ? q.parts.some((_, index) => Boolean(partAnswers[`${q.id}::${index}`]?.trim()))
+          : Boolean(partAnswers[`${q.id}::0`]?.trim()));
+  }, [solveMode, uploads, questions, mcqAnswers, partAnswers]);
+
+  async function gradePaper() {
+    if (!currentPaperKey || !selectedPaper || !selectedSubject || grading) return;
+    setGrading(true);
+    setError("");
+    // make sure the latest typed answers are on the server before grading
+    if (solveMode === "digital" && interactedRef.current) await doSave();
+    try {
+      const { report: graded, item } = await gradePractice(
+        {
+          paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
+          session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
+          isMcq: selectedPaper.isMcq, solveMode, questions: buildGradeQuestions(),
+        },
+        getToken,
+      );
+      setReport(graded);
+      setReportOpen(true);
+      setPaperStatus("completed");
+      setTimerRunning(false);
+      setUploads(item.uploads ?? []);
+      hasRowRef.current = true;
+      setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
+    } catch (gradeError) {
+      setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
+    } finally {
+      setGrading(false);
     }
   }
 
@@ -966,8 +1098,14 @@ function PracticeInner() {
             <div className="flex items-center gap-12 wrap">
               <Segmented value={solveMode} onChange={changeSolveMode}
                 options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
-              <TimerChip key={`${currentPaperKey}|${timerNonce}`} running={timerRunning} durationSeconds={timerDuration}
-                initialElapsed={timerStartElapsed} onToggle={handleTimerToggle} onTick={(value) => { timerElapsedRef.current = value; }} />
+              {paperStatus !== "completed" && !timerStarted ? (
+                <button className="btn btn-primary btn-sm" onClick={startTimer} title={`Start the ${durationLabel(timerDuration)} exam clock`}>
+                  <Icon name="play" size={13} fill="#fff" stroke={0} /> Start paper · {durationLabel(timerDuration)}
+                </button>
+              ) : (
+                <TimerChip key={`${currentPaperKey}|${timerNonce}`} running={timerRunning} durationSeconds={timerDuration}
+                  initialElapsed={timerStartElapsed} onToggle={handleTimerToggle} onTick={(value) => { timerElapsedRef.current = value; }} />
+              )}
             </div>
             <div className="flex items-center gap-12 wrap">
               {solveMode === "digital" ? (
@@ -981,15 +1119,25 @@ function PracticeInner() {
               <span className="faint" style={{ fontSize: 11.5, minWidth: 54, textAlign: "right" }}>
                 {savingState === "saving" ? "Saving…" : savingState === "saved" ? "Saved ✓" : savingState === "error" ? "Offline" : ""}
               </span>
-              {paperStatus === "completed" ? (
-                <button className="btn btn-soft btn-sm" onClick={toggleCompleted} title="Mark as in progress again">
-                  <Icon name="check_circle" size={14} /> Completed
+              {report && (
+                <span className="badge teal" title="Latest marks" style={{ whiteSpace: "nowrap" }}>
+                  <Icon name="award" size={13} /> {report.earned}/{report.total}
+                </span>
+              )}
+              {report ? (
+                <button className="btn btn-secondary btn-sm" onClick={() => setReportOpen(true)}>
+                  <Icon name="file_text" size={14} /> View report
                 </button>
               ) : (
-                <button className="btn btn-primary btn-sm" onClick={toggleCompleted}>
-                  <Icon name="check_circle" size={14} /> Mark completed
+                <button className="icon-btn" onClick={toggleCompleted} title={paperStatus === "completed" ? "Mark as in progress" : "Mark done without grading"}
+                  style={{ width: 34, height: 34, border: "1px solid var(--line-strong)", color: paperStatus === "completed" ? "var(--teal-deep)" : "var(--ink-faint)" }}>
+                  <Icon name="check_circle" size={16} />
                 </button>
               )}
+              <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || !hasAnyAnswer}
+                title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : "Mark this paper with AI"}>
+                {grading ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {report ? "Re-mark" : "Submit for marking"}</>}
+              </button>
             </div>
           </div>
         )}
@@ -1062,7 +1210,9 @@ function PracticeInner() {
                   mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
                   readOnly={practiceMode === "paper" && solveMode === "handwritten"}
                   onMcqAnswer={(value) => { interactedRef.current = true; setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
-                  onPartAnswer={(partKey, value) => { interactedRef.current = true; setPartAnswers((c) => ({ ...c, [partKey]: value })); }} />
+                  onPartAnswer={(partKey, value) => { interactedRef.current = true; setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
+                  onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
+                  gradeResult={oneResults[question.id]} gradingOne={Boolean(oneGrading[question.id])} />
               ))}
 
               {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
@@ -1078,6 +1228,122 @@ function PracticeInner() {
           )}
         </div>
       </div>
+
+      {/* AI marking report */}
+      {portalMounted && reportOpen && report && selectedPaper && createPortal(
+        <ReportModal
+          report={report}
+          meta={{ subject: selectedSubject, year: selectedPaper.year, session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant }}
+          onClose={() => setReportOpen(false)}
+        />,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+/* ---- AI marking report modal ---- */
+function ReportModal({ report, meta, onClose }: {
+  report: PracticeReport;
+  meta: { subject: string; year: string; session: string; paper: string; variant: string };
+  onClose: () => void;
+}) {
+  const ringColor = report.percent >= 70 ? "var(--teal-deep)" : report.percent >= 45 ? "var(--amber-deep)" : "var(--coral-bright)";
+  return (
+    <div className="pr" onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, minHeight: 0, display: "grid", placeItems: "center", padding: 16 }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(20,16,12,.6)", backdropFilter: "blur(3px)" }} />
+      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
+        style={{ position: "relative", maxWidth: "min(96vw,860px)", width: "100%", maxHeight: "92vh", padding: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* header */}
+        <div className="row-between" style={{ padding: "18px 22px", borderBottom: "1px solid var(--line)", gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="eyebrow">Marking report</div>
+            <h3 style={{ fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prettyPaperName(meta)}</h3>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" style={{ border: "1px solid var(--line-strong)", flex: "none" }}><Icon name="x" /></button>
+        </div>
+
+        {/* scrollable body */}
+        <div style={{ overflow: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* headline score */}
+          <div className="card card-pad" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "grid", placeItems: "center", width: 108, height: 108, borderRadius: "50%", flex: "none",
+              background: `conic-gradient(${ringColor} ${report.percent * 3.6}deg, var(--surface-2) 0deg)` }}>
+              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--surface)", display: "grid", placeItems: "center" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: ringColor, lineHeight: 1 }}>{report.percent}%</div>
+                  <div className="faint" style={{ fontSize: 10.5 }}>score</div>
+                </div>
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div className="flex items-center gap-10 wrap">
+                <span className="big-num" style={{ fontSize: 26 }}>{report.earned} / {report.total}</span>
+                <span className="badge crimson">{report.grade}</span>
+                <span className="badge neutral">{report.solveMode === "handwritten" ? "Handwritten" : "Digital"}</span>
+              </div>
+              <p className="muted mt-6" style={{ fontSize: 14, lineHeight: 1.5 }}>{report.summary}</p>
+            </div>
+          </div>
+
+          {/* focus areas */}
+          {report.improvements.length > 0 && (
+            <div className="card card-pad" style={{ borderColor: "var(--amber-soft)" }}>
+              <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
+                <Icon name="target" size={16} style={{ color: "var(--amber-deep)" }} />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>Focus next on</span>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+                {report.improvements.map((item, index) => <li key={index} style={{ fontSize: 13.5, lineHeight: 1.5 }}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* per-question breakdown */}
+          <div className="flex-col gap-8">
+            <div className="eyebrow" style={{ padding: "0 2px" }}>Question breakdown</div>
+            {report.perQuestion.map((q) => <QuestionResultRow key={q.id} q={q} />)}
+          </div>
+        </div>
+
+        {/* footer */}
+        <div className="row-between" style={{ padding: "14px 22px", borderTop: "1px solid var(--line)", gap: 10 }}>
+          <span className="faint" style={{ fontSize: 11.5 }}>Indicative marks · {report.model}</span>
+          <div className="flex gap-8">
+            <button className="btn btn-secondary btn-sm" onClick={() => downloadReport(report, meta)}>
+              <Icon name="download" size={14} /> Download report
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={onClose}>Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionResultRow({ q }: { q: GradedQuestion }) {
+  const tone = verdictColor(q.verdict);
+  return (
+    <div className="card card-pad" style={{ padding: 14 }}>
+      <div className="row-between" style={{ gap: 10, alignItems: "flex-start" }}>
+        <div className="flex items-center gap-8" style={{ minWidth: 0 }}>
+          <span className="chip-tag badge neutral" style={{ flex: "none" }}>Q{q.questionNumber}</span>
+          <span style={{ padding: "2px 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, color: tone.fg, background: tone.bg, whiteSpace: "nowrap" }}>{tone.label}</span>
+        </div>
+        <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", color: tone.fg }}>{q.earned} / {q.max}</span>
+      </div>
+      <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
+      {q.missingPoints.length > 0 && (
+        <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
+          <b>Improve:</b> {q.missingPoints.join("; ")}
+        </p>
+      )}
+      {q.expectedPoints.length > 0 && (
+        <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 4 }}>
+          <b>Key points:</b> {q.expectedPoints.join("; ")}
+        </p>
+      )}
     </div>
   );
 }

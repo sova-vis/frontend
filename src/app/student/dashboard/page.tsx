@@ -53,6 +53,7 @@ export default function StudentDashboard() {
   }, [getToken]);
   const practiceInProgress = practice.filter((p) => p.status === "in_progress");
   const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
+  const practiceGraded = practice.filter((p) => p.report); // marked papers, newest-first
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const daysToExam = Math.max(0, Math.ceil((EXAM_DATE.getTime() - Date.now()) / 86_400_000));
@@ -314,6 +315,38 @@ export default function StudentDashboard() {
                           </div>
                         </div>
                         <Icon name="chevron_right" size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* graded papers — AI marks (real) */}
+            {practiceGraded.length > 0 && (
+              <div className="card card-pad">
+                <div className="card-head">
+                  <span className="card-title">Recent marks</span>
+                  <span className="badge teal"><Icon name="award" size={13} /> {practiceGraded.length}</span>
+                </div>
+                <div className="flex-col gap-12">
+                  {practiceGraded.slice(0, 4).map((session) => {
+                    const subj = subjectStyle(session.subject);
+                    const pct = session.report!.percent;
+                    const tone = pct >= 70 ? "teal" : pct >= 45 ? "amber" : "coral";
+                    return (
+                      <button key={session.paperKey} className="flex items-center gap-12" onClick={() => go(practiceHref(session))}
+                        style={{ textAlign: "left", padding: "8px 10px", margin: "-4px -10px", borderRadius: 12, background: "transparent" }}>
+                        <SubjGlyph subj={subj} size={34} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {session.subject} · {practiceLabel(session)}
+                          </div>
+                          <div className="faint" style={{ fontSize: 11.5 }}>
+                            {session.report!.earned}/{session.report!.total} marks · {session.report!.grade}
+                          </div>
+                        </div>
+                        <span className={"badge " + tone} style={{ flex: "none" }}>{pct}%</span>
                       </button>
                     );
                   })}

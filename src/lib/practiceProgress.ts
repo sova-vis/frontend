@@ -19,6 +19,32 @@ export interface PracticeUpload {
   url?: string;
 }
 
+export interface GradedQuestion {
+  id: string;
+  questionNumber: string;
+  earned: number;
+  max: number;
+  verdict: "correct" | "partial" | "weak" | "unanswered";
+  feedback: string;
+  expectedPoints: string[];
+  missingPoints: string[];
+  gradingSource: "deterministic" | "grok" | "grok-vision";
+}
+
+export interface PracticeReport {
+  earned: number;
+  total: number;
+  percent: number;
+  grade: string;
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  perQuestion: GradedQuestion[];
+  solveMode: SolveMode;
+  model: string;
+  gradedAt: string;
+}
+
 export interface PracticeProgress {
   paperKey: string;
   subject: string;
@@ -35,6 +61,7 @@ export interface PracticeProgress {
   totalCount: number;
   timerDurationSeconds: number;
   timerElapsedSeconds: number;
+  report?: PracticeReport | null;
   startedAt: string;
   updatedAt: string;
 }
