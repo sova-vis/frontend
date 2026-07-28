@@ -1218,12 +1218,6 @@ function PracticeInner() {
               onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
           ) : displayQuestions.length > 0 ? (
             <>
-              {practiceMode === "topic" && (
-                <div className="flex items-center gap-8 card" style={{ padding: "10px 16px", fontSize: 12.5, color: "var(--ink-soft)" }}>
-                  <Icon name="layers" size={14} style={{ color: "var(--crimson)" }} />
-                  Deduplicated — each unique question is shown once, even if it appeared in several years or variants.
-                </div>
-              )}
               {displayQuestions.map((question) => (
                 <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
                   mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
