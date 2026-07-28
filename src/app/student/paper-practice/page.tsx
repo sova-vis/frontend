@@ -304,7 +304,7 @@ function QuestionCard(props: {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
-  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; onSetTopicMode?: (mode: "type" | "upload") => void;
+  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload";
 }) {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
@@ -330,14 +330,9 @@ function QuestionCard(props: {
         <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} />
       )}
 
-      {/* per-question AI marking (topic drills): type it here, or upload a photo */}
+      {/* per-question AI marking (topic drills): solve here, or upload a photo */}
       {props.onGradeOne && (
         <div className="flex-col gap-10">
-          {props.onSetTopicMode && (
-            <Segmented value={props.topicMode ?? "type"} onChange={(m) => props.onSetTopicMode!(m)}
-              options={[{ value: "type", label: "Type answer", icon: "pencil" }, { value: "upload", label: "Upload answer", icon: "upload" }]} />
-          )}
-
           {topicUpload ? (
             <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
           ) : (
@@ -934,8 +929,8 @@ function PracticeInner() {
   // per-question grading (topic drills): id -> result, and in-flight ids
   const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
   const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
-  // per-question answer mode in topic drills: type it, or upload a photo
-  const [oneMode, setOneMode] = useState<Record<string, "type" | "upload">>({});
+  // topic drills: solve every question on screen, or upload a photo per question
+  const [topicSolveMode, setTopicSolveMode] = useState<SolveMode>("digital");
 
   async function gradeOne(q: PracticeQuestion) {
     if (!selectedSubject || oneGrading[q.id]) return;
@@ -1128,6 +1123,10 @@ function PracticeInner() {
                       : displayQuestions.length > 0 && <span className="faint">· {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}</span>}
                   </p>
                   <div className="flex gap-8 wrap items-center">
+                    {practiceMode === "topic" && questionType === "structured" && (
+                      <Segmented value={topicSolveMode} onChange={setTopicSolveMode}
+                        options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
+                    )}
                     {questionType === "mcq" && (
                       <button onClick={() => setChecked(true)} disabled={gradable.length === 0} className="btn btn-primary">
                         <Icon name="check_circle" size={16} /> Check
@@ -1233,8 +1232,7 @@ function PracticeInner() {
                   onPartAnswer={(partKey, value) => { interactedRef.current = true; setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
                   onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
                   onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
-                  topicMode={oneMode[question.id] ?? "type"}
-                  onSetTopicMode={(mode) => setOneMode((prev) => ({ ...prev, [question.id]: mode }))}
+                  topicMode={topicSolveMode === "handwritten" ? "upload" : "type"}
                   gradeResult={oneResults[question.id]} gradingOne={Boolean(oneGrading[question.id])} />
               ))}
 
