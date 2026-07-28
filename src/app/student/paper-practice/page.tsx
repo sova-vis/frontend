@@ -1327,71 +1327,49 @@ function HandwrittenStudio({ uploads, busy, onFiles, onRemove }: {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex-col gap-16" style={{ display: "flex" }}>
-      {/* drop / browse zone */}
+    <div className="flex-col gap-14" style={{ display: "flex", alignItems: "center" }}>
+      {/* medium dotted upload rectangle */}
       <div
         onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
         onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
         onDrop={(e) => { e.preventDefault(); setDragging(false); if (!busy) onFiles(e.dataTransfer.files); }}
         onClick={() => { if (!busy) inputRef.current?.click(); }}
-        className="card"
-        style={{ cursor: busy ? "wait" : "pointer", padding: 34, display: "grid", placeItems: "center", textAlign: "center",
+        style={{ width: "100%", maxWidth: 460, cursor: busy ? "wait" : "pointer", padding: "30px 24px",
+          display: "grid", placeItems: "center", textAlign: "center", borderRadius: 14,
           border: `2px dashed ${dragging ? "var(--crimson)" : "var(--line-strong)"}`,
           background: dragging ? "var(--crimson-soft)" : "var(--surface)", transition: "all .15s" }}
       >
         <input ref={inputRef} type="file" accept="image/*,application/pdf" multiple style={{ display: "none" }} disabled={busy}
           onChange={(e) => { onFiles(e.target.files); e.currentTarget.value = ""; }} />
-        <div style={{ width: 58, height: 58, borderRadius: 16, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center", marginBottom: 14 }}>
-          <Icon name={busy ? "refresh" : "camera"} size={27} className={busy ? "spin" : ""} />
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center", marginBottom: 12 }}>
+          <Icon name={busy ? "refresh" : "upload"} size={22} className={busy ? "spin" : ""} />
         </div>
-        <div style={{ fontWeight: 600, fontSize: 16.5 }}>{busy ? "Uploading…" : "Drop your solved pages here"}</div>
-        <div className="faint" style={{ fontSize: 13.5, marginTop: 5, maxWidth: 380 }}>
-          Solve on paper, photograph or scan every page, then drag them in or{" "}
-          <span style={{ color: "var(--crimson)", fontWeight: 600 }}>browse</span>.
+        <div style={{ fontWeight: 600, fontSize: 15 }}>{busy ? "Uploading…" : "Upload handwritten answers"}</div>
+        <div className="faint" style={{ fontSize: 12.5, marginTop: 4 }}>
+          Drag &amp; drop or <span style={{ color: "var(--crimson)", fontWeight: 600 }}>browse</span>
         </div>
-        <div className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>JPG, PNG or PDF · up to 15 MB each · page order doesn&apos;t matter</div>
+        <div className="faint" style={{ fontSize: 11.5, marginTop: 8 }}>JPG, PNG or PDF · maximum 15 MB per file</div>
       </div>
 
-      {/* uploaded pages */}
-      {uploads.length > 0 ? (
-        <div className="card card-pad">
-          <div className="row-between wrap" style={{ marginBottom: 12, gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Your pages <span className="faint">· {uploads.length}</span></span>
-            <span className="faint" style={{ fontSize: 12 }}>Add every page, then hit <b>Submit for marking</b> above.</span>
-          </div>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
-            {uploads.map((file, index) => {
-              const isImage = file.type.startsWith("image/");
-              return (
-                <div key={file.path} style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)", background: "var(--surface-2)" }}>
-                  <a href={file.url} target="_blank" rel="noreferrer" title={file.name}
-                    style={{ display: "block", height: 150, background: "var(--surface-2)" }}>
-                    {isImage && file.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={file.url} alt={file.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--crimson)" }}>
-                        <Icon name="file_text" size={34} />
-                      </div>
-                    )}
-                  </a>
-                  <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(20,16,12,.72)", color: "#fff", fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "1px 7px" }}>
-                    {index + 1}
-                  </div>
-                  <button className="icon-btn" aria-label={`Remove ${file.name}`} onClick={(e) => { e.preventDefault(); onRemove(file.path); }}
-                    style={{ position: "absolute", top: 6, right: 6, width: 26, height: 26, background: "rgba(20,16,12,.72)", color: "#fff", border: "none" }}>
-                    <Icon name="x" size={13} />
-                  </button>
-                  <div style={{ padding: "6px 8px", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={file.name}>{file.name}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="card card-pad flex items-center gap-10" style={{ color: "var(--ink-soft)", fontSize: 13 }}>
-          <Icon name="lightbulb" size={16} style={{ color: "var(--amber-deep)", flex: "none" }} />
-          Upload your whole solved paper. Grok reads your handwriting and marks each question against this paper&apos;s marking scheme.
+      {/* uploaded files — compact list */}
+      {uploads.length > 0 && (
+        <div className="flex-col" style={{ display: "flex", gap: 6, width: "100%", maxWidth: 460 }}>
+          {uploads.map((file) => (
+            <div key={file.path} className="flex items-center gap-10" style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
+              <Icon name="file_text" size={16} style={{ color: "var(--crimson)", flex: "none" }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+              <span className="faint" style={{ fontSize: 11.5, flex: "none" }}>{Math.max(1, Math.round(file.size / 1024))} KB</span>
+              {file.url && (
+                <a href={file.url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ flex: "none", padding: "4px 8px" }}>
+                  <Icon name="eye" size={14} /> View
+                </a>
+              )}
+              <button className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => onRemove(file.path)}
+                style={{ width: 28, height: 28, flex: "none" }}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
