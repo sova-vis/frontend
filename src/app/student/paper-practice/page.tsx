@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Icon } from "@/components/propel/Icon";
@@ -1019,20 +1020,26 @@ function PracticeInner() {
             </p>
           </div>
 
-          {ready && (
-            <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
-              {[
-                { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
-                { label: "Answered", value: answeredCount },
-                { label: "Score", value: questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—" },
-              ].map((stat) => (
-                <div key={stat.label} style={{ padding: "8px 14px" }}>
-                  <div className="eyebrow">{stat.label}</div>
-                  <div className="big-num" style={{ fontSize: 22 }}>{stat.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex-col gap-10" style={{ display: "flex", alignItems: "flex-end" }}>
+            {/* separate flow: upload your own solved work and have Grok mark it */}
+            <Link href="/student/upload-check" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
+              <Icon name="upload" size={14} /> Upload &amp; mark your work
+            </Link>
+            {ready && (
+              <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
+                {[
+                  { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
+                  { label: "Answered", value: answeredCount },
+                  { label: "Score", value: questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—" },
+                ].map((stat) => (
+                  <div key={stat.label} style={{ padding: "8px 14px" }}>
+                    <div className="eyebrow">{stat.label}</div>
+                    <div className="big-num" style={{ fontSize: 22 }}>{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {error && (
