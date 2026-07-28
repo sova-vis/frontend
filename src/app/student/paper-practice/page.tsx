@@ -11,7 +11,7 @@ import {
   loadPracticeProgressList, savePracticeProgress, deletePracticeProgress,
   uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
 } from "@/lib/practiceProgress";
-import { gradePractice, gradeOneQuestion, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
+import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { paperDurationSeconds, durationLabel, clockLabel } from "@/lib/paperDurations";
 
 type QuestionType = "mcq" | "structured";
@@ -304,8 +304,10 @@ function QuestionCard(props: {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
+  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; onSetTopicMode?: (mode: "type" | "upload") => void;
 }) {
   const { question } = props;
+  const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
   return (
     <article className="card card-pad flex-col gap-16">
       <div className="row-between wrap" style={{ gap: 10 }}>
@@ -324,19 +326,56 @@ function QuestionCard(props: {
       {question.type === "mcq" ? (
         <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
       ) : (
-        <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly} />
+        // topic upload mode hides the answer boxes — you answer by uploading a photo
+        <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} />
       )}
 
-      {/* per-question AI marking (topic drills) */}
+      {/* per-question AI marking (topic drills): type it here, or upload a photo */}
       {props.onGradeOne && (
         <div className="flex-col gap-10">
-          <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
-            {props.gradingOne ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : "Mark my answer"}</>}
-          </button>
+          {props.onSetTopicMode && (
+            <Segmented value={props.topicMode ?? "type"} onChange={(m) => props.onSetTopicMode!(m)}
+              options={[{ value: "type", label: "Type answer", icon: "pencil" }, { value: "upload", label: "Upload answer", icon: "upload" }]} />
+          )}
+
+          {topicUpload ? (
+            <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
+          ) : (
+            <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
+              {props.gradingOne ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : "Mark my answer"}</>}
+            </button>
+          )}
           {props.gradeResult && <QuestionResultRow q={props.gradeResult} />}
         </div>
       )}
     </article>
+  );
+}
+
+/* ---- small dotted upload box for a single topic question's handwritten answer ---- */
+function QuestionUploadBox({ busy, graded, onFile }: { busy: boolean; graded: boolean; onFile: (file: File) => void }) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pick = (files: FileList | null) => { const file = files?.[0]; if (file) onFile(file); };
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
+      onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); if (!busy) pick(e.dataTransfer.files); }}
+      onClick={() => { if (!busy) inputRef.current?.click(); }}
+      style={{ width: "100%", maxWidth: 420, cursor: busy ? "wait" : "pointer", padding: "18px 20px",
+        display: "grid", placeItems: "center", textAlign: "center", borderRadius: 12,
+        border: `2px dashed ${dragging ? "var(--crimson)" : "var(--line-strong)"}`,
+        background: dragging ? "var(--crimson-soft)" : "var(--surface)", transition: "all .15s" }}
+    >
+      <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} disabled={busy}
+        onChange={(e) => { pick(e.target.files); e.currentTarget.value = ""; }} />
+      <div className="flex items-center gap-8" style={{ color: "var(--ink-soft)", fontSize: 13, fontWeight: 500 }}>
+        <Icon name={busy ? "refresh" : graded ? "check_circle" : "upload"} size={16} className={busy ? "spin" : ""} style={{ color: "var(--crimson)" }} />
+        {busy ? "Marking your answer…" : graded ? "Upload another photo to re-mark" : "Upload a photo of your answer"}
+      </div>
+      <div className="faint" style={{ fontSize: 11, marginTop: 5 }}>JPG or PNG · maximum 15 MB</div>
+    </div>
   );
 }
 
@@ -895,6 +934,8 @@ function PracticeInner() {
   // per-question grading (topic drills): id -> result, and in-flight ids
   const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
   const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
+  // per-question answer mode in topic drills: type it, or upload a photo
+  const [oneMode, setOneMode] = useState<Record<string, "type" | "upload">>({});
 
   async function gradeOne(q: PracticeQuestion) {
     if (!selectedSubject || oneGrading[q.id]) return;
@@ -902,6 +943,21 @@ function PracticeInner() {
     setError("");
     try {
       const result = await gradeOneQuestion(selectedSubject, toGradeInput(q), getToken);
+      setOneResults((prev) => ({ ...prev, [q.id]: result }));
+    } catch (gradeError) {
+      setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
+    } finally {
+      setOneGrading((prev) => ({ ...prev, [q.id]: false }));
+    }
+  }
+
+  async function gradeOneFromImage(q: PracticeQuestion, file: File) {
+    if (!selectedSubject || oneGrading[q.id]) return;
+    if (file.size > 15 * 1024 * 1024) { setError(`${file.name} is larger than 15 MB`); return; }
+    setOneGrading((prev) => ({ ...prev, [q.id]: true }));
+    setError("");
+    try {
+      const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken);
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
@@ -1176,6 +1232,9 @@ function PracticeInner() {
                   onMcqAnswer={(value) => { interactedRef.current = true; setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
                   onPartAnswer={(partKey, value) => { interactedRef.current = true; setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
                   onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
+                  onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
+                  topicMode={oneMode[question.id] ?? "type"}
+                  onSetTopicMode={(mode) => setOneMode((prev) => ({ ...prev, [question.id]: mode }))}
                   gradeResult={oneResults[question.id]} gradingOne={Boolean(oneGrading[question.id])} />
               ))}
 

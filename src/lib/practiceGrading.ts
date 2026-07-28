@@ -83,6 +83,31 @@ export async function gradeOneQuestion(
   return data.result;
 }
 
+/** Grade one topic-drill question from a photo of a handwritten answer. */
+export async function gradeOneImage(
+  subject: string,
+  question: GradeQuestionInput,
+  file: File,
+  getToken?: GetTokenFn,
+): Promise<GradedQuestion> {
+  const token = getToken ? await getToken() : null;
+  const body = new FormData();
+  body.append("subject", subject);
+  body.append("question", JSON.stringify(question));
+  body.append("file", file, file.name);
+  const response = await fetch(`${apiBase()}/practice-grading/grade-one-image`, {
+    method: "POST",
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body,
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || "Grading failed. Please try again.");
+  }
+  const data = (await response.json()) as { result: GradedQuestion };
+  return data.result;
+}
+
 export function verdictColor(verdict: GradedQuestion["verdict"]): { fg: string; bg: string; label: string } {
   switch (verdict) {
     case "correct": return { fg: "var(--teal-deep)", bg: "var(--teal-soft)", label: "Correct" };
