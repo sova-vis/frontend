@@ -29,6 +29,8 @@ export interface GradedQuestion {
   expectedPoints: string[];
   missingPoints: string[];
   gradingSource: "deterministic" | "grok" | "grok-vision";
+  /** true when a marking scheme was matched; false = examiner-judgement fallback */
+  schemeUsed?: boolean;
 }
 
 export interface PracticeReport {

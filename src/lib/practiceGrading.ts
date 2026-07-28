@@ -117,11 +117,17 @@ export function downloadReport(
     const [fg, bg, label] = map[v];
     return `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:${fg};background:${bg}">${label}</span>`;
   };
+  const schemeTag = (q: GradedQuestion) =>
+    q.gradingSource === "deterministic"
+      ? ""
+      : q.schemeUsed
+        ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#0f7a5e;background:#e6f6f0">✓ Mark scheme</span>`
+        : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#6b5f57;background:#efece8">Examiner judgement</span>`;
   const rows = report.perQuestion.map((q) => `
     <tr>
       <td style="font-weight:600;white-space:nowrap">Q${escapeHtml(q.questionNumber)}</td>
       <td style="font-weight:700;white-space:nowrap">${q.earned} / ${q.max}</td>
-      <td>${pill(q.verdict)}</td>
+      <td style="white-space:nowrap">${pill(q.verdict)}${schemeTag(q)}</td>
       <td>
         <div>${escapeHtml(q.feedback)}</div>
         ${q.missingPoints.length ? `<div style="margin-top:6px;font-size:13px;color:#9a3b2a"><b>Improve:</b> ${q.missingPoints.map(escapeHtml).join("; ")}</div>` : ""}
