@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -13,6 +13,11 @@ import {
   PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
 import { daysUntilExam, EXAM_SESSION_LABEL } from "@/lib/examCountdown";
+import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+
+const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
+const ONBOARDING_SEEN_KEY = "propel_onboarding_seen";
+const ONBOARDING_MAX_DAYS = 7;
 
 function greeting() {
   const h = new Date().getHours();
@@ -94,15 +99,34 @@ export default function StudentDashboard() {
 
   const go = (path: string) => router.push(path);
 
-  // first-run onboarding checklist — reflects real state, hides once complete
+  // first-run onboarding — dismissible + auto-expires after a week, hides once done
+  const [onbHidden, setOnbHidden] = useState(true); // hidden until we check the client
+  const [localSubjectCount, setLocalSubjectCount] = useState(0);
+  useEffect(() => {
+    setLocalSubjectCount(loadSelectedSubjects().length);
+    try {
+      if (localStorage.getItem(ONBOARDING_DISMISS_KEY) === "1") { setOnbHidden(true); return; }
+      let seen = localStorage.getItem(ONBOARDING_SEEN_KEY);
+      if (!seen) { seen = new Date().toISOString(); localStorage.setItem(ONBOARDING_SEEN_KEY, seen); }
+      const ageDays = (Date.now() - new Date(seen).getTime()) / 86_400_000;
+      setOnbHidden(ageDays > ONBOARDING_MAX_DAYS);
+    } catch { setOnbHidden(false); }
+  }, [profile]);
+  const dismissOnboarding = () => {
+    try { localStorage.setItem(ONBOARDING_DISMISS_KEY, "1"); } catch {}
+    setOnbHidden(true);
+  };
+
   const selectedSubjects = (profile as { selected_subjects?: unknown } | null)?.selected_subjects;
+  const subjectsPicked = (Array.isArray(selectedSubjects) && selectedSubjects.length > 0) || localSubjectCount > 0;
   const onboardingSteps = [
-    { key: "subjects", label: "Choose your subjects", done: Array.isArray(selectedSubjects) && selectedSubjects.length > 0, cta: "Choose subjects", path: "/student/settings" },
-    { key: "goal", label: "Set a goal paper", done: stats.goalsTotal > 0, cta: "Set goals", path: "/student/past-papers" },
-    { key: "solve", label: "Solve your first paper", done: stats.completedCount > 0 || practice.length > 0, cta: "Start practising", path: "/student/paper-practice" },
+    { key: "subjects", label: "Choose your subjects", done: subjectsPicked, cta: "Choose subjects", path: "/student/subjects" },
+    { key: "goal", label: "Set a goal paper", done: stats.goalsTotal > 0, cta: "Set a goal", path: "/student/past-papers" },
+    { key: "solve", label: "Solve your first paper", done: stats.completedCount > 0 || practice.length > 0, cta: "Start", path: "/student/paper-practice" },
   ];
   const onboardingDone = onboardingSteps.filter((s) => s.done).length;
-  const showOnboarding = !stats.loading && onboardingDone < onboardingSteps.length;
+  const activeStep = onboardingSteps.find((s) => !s.done);
+  const showOnboarding = !stats.loading && !onbHidden && onboardingDone < onboardingSteps.length;
 
   const statCards = [
     { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
@@ -134,31 +158,43 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* first-run onboarding checklist (hides once all steps are done) */}
+        {/* first-run onboarding flow — dismissible, auto-expires after a week */}
         {showOnboarding && (
-          <div className="card card-pad" style={{ background: "var(--crimson-soft)", border: "1px solid var(--crimson-soft)" }}>
-            <div className="row-between wrap" style={{ gap: 10, marginBottom: 12 }}>
-              <div className="flex items-center gap-8">
-                <Icon name="sparkles" size={18} style={{ color: "var(--crimson)" }} />
-                <span style={{ fontWeight: 600, fontSize: 15.5, color: "var(--crimson-ink)" }}>Get started with Propel</span>
-              </div>
-              <span className="badge crimson">{onboardingDone}/{onboardingSteps.length} done</span>
+          <div className="card card-pad" style={{ position: "relative", overflow: "hidden" }}>
+            <button onClick={dismissOnboarding} aria-label="Dismiss" className="icon-btn"
+              style={{ position: "absolute", top: 10, right: 10, width: 28, height: 28, color: "var(--ink-faint)" }}>
+              <Icon name="x" size={15} />
+            </button>
+            <div className="flex items-center gap-8" style={{ marginBottom: 4 }}>
+              <Icon name="sparkles" size={17} style={{ color: "var(--crimson)" }} />
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Get started</span>
+              <span className="faint" style={{ fontSize: 12.5 }}>· {onboardingDone} of {onboardingSteps.length} done</span>
             </div>
-            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
-              {onboardingSteps.map((step, i) => (
-                <button key={step.key} onClick={() => go(step.path)} disabled={step.done}
-                  className="flex items-center gap-10" style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12,
-                    background: "var(--surface)", border: "1px solid var(--line)", cursor: step.done ? "default" : "pointer", opacity: step.done ? 0.75 : 1 }}>
-                  <div style={{ width: 26, height: 26, borderRadius: "50%", flex: "none", display: "grid", placeItems: "center",
-                    background: step.done ? "var(--teal-soft)" : "var(--crimson-soft)", color: step.done ? "var(--teal-deep)" : "var(--crimson)" }}>
-                    {step.done ? <Icon name="check_circle" size={16} /> : <span style={{ fontWeight: 700, fontSize: 13 }}>{i + 1}</span>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: step.done ? "line-through" : "none" }}>{step.label}</div>
-                    {!step.done && <div style={{ fontSize: 12, color: "var(--crimson)", fontWeight: 600, marginTop: 2 }}>{step.cta} →</div>}
-                  </div>
-                </button>
-              ))}
+
+            <div className="flex items-start" style={{ marginTop: 12, paddingRight: 18 }}>
+              {onboardingSteps.map((step, i) => {
+                const isActive = activeStep?.key === step.key;
+                const circleBg = step.done ? "var(--teal-soft)" : isActive ? "var(--crimson)" : "var(--surface-2)";
+                const circleFg = step.done ? "var(--teal-deep)" : isActive ? "#fff" : "var(--ink-faint)";
+                return (
+                  <Fragment key={step.key}>
+                    {i > 0 && (
+                      <div style={{ flex: 1, height: 3, marginTop: 16.5, borderRadius: 3, minWidth: 16,
+                        background: onboardingSteps[i - 1].done ? "var(--teal-deep)" : "var(--line-strong)" }} />
+                    )}
+                    <div className="flex-col items-center" style={{ display: "flex", textAlign: "center", width: 128, flex: "none", gap: 6 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", background: circleBg, color: circleFg,
+                        border: isActive ? "none" : "1px solid var(--line)", fontWeight: 700, fontSize: 14 }}>
+                        {step.done ? <Icon name="check_circle" size={18} /> : i + 1}
+                      </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, color: step.done ? "var(--ink-faint)" : "var(--ink)", textDecoration: step.done ? "line-through" : "none" }}>{step.label}</div>
+                      {isActive && (
+                        <button className="btn btn-primary btn-sm" style={{ padding: "5px 12px" }} onClick={() => go(step.path)}>{step.cta}</button>
+                      )}
+                    </div>
+                  </Fragment>
+                );
+              })}
             </div>
           </div>
         )}
