@@ -10,6 +10,7 @@ import { timeAgo } from "@/lib/useStudentStats";
 import {
   Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
 } from "@/lib/insights";
+import { TopicTrend, loadTopicTrends } from "@/lib/examTrends";
 
 const verdictTone: Record<Attempt["verdict"], { label: string; bg: string; fg: string }> = {
   correct: { label: "Correct", bg: "var(--teal-soft)", fg: "var(--teal-deep)" },
@@ -30,12 +31,20 @@ export default function NotebookPage() {
   const [patterns, setPatterns] = useState<PatternResult | null>(null);
   const [patternsBusy, setPatternsBusy] = useState(false);
 
+  const [trends, setTrends] = useState<TopicTrend[]>([]);
+
   useEffect(() => {
     let active = true;
     loadAttempts(() => getToken()).then((items) => { if (active) setAttempts(items); });
     loadPatterns(() => getToken()).then((p) => { if (active) setPatterns(p); });
+    loadTopicTrends().then((t) => { if (active) setTrends(t); });
     return () => { active = false; };
   }, [getToken]);
+
+  const trendList = useMemo(
+    () => trends.filter((t) => !subject || t.subject === subject).slice(0, 8),
+    [trends, subject],
+  );
 
   async function refreshPatterns() {
     setPatternsBusy(true);
@@ -233,6 +242,41 @@ export default function NotebookPage() {
                 </p>
               )}
             </div>
+
+            {/* trend analyzer — most examined topics from the bank */}
+            {trendList.length > 0 && (
+              <div className="card card-pad">
+                <div className="card-head">
+                  <div>
+                    <div className="flex items-center gap-8">
+                      <Icon name="trend_up" size={18} style={{ color: "var(--teal-deep)" }} />
+                      <span className="card-title">Most examined topics</span>
+                    </div>
+                    <div className="card-sub mt-6">How often each topic appears across past papers — historical frequency, not a prediction.</div>
+                  </div>
+                </div>
+                <div className="flex-col gap-12">
+                  {trendList.map((t) => {
+                    const subj = subjectStyle(t.subject);
+                    const maxCount = trendList[0].count || 1;
+                    return (
+                      <div key={`${t.subject}|${t.topic}`} className="flex items-center gap-12">
+                        <SubjGlyph subj={subj} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="row-between" style={{ fontSize: 13, marginBottom: 4, gap: 8 }}>
+                            <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {t.topic} <span className="faint" style={{ fontSize: 11.5 }}>· {t.subject}</span>
+                            </span>
+                            <span className="faint tnum" style={{ flex: "none" }}>{t.count} Qs · {t.share}%</span>
+                          </div>
+                          <div className="bar" style={{ height: 7 }}><i style={{ width: Math.round((t.count / maxCount) * 100) + "%", background: subj.color }} /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* mistake list */}
             <div className="card card-pad">

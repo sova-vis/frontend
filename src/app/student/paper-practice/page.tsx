@@ -1150,10 +1150,16 @@ function PracticeInner() {
           </div>
 
           <div className="flex-col gap-10" style={{ display: "flex", alignItems: "flex-end" }}>
-            {/* separate flow: upload your own solved work and have Grok mark it */}
-            <Link href="/student/upload-check" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
-              <Icon name="upload" size={14} /> Upload &amp; mark your work
-            </Link>
+            <div className="flex gap-8 wrap" style={{ justifyContent: "flex-end" }}>
+              {/* generate a timed mixed paper from the bank */}
+              <Link href="/student/generate" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
+                <Icon name="bolt" size={14} /> Generate a paper
+              </Link>
+              {/* separate flow: upload your own solved work and have Grok mark it */}
+              <Link href="/student/upload-check" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
+                <Icon name="upload" size={14} /> Upload &amp; mark
+              </Link>
+            </div>
             {ready && (
               <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
                 {[

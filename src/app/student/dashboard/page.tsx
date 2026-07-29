@@ -226,6 +226,7 @@ export default function StudentDashboard() {
                   <div className="faint" style={{ fontSize: 12 }}>Built from your weak spots &amp; revisions · ~{dailyPlan.totalMinutes} min</div>
                 </div>
               </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => go("/student/planner")}>Full plan <Icon name="chevron_right" size={15} /></button>
             </div>
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
               {dailyPlan.items.map((item, i) => {
