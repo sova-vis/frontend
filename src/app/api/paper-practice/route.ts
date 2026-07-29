@@ -115,9 +115,20 @@ function getSupabaseClients() {
 
 type SupabaseClient = ReturnType<typeof getSupabaseClients>[number];
 
+// Leading OCR/import artifacts seen at the start of stems and answers:
+//   "DFD,, ..."  "DFDDFD,,,, ..."  ",, ..."  ":: ..."
+// The "DFD" marker is only stripped when it precedes repeated punctuation, so a
+// legitimate "DFD represents a data flow…" (Computer Science) is never touched.
+function stripLeadingOcrNoise(value: string): string {
+  return value
+    .replace(/^\s*(?:DFD)+\s*(?=[,.;:]{2,})/i, "")
+    .replace(/^\s*[,.;:]{2,}\s*/, "")
+    .trimStart();
+}
+
 function cleanText(value: unknown) {
   if (typeof value !== "string") return "";
-  return value
+  return stripLeadingOcrNoise(value)
     // strip non-printable control chars (PDF-extraction artifacts), keep tabs and newlines
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .replace(/[^\S\n]+/g, " ")

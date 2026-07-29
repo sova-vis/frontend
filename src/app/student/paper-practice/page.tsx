@@ -180,6 +180,29 @@ function QuestionImage({ image }: { image: PracticeImage }) {
   );
 }
 
+// Renders a mark scheme as a structured bullet list (falls back to a paragraph
+// when it's a single point). Cambridge schemes separate points with ; or newlines.
+function SchemeList({ text, label }: { text: string; label?: string }) {
+  const raw = (text || "").trim();
+  if (!raw) return null;
+  const points = raw
+    .split(/\r?\n+|\s*;\s+|\s*•\s*/)
+    .map((p) => p.replace(/^[-•\d.)\s]+/, "").trim())
+    .filter(Boolean);
+  return (
+    <div style={{ borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12 }}>
+      {label && <p className="eyebrow" style={{ color: "var(--amber-deep)", marginBottom: 6 }}>{label}</p>}
+      {points.length > 1 ? (
+        <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+          {points.map((p, i) => <li key={i} style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--amber-deep)" }}>{p}</li>)}
+        </ul>
+      ) : (
+        <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--amber-deep)" }}>{points[0] || raw}</p>
+      )}
+    </div>
+  );
+}
+
 function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: {
   question: PracticeQuestion; answer?: string; checked: boolean; showScheme: boolean; onAnswer: (value: string) => void; readOnly?: boolean;
 }) {
@@ -212,6 +235,8 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
                   border: `1.5px solid ${selected || optionCorrect ? border : "var(--line-strong)"}`, color: selected || optionCorrect ? border : "var(--ink-faint)" }}>{option.label}</span>
                 <span style={{ fontSize: 14.5, flex: 1 }}>{option.text}</span>
                 {optionCorrect && <Icon name="check_circle" size={18} style={{ color: "var(--teal-deep)", flex: "none" }} />}
+                {/* clear "your pick" marker before checking */}
+                {selected && !checked && <span className="badge crimson" style={{ fontSize: 10.5, flex: "none" }}>Your pick</span>}
               </label>
             );
           })}
@@ -225,20 +250,34 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
       {checked && correct && (
         <div className={"badge " + (isAnswered && answer === correct ? "teal" : isAnswered ? "coral" : "amber")} style={{ fontSize: 13.5, padding: "8px 12px" }}>
           <Icon name={isAnswered && answer === correct ? "check_circle" : isAnswered ? "x" : "alert"} size={16} />
-          Correct option: {correct}
+          {isAnswered && answer === correct
+            ? "Correct"
+            : isAnswered
+              ? `Incorrect — Correct answer: ${correct}`
+              : `Not answered — Correct answer: ${correct}`}
         </div>
       )}
 
-      {showScheme && question.markingScheme && (
-        <div style={{ borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12, fontSize: 14, lineHeight: 1.5, color: "var(--amber-deep)" }}>{question.markingScheme}</div>
+      {/* bridge a wrong answer into Ask AI */}
+      {checked && isAnswered && correct && answer !== correct && (
+        <Link href={`/student/ask?q=${encodeURIComponent(`Why is the correct answer "${correct}" for this question? ${question.questionText}`)}`}
+          className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start" }}>
+          <Icon name="message" size={14} /> Ask AI why {correct} is correct
+        </Link>
       )}
+
+      {/* mark scheme stays hidden until the question is checked/submitted */}
+      {showScheme && checked && question.markingScheme && <SchemeList text={question.markingScheme} />}
     </div>
   );
 }
 
-function StructuredBody({ question, answers, showScheme, onAnswer, readOnly }: {
+function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, schemeUnlocked }: {
   question: PracticeQuestion; answers: Record<string, string>; showScheme: boolean; onAnswer: (partKey: string, value: string) => void; readOnly?: boolean;
+  schemeUnlocked?: boolean;
 }) {
+  // the model answer / mark scheme must stay hidden until the question is marked
+  const revealScheme = showScheme && schemeUnlocked;
   return (
     <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
       {question.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{question.questionText}</p>}
@@ -276,8 +315,8 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly }: {
                   <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
                     className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
                 )}
-                {showScheme && part.answer && (
-                  <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 8, fontSize: 12.5, lineHeight: 1.4, color: "var(--amber-deep)" }}>{part.answer}</div>
+                {revealScheme && part.answer && (
+                  <div style={{ marginTop: 8 }}><SchemeList text={part.answer} /></div>
                 )}
               </div>
             );
@@ -287,11 +326,9 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly }: {
         <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
       ) : null}
 
-      {showScheme && question.markingScheme && (
-        <div style={{ borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12, fontSize: 14, lineHeight: 1.5, color: "var(--amber-deep)" }}>{question.markingScheme}</div>
-      )}
+      {revealScheme && question.markingScheme && <SchemeList text={question.markingScheme} label="Mark scheme" />}
 
-      {showScheme && answerImagesOf(question.images).length > 0 && (
+      {revealScheme && answerImagesOf(question.images).length > 0 && (
         <div className="flex-col gap-8" style={{ display: "flex", borderRadius: 12, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 12 }}>
           <p className="eyebrow" style={{ color: "var(--amber-deep)" }}>Mark scheme</p>
           {answerImagesOf(question.images).map((image, index) => <QuestionImage key={`${question.id}-ans-${index}`} image={image} />)}
@@ -305,15 +342,43 @@ function QuestionCard(props: {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
-  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload";
+  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; schemeUnlocked?: boolean;
 }) {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
+
+  // per-card status badge so a long list is scannable at a glance
+  const isMcq = question.type === "mcq";
+  const mcqPicked = Boolean(props.mcqAnswer?.trim());
+  const anyPart = question.parts.length
+    ? question.parts.some((_, i) => Boolean(props.partAnswers[`${question.id}::${i}`]?.trim()))
+    : Boolean(props.partAnswers[`${question.id}::0`]?.trim());
+  let statusLabel = "Unanswered", statusTone = "neutral";
+  if (isMcq) {
+    if (props.checked && mcqPicked) {
+      const right = props.mcqAnswer === question.correctOption;
+      statusLabel = right ? "Correct" : "Incorrect"; statusTone = right ? "teal" : "coral";
+    } else if (mcqPicked) { statusLabel = "Answered"; statusTone = "amber"; }
+  } else if (props.gradeResult) {
+    statusLabel = `${props.gradeResult.earned}/${props.gradeResult.max} marks`;
+    statusTone = props.gradeResult.verdict === "correct" ? "teal" : props.gradeResult.verdict === "unanswered" ? "neutral" : props.gradeResult.verdict === "partial" ? "amber" : "coral";
+  } else if (anyPart) { statusLabel = "Answered"; statusTone = "amber"; }
+
+  // answerable sub-parts (excludes lead-in headers) — for the "Mark N of M" state
+  const answerableParts = question.parts.length
+    ? question.parts.map((p, i) => i).filter((i) => !isHeaderPart(question.parts, question.parts[i].label))
+    : [0];
+  const totalParts = answerableParts.length || 1;
+  const answeredParts = question.parts.length
+    ? answerableParts.filter((i) => Boolean(props.partAnswers[`${question.id}::${i}`]?.trim())).length
+    : (Boolean(props.partAnswers[`${question.id}::0`]?.trim()) ? 1 : 0);
+
   return (
     <article className="card card-pad flex-col gap-16">
       <div className="row-between wrap" style={{ gap: 10 }}>
         <div className="flex gap-8 wrap items-center">
           <span className="chip-tag badge neutral">Q{question.questionNumber}</span>
+          <span className={"badge " + statusTone} style={{ fontSize: 11 }}>{statusLabel}</span>
           {question.topic && <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}><Icon name="hash" size={12} /> {question.topic}</span>}
           {question.theme && <span className="chip-tag badge teal">{question.theme}</span>}
         </div>
@@ -328,7 +393,7 @@ function QuestionCard(props: {
         <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
       ) : (
         // topic upload mode hides the answer boxes — you answer by uploading a photo
-        <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} />
+        <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} schemeUnlocked={props.schemeUnlocked} />
       )}
 
       {/* per-question AI marking (topic drills): solve here, or upload a photo */}
@@ -338,7 +403,9 @@ function QuestionCard(props: {
             <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
           ) : (
             <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
-              {props.gradingOne ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : "Mark my answer"}</>}
+              {props.gradingOne
+                ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
+                : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : totalParts > 1 ? `Mark my answer · ${answeredParts}/${totalParts}` : "Mark my answer"}</>}
             </button>
           )}
           {props.gradeResult && <QuestionResultRow q={props.gradeResult} />}
@@ -408,6 +475,7 @@ function PracticeInner() {
   const [uploads, setUploads] = useState<PracticeUpload[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<string>("");
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false); // the exam clock never auto-starts
   const [timerDuration, setTimerDuration] = useState(0);
@@ -719,7 +787,7 @@ function PracticeInner() {
       hasRowRef.current = true;
       setUploads(saved.uploads ?? []);
       setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(saved.paperKey, saved); return next; });
-      setSavingState("saved");
+      setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     } catch {
       setSavingState("error");
     }
@@ -751,7 +819,7 @@ function PracticeInner() {
       setTimerRunning(false);
       startedAtRef.current = saved.startedAt;
       hasRowRef.current = true;
-      setSavingState("saved");
+      setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     } else {
       setTimerDuration(fallbackDuration);
       timerElapsedRef.current = 0;
@@ -840,7 +908,7 @@ function PracticeInner() {
           setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
           hasRowRef.current = true;
           startedAtRef.current = item.startedAt;
-          setSavingState("saved");
+          setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
         }
       }
     } catch (uploadError) {
@@ -863,6 +931,18 @@ function PracticeInner() {
   function handleSubjectChange(name: string) { setSelectedSubject(name); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function handleTypeChange(type: QuestionType) { setQuestionType(type); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function handleModeChange(mode: PracticeMode) { setPracticeMode(mode); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function resetFilters() { setSelectedSubject(""); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  // one-click jump into a subject/type/mode, so the blank state isn't a dead end
+  function quickStart(subject: string, type: QuestionType, mode: PracticeMode) {
+    setPracticeMode(mode); setQuestionType(type); setSelectedSubject(subject);
+    setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions();
+  }
+  const quickPresets = ([
+    { subject: "Physics", type: "mcq" as QuestionType, mode: "topic" as PracticeMode },
+    { subject: "Chemistry", type: "structured" as QuestionType, mode: "topic" as PracticeMode },
+    { subject: "Mathematics", type: "structured" as QuestionType, mode: "topic" as PracticeMode },
+    { subject: "Biology", type: "mcq" as QuestionType, mode: "topic" as PracticeMode },
+  ]).filter((p) => subjects.some((s) => s.name === p.subject));
   function handleYearChange(year: string) { setSelectedYear(year); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
 
   function resetPractice() {
@@ -932,6 +1012,8 @@ function PracticeInner() {
   const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
   // topic drills: solve every question on screen, or upload a photo per question
   const [topicSolveMode, setTopicSolveMode] = useState<SolveMode>("digital");
+  // schemes/answers can only be revealed once at least one question has been submitted
+  const schemesUnlockable = practiceMode === "paper" ? Boolean(report) : (checked || Object.keys(oneResults).length > 0);
 
   async function gradeOne(q: PracticeQuestion) {
     if (!selectedSubject || oneGrading[q.id]) return;
@@ -1087,7 +1169,7 @@ function PracticeInner() {
                   <label style={{ flex: "1 1 240px", minWidth: 200 }}>
                     <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
                     <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || loadingQuestions} style={selectStyle}>
-                      <option value="">Select a topic</option>
+                      <option value="">{currentSubject ? "Select a topic" : "Select a subject first"}</option>
                       {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
                     </select>
                   </label>
@@ -1115,19 +1197,22 @@ function PracticeInner() {
                   <span className="eyebrow" style={{ marginBottom: 6 }}>Find</span>
                   <div className="search">
                     <Icon name="search" size={16} className="faint" />
-                    <input value={query} onChange={(e) => setQuery(e.target.value)} disabled={!ready || loadingQuestions} placeholder="Search questions" />
+                    <input value={query} onChange={(e) => setQuery(e.target.value)} disabled={!ready || loadingQuestions}
+                      placeholder={selectedSubject ? `Search questions in ${selectedSubject.trim()}…` : "Search questions"} />
                   </div>
                 </label>
               </div>
 
               {ready && (
                 <div className="row-between wrap" style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-                  <p className="flex items-center gap-8 muted" style={{ fontSize: 13.5 }}>
+                  <p className="flex items-center gap-8 muted wrap" style={{ fontSize: 13.5 }}>
                     <Icon name={practiceMode === "topic" ? "sparkles" : "file_text"} size={15} style={{ color: "var(--crimson)" }} />
                     {summary}
                     {practiceMode === "topic"
                       ? topicTotal > 0 && <span className="faint">· {displayQuestions.length} of {topicTotal} unique across all years</span>
                       : displayQuestions.length > 0 && <span className="faint">· {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}</span>}
+                    {/* live progress, counted by answerable sub-part (not whole question) */}
+                    {totalUnits > 0 && <span className="badge neutral" style={{ fontSize: 11.5 }}>{answeredUnits}/{totalUnits} answered</span>}
                   </p>
                   <div className="flex gap-8 wrap items-center">
                     {practiceMode === "topic" && questionType === "structured" && (
@@ -1142,9 +1227,14 @@ function PracticeInner() {
                     <button onClick={resetPractice} className="icon-btn" title="Reset answers" style={{ border: "1px solid var(--line-strong)" }}>
                       <Icon name="rotate" size={17} />
                     </button>
-                    {hasScheme && (
-                      <button onClick={() => setShowScheme((v) => !v)} className={"btn " + (showScheme ? "btn-soft" : "btn-secondary")}>
-                        <Icon name="shield" size={15} /> {questionType === "mcq" ? "Marking scheme" : "Answers"}
+                    <button onClick={resetFilters} className="btn btn-ghost btn-sm" title="Clear subject, topic and filters">
+                      <Icon name="x" size={14} /> Reset filters
+                    </button>
+                    {/* reveal is only offered once something is submitted — schemes stay hidden until then */}
+                    {hasScheme && schemesUnlockable && (
+                      <button onClick={() => setShowScheme((v) => !v)} className={"btn " + (showScheme ? "btn-soft" : "btn-secondary")}
+                        title="Reveal the marking scheme for questions you've already checked">
+                        <Icon name="shield" size={15} /> {showScheme ? "Hide answers" : questionType === "mcq" ? "Marking scheme" : "Answers"}
                       </button>
                     )}
                   </div>
@@ -1179,7 +1269,7 @@ function PracticeInner() {
                 <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{uploads.length} file{uploads.length === 1 ? "" : "s"} uploaded</span>
               )}
               <span className="faint" style={{ fontSize: 11.5, minWidth: 54, textAlign: "right" }}>
-                {savingState === "saving" ? "Saving…" : savingState === "saved" ? "Saved ✓" : savingState === "error" ? "Offline" : ""}
+                {savingState === "saving" ? "Saving…" : savingState === "saved" ? `Draft saved${lastSavedAt ? " · " + lastSavedAt : ""}` : savingState === "error" ? "Offline" : ""}
               </span>
               {report && (
                 <span className="badge teal" title="Latest marks" style={{ whiteSpace: "nowrap" }}>
@@ -1198,8 +1288,32 @@ function PracticeInner() {
               )}
               <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || !hasAnyAnswer}
                 title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : "Mark this paper with AI"}>
-                {grading ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> {report ? "Re-mark" : "Submit for marking"}</>}
+                {grading
+                  ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
+                  : <><Icon name="award" size={14} /> {report ? "Re-mark" : solveMode === "digital" && totalUnits > 0 ? `Submit for marking · ${answeredUnits}/${totalUnits}` : "Submit for marking"}</>}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Sticky action bar for topic mode — stays visible while scrolling long lists */}
+        {practiceMode === "topic" && ready && !loadingQuestions && displayQuestions.length > 0 && (
+          <div className="card" style={{ position: "sticky", top: 8, zIndex: 25, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
+            <div className="flex items-center gap-8">
+              <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{answeredUnits}/{totalUnits} answered</span>
+              <div style={{ width: 80 }}><Bar value={totalUnits ? Math.round((answeredUnits / totalUnits) * 100) : 0} tone="teal" height={6} /></div>
+            </div>
+            <div className="flex gap-8 wrap items-center">
+              {questionType === "mcq" && (
+                <button onClick={() => setChecked(true)} disabled={gradable.length === 0} className="btn btn-primary btn-sm">
+                  <Icon name="check_circle" size={14} /> Check {gradable.length > 0 ? `(${gradable.length})` : ""}
+                </button>
+              )}
+              {hasScheme && schemesUnlockable && (
+                <button onClick={() => setShowScheme((v) => !v)} className={"btn btn-sm " + (showScheme ? "btn-soft" : "btn-secondary")}>
+                  <Icon name="shield" size={14} /> {showScheme ? "Hide answers" : questionType === "mcq" ? "Marking scheme" : "Answers"}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1211,13 +1325,24 @@ function PracticeInner() {
               <Icon name="refresh" size={16} className="spin" /> Opening your paper…
             </div>
           ) : loadingQuestions ? (
-            <div className="card flex items-center justify-center gap-8" style={{ minHeight: 320, color: "var(--ink-faint)", display: "flex" }}>
-              <Icon name="refresh" size={16} className="spin" /> Loading questions…
-            </div>
+            <>{[0, 1, 2].map((i) => <QuestionSkeleton key={i} />)}</>
           ) : !ready ? (
-            <div className="card">
+            <div className="card card-pad flex-col gap-16" style={{ display: "flex" }}>
               <EmptyState icon="file_text" title="Nothing selected yet"
                 body={practiceMode === "topic" ? "Pick a subject, question type and topic to start drilling." : "Pick a subject, year and a paper to load the full paper."} />
+              {quickPresets.length > 0 && (
+                <div className="flex-col items-center gap-10" style={{ display: "flex" }}>
+                  <span className="eyebrow">Quick start</span>
+                  <div className="flex gap-8 wrap" style={{ justifyContent: "center" }}>
+                    {quickPresets.map((p) => (
+                      <button key={p.subject} className="chip" style={{ cursor: "pointer", padding: "8px 14px" }}
+                        onClick={() => quickStart(p.subject, p.type, p.mode)}>
+                        <Icon name="sparkles" size={13} style={{ color: "var(--crimson)" }} /> Try {p.subject} {p.type === "mcq" ? "MCQs" : "questions"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : practiceMode === "paper" && solveMode === "handwritten" ? (
             /* handwritten: a clean upload-only workspace — no digital questions shown */
@@ -1234,6 +1359,8 @@ function PracticeInner() {
                   onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
                   onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
                   topicMode={topicSolveMode === "handwritten" ? "upload" : "type"}
+                  // scheme only unlocks once this question is marked (topic) or the paper is graded (paper)
+                  schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
                   gradeResult={oneResults[question.id]} gradingOne={Boolean(oneGrading[question.id])} />
               ))}
 
@@ -1430,6 +1557,22 @@ function HandwrittenStudio({ uploads, busy, onFiles, onRemove }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---- shimmer skeleton shown while questions load (replaces the text spinner) ---- */
+function QuestionSkeleton() {
+  return (
+    <div className="card card-pad flex-col gap-12" style={{ display: "flex" }}>
+      <div className="flex gap-8">
+        <div className="sk" style={{ width: 56, height: 22, borderRadius: 999 }} />
+        <div className="sk" style={{ width: 96, height: 22, borderRadius: 999 }} />
+      </div>
+      <div className="sk" style={{ width: "82%", height: 18 }} />
+      <div className="sk" style={{ width: "96%", height: 13 }} />
+      <div className="sk" style={{ width: "68%", height: 13 }} />
+      <div className="sk" style={{ height: 84, borderRadius: 12 }} />
     </div>
   );
 }

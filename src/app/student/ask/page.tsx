@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { apiCall } from "@/lib/api";
@@ -15,6 +16,7 @@ interface MarkingPoint { point: string; marks?: number }
 interface ChatMsg {
   role: "user" | "ai";
   text?: string;
+  image?: string;         // data URL of an attached image (user bubble)
   citations?: Citation[];
   markingPoints?: MarkingPoint[];
   commonMistakes?: string[];
@@ -40,9 +42,10 @@ function citationLabel(c: Citation): string {
   return parts.join(" · ") || "Past paper";
 }
 
-export default function AskAIPage() {
+function AskAIInner() {
   const { user } = useUser();
   const { profile } = useClerkAuth();
+  const searchParams = useSearchParams();
   const name = (profile?.full_name || user?.firstName || "there").split(" ")[0];
   const storageKey = useMemo(() => `propel-ask-sessions-${user?.id || "anon"}`, [user?.id]);
 
@@ -50,7 +53,18 @@ export default function AskAIPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [scopeSubject, setScopeSubject] = useState("");   // #26 syllabus scope
+  const [toast, setToast] = useState("");                 // #30 transient error toast
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [attached, setAttached] = useState<{ file: File; url: string } | null>(null); // #27 image attach
+  const prefillRef = useRef(false);
+  const imageInput = useRef<HTMLInputElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
+
+  const subjectOptions = useMemo(
+    () => (profile?.selected_subjects?.filter(Boolean) ?? []) as string[],
+    [profile?.selected_subjects],
+  );
 
   useEffect(() => {
     try {
@@ -59,7 +73,15 @@ export default function AskAIPage() {
       setSessions(parsed);
       setActiveId(parsed[0]?.id ?? null);
     } catch { /* ignore */ }
+    setBootstrapped(true);
   }, [storageKey]);
+
+  // auto-dismiss the toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 3400);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const persist = (next: Session[]) => {
     setSessions(next);
@@ -89,14 +111,16 @@ export default function AskAIPage() {
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    const image = attached;                       // #27 capture attached image
+    if ((!trimmed && !image) || loading) return;
     setInput("");
+    setAttached(null);
 
     let sessionId = activeId;
     let working: Session[];
     if (!sessionId) {
       sessionId = Math.random().toString(36).slice(2);
-      const fresh: Session = { id: sessionId, title: trimmed.slice(0, 48), updatedAt: new Date().toISOString(), messages: [] };
+      const fresh: Session = { id: sessionId, title: (trimmed || "Image question").slice(0, 48), updatedAt: new Date().toISOString(), messages: [] };
       working = [fresh, ...sessions];
       setActiveId(sessionId);
     } else {
@@ -108,34 +132,54 @@ export default function AskAIPage() {
       .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text as string }));
 
     const withUser = working.map((s) => s.id === sessionId
-      ? { ...s, updatedAt: new Date().toISOString(), messages: [...s.messages, { role: "user" as const, text: trimmed }] }
+      ? { ...s, updatedAt: new Date().toISOString(), messages: [...s.messages, { role: "user" as const, text: trimmed || (image ? "Explain this image" : ""), image: image?.url }] }
       : s);
     persist(withUser);
     setLoading(true);
 
     try {
-      const res = await apiCall("/rag/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed, limit: 5, history }),
-      });
-      if (!res.ok) throw new Error(res.statusText);
-      const data = await res.json();
+      let data: Record<string, unknown>;
+      if (image) {
+        // #27 image path → Grok vision
+        const fd = new FormData();
+        fd.append("question", trimmed || "Read the attached image and answer any question in it, explaining clearly.");
+        if (scopeSubject) fd.append("subject", scopeSubject);
+        fd.append("image", image.file, image.file.name);
+        const res = await apiCall("/rag/ask-image", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(String(res.status));
+        data = await res.json();
+      } else {
+        const res = await apiCall("/rag/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: trimmed, limit: 5, history, subject: scopeSubject || undefined }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        data = await res.json();
+      }
 
-      const aiMsg: ChatMsg = data.type === "smalltalk"
-        ? { role: "ai", text: data.answer || "" }
+      const citations: Citation[] = ((data.citations as Citation[]) || []).slice(0, 3);
+      const aiMsg: ChatMsg = data.type === "smalltalk" || data.type === "image_answer"
+        ? { role: "ai", text: (data.answer as string) || "" }
         : {
             role: "ai",
-            text: data.answer || "",
-            citations: (data.citations || []).slice(0, 3),
-            markingPoints: Array.isArray(data.marking_points) ? data.marking_points : undefined,
-            commonMistakes: Array.isArray(data.common_mistakes) ? data.common_mistakes : undefined,
+            text: (data.answer as string) || "",
+            citations,
+            markingPoints: Array.isArray(data.marking_points) ? (data.marking_points as MarkingPoint[]) : undefined,
+            commonMistakes: Array.isArray(data.common_mistakes) ? (data.common_mistakes as string[]) : undefined,
           };
 
+      // #29 auto-title the session by subject/topic instead of the raw first message
+      const subj = String(scopeSubject || (data.subject as string) || citations[0]?.subject || "");
+      const topic = citations[0]?.topicSyllabus || citations[0]?.topicGeneral || "";
+      const smartTitle = subj ? [subj, topic].filter(Boolean).join(" · ").slice(0, 48) : (trimmed || "Image question").slice(0, 48);
+
       persist(withUser.map((s) => s.id === sessionId
-        ? { ...s, updatedAt: new Date().toISOString(), messages: [...s.messages, aiMsg] }
+        ? { ...s, title: s.messages.length <= 1 ? smartTitle : s.title, updatedAt: new Date().toISOString(), messages: [...s.messages, aiMsg] }
         : s));
-    } catch {
+    } catch (err) {
+      setToast("Couldn't reach the AI — tap Try again.");
+      console.warn("Ask AI request failed:", err instanceof Error ? err.message : err);
       persist(withUser.map((s) => s.id === sessionId
         ? { ...s, messages: [...s.messages, { role: "ai", error: true }] }
         : s));
@@ -143,6 +187,14 @@ export default function AskAIPage() {
       setLoading(false);
     }
   };
+
+  // #20 deep link from a wrong MCQ ("Ask AI why…") — auto-send the ?q= once loaded
+  useEffect(() => {
+    if (!bootstrapped || prefillRef.current) return;
+    const q = searchParams?.get("q");
+    if (q && q.trim()) { prefillRef.current = true; setActiveId(null); void send(q); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bootstrapped, searchParams]);
 
   const lastUser = [...msgs].reverse().find((m) => m.role === "user")?.text;
   const empty = msgs.length === 0;
@@ -204,27 +256,81 @@ export default function AskAIPage() {
 
             {/* composer */}
             <div style={{ padding: 14, borderTop: "1px solid var(--line)" }}>
+              {/* #26 optional syllabus scope */}
+              {subjectOptions.length > 0 && (
+                <div className="flex items-center gap-8 wrap" style={{ maxWidth: 720, margin: "0 auto 8px" }}>
+                  <span className="faint" style={{ fontSize: 12 }}>Scope:</span>
+                  <label className="chip" style={{ padding: "0 6px 0 12px", gap: 4, cursor: "pointer" }}>
+                    <Icon name="filter" size={13} className="faint" />
+                    <select value={scopeSubject} onChange={(e) => setScopeSubject(e.target.value)}
+                      style={{ border: "none", background: "transparent", padding: "6px 4px", fontWeight: 500, cursor: "pointer", outline: "none", color: "var(--ink)", fontSize: 12.5 }}>
+                      <option value="">All subjects</option>
+                      {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {/* #27 attached-image preview */}
+              {attached && (
+                <div className="flex items-center gap-10" style={{ maxWidth: 720, margin: "0 auto 8px", padding: "6px 10px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
+                  <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
+                </div>
+              )}
               <div className="search" style={{ height: "auto", padding: 8, alignItems: "flex-end", maxWidth: 720, margin: "0 auto" }}>
+                <input ref={imageInput} type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 12 * 1024 * 1024) { setToast("Image is larger than 12 MB."); } else setAttached({ file: f, url: URL.createObjectURL(f) }); } e.currentTarget.value = ""; }} />
+                <button className="icon-btn" onClick={() => imageInput.current?.click()} disabled={loading} aria-label="Attach image"
+                  title="Attach a diagram, graph or photo of a question" style={{ width: 38, height: 38, flex: "none", border: "1px solid var(--line-strong)" }}>
+                  <Icon name="camera" size={17} />
+                </button>
                 <textarea value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                  placeholder="Ask about any topic, or paste a question…" rows={1}
+                  placeholder={attached ? "Add a question about the image (optional)…" : "Ask about any topic, or paste a question…"} rows={1}
                   style={{ flex: 1, border: "none", background: "none", outline: "none", resize: "none", padding: "8px 6px", maxHeight: 120, fontFamily: "inherit" }} />
-                <button className="btn btn-primary" style={{ padding: 10, borderRadius: 11 }} onClick={() => send(input)} disabled={!input.trim() || loading} aria-label="Send">
+                <button className="btn btn-primary" style={{ padding: 10, borderRadius: 11 }} onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
                   <Icon name="send" size={17} fill="#fff" stroke={0} />
                 </button>
               </div>
-              <div className="faint" style={{ fontSize: 11, textAlign: "center", marginTop: 8 }}>Answers cite real past-paper questions from your syllabus.</div>
+              <div className="faint" style={{ fontSize: 11, textAlign: "center", marginTop: 8 }}>Answers cite real past-paper questions · attach a diagram or photo to ask about it.</div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* #30 non-intrusive transient error toast (thread is preserved) */}
+      {toast && (
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 9999,
+          background: "var(--ink)", color: "var(--canvas)", padding: "10px 16px", borderRadius: 12, fontSize: 13.5,
+          boxShadow: "0 10px 30px rgba(0,0,0,.25)", display: "flex", alignItems: "center", gap: 8 }}>
+          <Icon name="alert" size={15} /> {toast}
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function AskAIPage() {
+  return (
+    <Suspense fallback={null}>
+      <AskAIInner />
+    </Suspense>
   );
 }
 
 function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
   if (m.role === "user") {
-    return <div style={{ alignSelf: "flex-end", maxWidth: "82%", marginLeft: "auto", background: "linear-gradient(135deg,var(--crimson),var(--crimson-deep))", color: "#fff", padding: "11px 15px", borderRadius: "16px 16px 4px 16px" }}>{m.text}</div>;
+    return (
+      <div style={{ alignSelf: "flex-end", maxWidth: "82%", marginLeft: "auto", background: "linear-gradient(135deg,var(--crimson),var(--crimson-deep))", color: "#fff", padding: "11px 15px", borderRadius: "16px 16px 4px 16px" }}>
+        {m.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={m.image} alt="attachment" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 10, marginBottom: m.text ? 8 : 0, display: "block" }} />
+        )}
+        {m.text}
+      </div>
+    );
   }
   if (m.error) {
     return (
@@ -277,23 +383,75 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
             <div className="mt-16">
               <div className="eyebrow" style={{ marginBottom: 8 }}>Sources · from past papers</div>
               <div className="flex-col gap-8">
-                {m.citations.map((c, i) => {
-                  const s = subjectStyle(c.subject);
-                  return (
-                    <div key={i} className="flex items-center gap-10" style={{ padding: "9px 12px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
-                      <span className="dot" style={{ background: s.color }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{citationLabel(c)}</div>
-                        {(c.topicSyllabus || c.topicGeneral) && <div className="faint" style={{ fontSize: 11.5 }}>{c.topicSyllabus || c.topicGeneral}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
+                {m.citations.map((c, i) => <CitationRow key={i} c={c} />)}
               </div>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// #28 clickable citation → lazy-loads a preview of the cited question + mark scheme
+function CitationRow({ c }: { c: Citation }) {
+  const s = subjectStyle(c.subject);
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<{ question: string; scheme: string } | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (!next || detail || state === "loading") return;
+    if (!c.subject || !c.year || !c.session || !c.paper) { setState("error"); return; }
+    setState("loading");
+    try {
+      const params = new URLSearchParams({
+        subject: String(c.subject), year: String(c.year), session: String(c.session),
+        paper: String(c.paper), variant: c.variant ? String(c.variant) : "",
+      });
+      const res = await fetch(`/api/paper-practice?${params.toString()}`);
+      const data = res.ok ? await res.json() : { questions: [] };
+      const qn = String(c.questionNumber ?? "");
+      const list = (data.questions || []) as Array<{ questionNumber?: string; questionText?: string; markingScheme?: string; parts?: Array<{ answer?: string | null }> }>;
+      const q = list.find((x) => String(x.questionNumber) === qn) || list[0];
+      if (q) {
+        const scheme = [q.markingScheme, ...(((q.parts || []).map((p) => p.answer).filter(Boolean)) as string[])].filter(Boolean).join("\n");
+        setDetail({ question: q.questionText || "", scheme });
+        setState("idle");
+      } else { setState("error"); }
+    } catch { setState("error"); }
+  };
+
+  return (
+    <div style={{ borderRadius: 11, border: "1px solid var(--line)", background: "var(--surface-2)", overflow: "hidden" }}>
+      <button onClick={toggle} className="flex items-center gap-10" style={{ width: "100%", textAlign: "left", padding: "9px 12px", cursor: "pointer", background: "transparent" }}>
+        <span className="dot" style={{ background: s.color }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{citationLabel(c)}</div>
+          {(c.topicSyllabus || c.topicGeneral) && <div className="faint" style={{ fontSize: 11.5 }}>{c.topicSyllabus || c.topicGeneral}</div>}
+        </div>
+        <Icon name={open ? "chevron_down" : "chevron_right"} size={16} className="faint" />
+      </button>
+      {open && (
+        <div style={{ padding: "0 12px 12px", fontSize: 13, lineHeight: 1.5 }}>
+          {state === "loading" ? (
+            <div className="flex items-center gap-8 faint"><Icon name="refresh" size={14} className="spin" /> Loading question…</div>
+          ) : state === "error" || !detail ? (
+            <div className="faint" style={{ fontSize: 12.5 }}>Preview unavailable — open this paper from the Papers tab to view it.</div>
+          ) : (
+            <>
+              {detail.question && <p style={{ whiteSpace: "pre-wrap" }}>{detail.question}</p>}
+              {detail.scheme && (
+                <div style={{ marginTop: 8, borderRadius: 8, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 8, color: "var(--amber-deep)", fontSize: 12.5, whiteSpace: "pre-wrap" }}>
+                  <b>Mark scheme:</b> {detail.scheme}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

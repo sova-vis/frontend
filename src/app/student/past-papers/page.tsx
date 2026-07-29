@@ -320,7 +320,7 @@ function PapersInner() {
 
               {/* results */}
               {loadingPapers ? (
-                <LoadingCard label={`Loading ${activeYear?.name ?? ""} papers…`} />
+                <PapersGridSkeleton />
               ) : list.length === 0 ? (
                 <div className="card"><EmptyState icon="search" title="No papers here"
                   body={papers.length === 0 ? "No question papers found for this year." : "Try another session or clear your search."}
@@ -381,6 +381,33 @@ function LoadingCard({ label }: { label: string }) {
         <Icon name="refresh" size={28} className="spin" style={{ color: "var(--crimson)" }} />
         <span className="faint">{label}</span>
       </div>
+    </div>
+  );
+}
+
+/* shimmer skeleton paper cards while a year/subject loads */
+function PaperCardSkeleton() {
+  return (
+    <div className="card card-pad flex-col gap-12" style={{ display: "flex" }}>
+      <div className="flex items-center gap-10">
+        <div className="sk" style={{ width: 38, height: 38, borderRadius: 11 }} />
+        <div className="flex-col gap-6" style={{ display: "flex", flex: 1 }}>
+          <div className="sk" style={{ width: "60%", height: 14 }} />
+          <div className="sk" style={{ width: "40%", height: 11 }} />
+        </div>
+      </div>
+      <div className="flex gap-6">
+        <div className="sk" style={{ width: 42, height: 20, borderRadius: 8 }} />
+        <div className="sk" style={{ width: 42, height: 20, borderRadius: 8 }} />
+      </div>
+      <div className="sk" style={{ height: 34, borderRadius: 10, marginTop: 4 }} />
+    </div>
+  );
+}
+function PapersGridSkeleton() {
+  return (
+    <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
+      {[0, 1, 2, 3, 4, 5].map((i) => <PaperCardSkeleton key={i} />)}
     </div>
   );
 }

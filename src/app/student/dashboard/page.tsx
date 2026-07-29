@@ -12,9 +12,7 @@ import type { TrackedPaper } from "@/lib/paperTracking";
 import {
   PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
-
-/* next O-Level session target (no exam date is stored per student yet) */
-const EXAM_DATE = new Date("2026-10-06T00:00:00");
+import { daysUntilExam, EXAM_SESSION_LABEL } from "@/lib/examCountdown";
 
 function greeting() {
   const h = new Date().getHours();
@@ -56,7 +54,7 @@ export default function StudentDashboard() {
   const practiceGraded = practice.filter((p) => p.report); // marked papers, newest-first
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  const daysToExam = Math.max(0, Math.ceil((EXAM_DATE.getTime() - Date.now()) / 86_400_000));
+  const daysToExam = daysUntilExam();
 
   // readiness = goal completion when goals exist (real), else completed-paper momentum
   const readiness = stats.goalsTotal > 0
@@ -96,6 +94,16 @@ export default function StudentDashboard() {
 
   const go = (path: string) => router.push(path);
 
+  // first-run onboarding checklist — reflects real state, hides once complete
+  const selectedSubjects = (profile as { selected_subjects?: unknown } | null)?.selected_subjects;
+  const onboardingSteps = [
+    { key: "subjects", label: "Choose your subjects", done: Array.isArray(selectedSubjects) && selectedSubjects.length > 0, cta: "Choose subjects", path: "/student/settings" },
+    { key: "goal", label: "Set a goal paper", done: stats.goalsTotal > 0, cta: "Set goals", path: "/student/past-papers" },
+    { key: "solve", label: "Solve your first paper", done: stats.completedCount > 0 || practice.length > 0, cta: "Start practising", path: "/student/paper-practice" },
+  ];
+  const onboardingDone = onboardingSteps.filter((s) => s.done).length;
+  const showOnboarding = !stats.loading && onboardingDone < onboardingSteps.length;
+
   const statCards = [
     { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
     { key: "prog", label: "In progress", value: stats.inProgressCount, icon: "clock", tone: "amber" },
@@ -121,10 +129,39 @@ export default function StudentDashboard() {
             </div>
             <div>
               <div className="stat-num" style={{ fontSize: 30, color: "var(--crimson)" }}><CountUp value={daysToExam} /></div>
-              <div className="faint" style={{ fontSize: 12 }}>days · Oct 2026 session</div>
+              <div className="faint" style={{ fontSize: 12 }}>days · {EXAM_SESSION_LABEL}</div>
             </div>
           </div>
         </div>
+
+        {/* first-run onboarding checklist (hides once all steps are done) */}
+        {showOnboarding && (
+          <div className="card card-pad" style={{ background: "var(--crimson-soft)", border: "1px solid var(--crimson-soft)" }}>
+            <div className="row-between wrap" style={{ gap: 10, marginBottom: 12 }}>
+              <div className="flex items-center gap-8">
+                <Icon name="sparkles" size={18} style={{ color: "var(--crimson)" }} />
+                <span style={{ fontWeight: 600, fontSize: 15.5, color: "var(--crimson-ink)" }}>Get started with Propel</span>
+              </div>
+              <span className="badge crimson">{onboardingDone}/{onboardingSteps.length} done</span>
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+              {onboardingSteps.map((step, i) => (
+                <button key={step.key} onClick={() => go(step.path)} disabled={step.done}
+                  className="flex items-center gap-10" style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12,
+                    background: "var(--surface)", border: "1px solid var(--line)", cursor: step.done ? "default" : "pointer", opacity: step.done ? 0.75 : 1 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", flex: "none", display: "grid", placeItems: "center",
+                    background: step.done ? "var(--teal-soft)" : "var(--crimson-soft)", color: step.done ? "var(--teal-deep)" : "var(--crimson)" }}>
+                    {step.done ? <Icon name="check_circle" size={16} /> : <span style={{ fontWeight: 700, fontSize: 13 }}>{i + 1}</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: step.done ? "line-through" : "none" }}>{step.label}</div>
+                    {!step.done && <div style={{ fontSize: 12, color: "var(--crimson)", fontWeight: 600, marginTop: 2 }}>{step.cta} →</div>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* HERO ROW */}
         <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
@@ -191,7 +228,7 @@ export default function StudentDashboard() {
                 <span className={"badge " + st.tone} style={{ flex: "none" }}>{st.label.split(" ")[0]}</span>
               </div>
               <div className="stat-num"><CountUp value={st.value} /></div>
-              <div className="faint" style={{ fontSize: 13, marginTop: 2 }}>{st.label}</div>
+              <div style={{ fontSize: 13, marginTop: 2, color: "var(--ink-muted)", fontWeight: 500 }}>{st.label}</div>
             </div>
           ))}
         </div>
