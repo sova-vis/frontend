@@ -15,6 +15,7 @@ const navItems = [
   { name: "Practice", href: "/student/paper-practice" },
   { name: "Papers", href: "/student/past-papers" },
   { name: "Notebook", href: "/student/notebook" },
+  { name: "Planner", href: "/student/planner" },
   { name: "Ask AI", href: "/student/ask" },
 ];
 
