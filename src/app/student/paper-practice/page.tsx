@@ -1555,6 +1555,11 @@ function QuestionResultRow({ q }: { q: GradedQuestion }) {
               {q.schemeUsed ? "✓ Mark scheme" : "Examiner judgement"}
             </span>
           )}
+          {q.commandWord && (
+            <span title="Command word this question tests" style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", color: "var(--purple)", background: "var(--purple-soft)" }}>
+              {q.commandWord}
+            </span>
+          )}
         </div>
         <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", color: tone.fg }}>{q.earned} / {q.max}</span>
       </div>
@@ -1569,6 +1574,20 @@ function QuestionResultRow({ q }: { q: GradedQuestion }) {
       {q.expectedPoints.length > 0 && (
         <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 4 }}>
           <b>Key points:</b> {q.expectedPoints.join("; ")}
+        </p>
+      )}
+      {/* Phase 3 — command-word coach */}
+      {q.commandWordNote && (
+        <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--purple-soft)" }}>
+          <Icon name="target" size={14} style={{ color: "var(--purple)", flex: "none", marginTop: 1 }} />
+          <span style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--purple)" }}><b>Command word:</b> {q.commandWordNote}</span>
+        </div>
+      )}
+      {/* Phase 3 — examiner-report insight */}
+      {q.examinerNote && (
+        <p className="faint" style={{ fontSize: 12, lineHeight: 1.45, marginTop: 6, fontStyle: "italic" }}>
+          <Icon name="lightbulb" size={13} style={{ color: "var(--amber-deep)", marginRight: 4, verticalAlign: "middle" }} />
+          {q.examinerNote}
         </p>
       )}
     </div>

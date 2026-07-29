@@ -39,6 +39,10 @@ export interface GradedQuestion {
   schemeUsed?: boolean;
   /** marks earned vs available per assessment objective (Knowledge/Explanation/Evaluation) */
   breakdown?: MarkCategory[];
+  /** Phase 3 — examiner intelligence */
+  commandWord?: string;
+  commandWordNote?: string;
+  examinerNote?: string;
 }
 
 export interface PracticeReport {
