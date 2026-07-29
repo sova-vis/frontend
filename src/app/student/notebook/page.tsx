@@ -8,7 +8,7 @@ import { subjectStyle } from "@/components/propel/subjects";
 import Link from "next/link";
 import { timeAgo } from "@/lib/useStudentStats";
 import {
-  Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns,
+  Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
 } from "@/lib/insights";
 
 const verdictTone: Record<Attempt["verdict"], { label: string; bg: string; fg: string }> = {
@@ -55,6 +55,7 @@ export default function NotebookPage() {
   );
   const weak = useMemo(() => weakestTopics(filtered, 1).slice(0, 12), [filtered]);
   const mistakes = useMemo(() => mistakeList(filtered).slice(0, 60), [filtered]);
+  const readiness = useMemo(() => topicReadiness(filtered), [filtered]);
 
   const totalGraded = filtered.length;
   const totalMistakes = filtered.filter((a) => a.verdict !== "correct").length;
@@ -132,6 +133,40 @@ export default function NotebookPage() {
                 </div>
               )}
             </div>
+
+            {/* topic readiness — per-topic status instead of one blended % */}
+            {(readiness.mastered.length + readiness.needsWork.length + readiness.weak.length) > 0 && (
+              <div className="card card-pad">
+                <div className="card-head"><span className="card-title">Topic readiness</span></div>
+                <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+                  {([
+                    { key: "mastered", label: "Mastered", tone: "teal", items: readiness.mastered },
+                    { key: "needs-work", label: "Needs work", tone: "amber", items: readiness.needsWork },
+                    { key: "weak", label: "Weak", tone: "coral", items: readiness.weak },
+                  ] as const).map((group) => (
+                    <div key={group.key} style={{ borderRadius: 12, border: "1px solid var(--line)", padding: 12 }}>
+                      <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
+                        <span className={"badge " + group.tone}>{group.items.length}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13.5 }}>{group.label}</span>
+                      </div>
+                      {group.items.length === 0 ? (
+                        <p className="faint" style={{ fontSize: 12 }}>None yet.</p>
+                      ) : (
+                        <div className="flex-col" style={{ gap: 4 }}>
+                          {group.items.slice(0, 6).map((t) => (
+                            <div key={t.key} className="row-between" style={{ fontSize: 12.5, gap: 8 }}>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.topic}</span>
+                              <span className="faint tnum" style={{ flex: "none" }}>{t.accuracy}%</span>
+                            </div>
+                          ))}
+                          {group.items.length > 6 && <span className="faint" style={{ fontSize: 11 }}>+{group.items.length - 6} more</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* spaced-repetition revisions due */}
             {revisions.length > 0 && (

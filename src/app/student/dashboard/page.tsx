@@ -12,9 +12,9 @@ import type { TrackedPaper } from "@/lib/paperTracking";
 import {
   PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
-import { daysUntilExam, EXAM_SESSION_LABEL } from "@/lib/examCountdown";
+import { daysUntilExam, EXAM_SESSION_LABEL, EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
-import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan } from "@/lib/insights";
+import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
 const ONBOARDING_SEEN_KEY = "propel_onboarding_seen";
@@ -69,6 +69,8 @@ export default function StudentDashboard() {
   const weakSpots = useMemo(() => weakestTopics(attempts, 1).slice(0, 5), [attempts]);
   const momentum = useMemo(() => momentumScore(attempts), [attempts]);
   const dailyPlan = useMemo(() => buildDailyPlan(attempts), [attempts]);
+  const prediction = useMemo(() => predictedGrade(attempts), [attempts]);
+  const timeline = useMemo(() => readinessTimeline(attempts, EXAM_DATE), [attempts]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const daysToExam = daysUntilExam();
@@ -319,6 +321,64 @@ export default function StudentDashboard() {
             </div>
           ))}
         </div>
+
+        {/* Predicted grade + readiness forecast (Phase 4) */}
+        {prediction && (
+          <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.4fr)", alignItems: "stretch", gap: 18 }}>
+            {/* predicted grade */}
+            <div className="card card-pad flex-col" style={{ display: "flex", gap: 12 }}>
+              <div className="card-head" style={{ marginBottom: 0 }}>
+                <div>
+                  <span className="card-title">Predicted grade</span>
+                  <div className="card-sub mt-6">From {prediction.sampleSize} graded answers · {prediction.confidence}% confidence</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-14">
+                <div style={{ fontSize: 46, fontWeight: 800, color: "var(--crimson)", lineHeight: 1 }}>{prediction.grade}</div>
+                <div>
+                  <div className="big-num" style={{ fontSize: 22 }}>{prediction.percent}%</div>
+                  <div className="faint" style={{ fontSize: 12 }}>overall accuracy{prediction.borderline ? " · borderline" : ""}</div>
+                </div>
+              </div>
+              {/* probability across bands */}
+              <div className="flex-col gap-6">
+                {prediction.bands.slice(0, 4).map((b) => (
+                  <div key={b.grade} className="flex items-center gap-8" style={{ fontSize: 12 }}>
+                    <span style={{ width: 22, fontWeight: 700, flex: "none" }}>{b.grade}</span>
+                    <div className="bar" style={{ height: 7, flex: 1 }}><i style={{ width: b.prob + "%", background: "var(--crimson)" }} /></div>
+                    <span className="faint tnum" style={{ width: 30, textAlign: "right", flex: "none" }}>{b.prob}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* readiness timeline */}
+            {timeline && (
+              <div className="card card-pad flex-col" style={{ display: "flex", gap: 12 }}>
+                <div className="card-head" style={{ marginBottom: 0 }}>
+                  <div>
+                    <span className="card-title">Exam readiness timeline</span>
+                    <div className="card-sub mt-6">
+                      {timeline.ratePerWeek > 0 ? `Improving ~${timeline.ratePerWeek}%/week at your current pace` : timeline.ratePerWeek < 0 ? `Down ${Math.abs(timeline.ratePerWeek)}%/week recently — worth a push` : "Steady — keep practising to build the trend"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-end" style={{ gap: 10, minHeight: 130 }}>
+                  {timeline.points.map((p, i) => {
+                    const col = p.percent >= 75 ? "var(--teal-deep)" : p.percent >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
+                    return (
+                      <div key={i} className="flex-col items-center" style={{ display: "flex", flex: 1, gap: 6, justifyContent: "flex-end" }}>
+                        <span className="tnum" style={{ fontSize: 13, fontWeight: 700, color: col }}>{p.percent}%</span>
+                        <div style={{ width: "70%", maxWidth: 46, height: Math.max(8, p.percent) + "%", minHeight: 8, background: col, borderRadius: "6px 6px 0 0", opacity: i === 0 ? 1 : 0.72 }} />
+                        <span className="faint" style={{ fontSize: 11, textAlign: "center" }}>{p.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* two-column body */}
         <div className="grid dash-cols" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", alignItems: "start" }}>

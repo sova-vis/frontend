@@ -267,6 +267,98 @@ export function buildDailyPlan(attempts: Attempt[], now = Date.now()): { items: 
   return { items, totalMinutes: items.reduce((s, i) => s + i.minutes, 0) };
 }
 
+/* ---------------- Phase 4 — prediction & forecasting ---------------- */
+
+const GRADE_BANDS = [
+  { grade: "A*", min: 90 }, { grade: "A", min: 80 }, { grade: "B", min: 70 },
+  { grade: "C", min: 60 }, { grade: "D", min: 50 }, { grade: "E", min: 40 }, { grade: "U", min: 0 },
+];
+
+function erf(x: number): number {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+function normCdf(x: number, mean: number, sd: number): number {
+  return 0.5 * (1 + erf((x - mean) / (sd * Math.SQRT2)));
+}
+
+const overallPercent = (list: Attempt[]) => {
+  const mx = list.reduce((s, a) => s + a.max, 0);
+  return mx ? (list.reduce((s, a) => s + a.earned, 0) / mx) * 100 : 0;
+};
+
+export interface GradePrediction {
+  grade: string;
+  percent: number;
+  confidence: number;
+  borderline: boolean;
+  bands: { grade: string; prob: number }[];
+  sampleSize: number;
+}
+
+/** Continuously estimated grade with a probability spread across bands. */
+export function predictedGrade(attempts: Attempt[]): GradePrediction | null {
+  if (attempts.length < 5) return null;
+  const marksMax = attempts.reduce((s, a) => s + a.max, 0);
+  if (marksMax === 0) return null;
+  const percent = Math.round(overallPercent(attempts));
+  const idx = GRADE_BANDS.findIndex((b) => percent >= b.min);
+  const band = GRADE_BANDS[idx];
+  const higher = GRADE_BANDS[idx - 1];
+  const borderline = Boolean(higher) && higher.min - percent <= 4;
+  const grade = borderline ? `${higher.grade}/${band.grade}` : band.grade;
+  const confidence = Math.min(92, 45 + Math.round(attempts.length * 1.5));
+
+  const sigma = 8;
+  const bands = GRADE_BANDS.map((b, i) => {
+    const upper = i === 0 ? 101 : GRADE_BANDS[i - 1].min;
+    const mass = normCdf(upper, percent, sigma) - normCdf(b.min, percent, sigma);
+    return { grade: b.grade, prob: Math.max(0, mass) };
+  });
+  const total = bands.reduce((s, b) => s + b.prob, 0) || 1;
+  bands.forEach((b) => { b.prob = Math.round((b.prob / total) * 100); });
+  return { grade, percent, confidence, borderline, bands: bands.filter((b) => b.prob >= 1), sampleSize: attempts.length };
+}
+
+export interface ReadinessPoint { label: string; percent: number; }
+export interface ReadinessTimeline { current: number; ratePerWeek: number; points: ReadinessPoint[]; }
+
+/** Project readiness forward from the recent improvement trend. */
+export function readinessTimeline(attempts: Attempt[], examDate: Date, now = Date.now()): ReadinessTimeline | null {
+  if (attempts.length < 5) return null;
+  const current = Math.round(overallPercent(attempts));
+  const recent = attempts.filter((a) => now - new Date(a.at).getTime() <= 14 * DAY);
+  const prior = attempts.filter((a) => { const d = now - new Date(a.at).getTime(); return d > 14 * DAY && d <= 28 * DAY; });
+  let ratePerWeek = 0;
+  if (recent.length >= 3 && prior.length >= 3) ratePerWeek = (overallPercent(recent) - overallPercent(prior)) / 2;
+  ratePerWeek = Math.max(-5, Math.min(8, ratePerWeek));
+  const project = (weeks: number) => Math.round(Math.max(0, Math.min(100, current + ratePerWeek * weeks)));
+  const weeksToExam = Math.max(0, (examDate.getTime() - now) / (7 * DAY));
+  const points: ReadinessPoint[] = [
+    { label: "Today", percent: current },
+    { label: "In 2 weeks", percent: project(2) },
+    { label: "In 1 month", percent: project(4) },
+  ];
+  if (weeksToExam > 4.5) points.push({ label: "Exam day", percent: project(weeksToExam) });
+  return { current, ratePerWeek: Math.round(ratePerWeek * 10) / 10, points };
+}
+
+export type ReadinessStatus = "mastered" | "needs-work" | "weak";
+export interface TopicStatus extends WeaknessTopic { status: ReadinessStatus; }
+
+/** Per-topic status instead of one blended percentage. */
+export function topicReadiness(attempts: Attempt[]): { mastered: TopicStatus[]; needsWork: TopicStatus[]; weak: TopicStatus[] } {
+  const withStatus: TopicStatus[] = buildWeaknessMap(attempts)
+    .filter((w) => w.topic && w.topic !== "Uncategorised")
+    .map((w) => ({ ...w, status: w.accuracy >= 75 ? "mastered" : w.accuracy >= 50 ? "needs-work" : "weak" }));
+  return {
+    mastered: withStatus.filter((t) => t.status === "mastered").sort((a, b) => b.accuracy - a.accuracy),
+    needsWork: withStatus.filter((t) => t.status === "needs-work").sort((a, b) => a.accuracy - b.accuracy),
+    weak: withStatus.filter((t) => t.status === "weak").sort((a, b) => a.accuracy - b.accuracy),
+  };
+}
+
 /* ---------------- Pattern detection (Grok, cached server-side) ---------------- */
 
 export interface PatternResult {
