@@ -5,8 +5,11 @@ import { useAuth } from "@clerk/nextjs";
 import { Icon } from "@/components/propel/Icon";
 import { Bar, EmptyState, SubjGlyph } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
+import Link from "next/link";
 import { timeAgo } from "@/lib/useStudentStats";
-import { Attempt, loadAttempts, weakestTopics, mistakeList } from "@/lib/insights";
+import {
+  Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns,
+} from "@/lib/insights";
 
 const verdictTone: Record<Attempt["verdict"], { label: string; bg: string; fg: string }> = {
   correct: { label: "Correct", bg: "var(--teal-soft)", fg: "var(--teal-deep)" },
@@ -24,12 +27,23 @@ export default function NotebookPage() {
   const { getToken } = useAuth();
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
   const [subject, setSubject] = useState("");
+  const [patterns, setPatterns] = useState<PatternResult | null>(null);
+  const [patternsBusy, setPatternsBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
     loadAttempts(() => getToken()).then((items) => { if (active) setAttempts(items); });
+    loadPatterns(() => getToken()).then((p) => { if (active) setPatterns(p); });
     return () => { active = false; };
   }, [getToken]);
+
+  async function refreshPatterns() {
+    setPatternsBusy(true);
+    try { const p = await loadPatterns(() => getToken(), true); if (p) setPatterns(p); }
+    finally { setPatternsBusy(false); }
+  }
+
+  const revisions = useMemo(() => dueRevisions(attempts ?? []).filter((r) => !subject || r.subject === subject).slice(0, 8), [attempts, subject]);
 
   const subjects = useMemo(
     () => Array.from(new Set((attempts ?? []).map((a) => a.subject).filter(Boolean))).sort(),
@@ -116,6 +130,72 @@ export default function NotebookPage() {
                     );
                   })}
                 </div>
+              )}
+            </div>
+
+            {/* spaced-repetition revisions due */}
+            {revisions.length > 0 && (
+              <div className="card card-pad">
+                <div className="card-head">
+                  <div>
+                    <div className="flex items-center gap-8">
+                      <Icon name="rotate" size={18} style={{ color: "var(--purple)" }} />
+                      <span className="card-title">Revision due</span>
+                    </div>
+                    <div className="card-sub mt-6">Topics you mastered before — revisit them before they fade.</div>
+                  </div>
+                </div>
+                <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+                  {revisions.map((r) => {
+                    const subj = subjectStyle(r.subject);
+                    return (
+                      <Link key={r.key} href={`/student/paper-practice?subject=${encodeURIComponent(r.subject)}&topic=${encodeURIComponent(r.topic)}`}
+                        className="flex items-center gap-10" style={{ padding: "11px 13px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface)" }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: subj.color + "1e", color: subj.color }}>
+                          <Icon name={subj.icon} size={15} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.topic}</div>
+                          <div className="faint" style={{ fontSize: 11.5 }}>{r.subject} · level {r.box}/5</div>
+                        </div>
+                        <Icon name="chevron_right" size={15} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* AI pattern detection */}
+            <div className="card card-pad">
+              <div className="card-head">
+                <div>
+                  <div className="flex items-center gap-8">
+                    <Icon name="lightbulb" size={18} style={{ color: "var(--amber-deep)" }} />
+                    <span className="card-title">Recurring patterns</span>
+                  </div>
+                  <div className="card-sub mt-6">Habits the AI spots across your mistakes — not just topics.</div>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={refreshPatterns} disabled={patternsBusy || totalMistakes < 4}>
+                  {patternsBusy ? <><Icon name="refresh" size={14} className="spin" /> Analyzing…</> : <><Icon name="sparkles" size={14} /> {patterns?.patterns.length ? "Re-analyze" : "Analyze"}</>}
+                </button>
+              </div>
+              {patterns && patterns.patterns.length > 0 ? (
+                <div className="flex-col gap-10">
+                  {patterns.patterns.map((p, i) => (
+                    <div key={i} className="flex gap-10 items-start" style={{ padding: "11px 13px", borderRadius: 11, background: "var(--surface-2)" }}>
+                      <Icon name="alert" size={16} style={{ color: "var(--amber-deep)", flex: "none", marginTop: 1 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.title}</div>
+                        <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 2 }}>{p.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="faint" style={{ fontSize: 13 }}>
+                  {totalMistakes < 4 ? "Log a few more mistakes and the AI will spot your recurring habits here." : "Tap Analyze to spot the habits behind your mistakes."}
+                </p>
               )}
             </div>
 

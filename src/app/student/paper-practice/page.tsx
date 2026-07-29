@@ -467,6 +467,14 @@ function PracticeInner() {
     if (subject && year && session && paper && variant) deepLinkRef.current = { subject, year, session, paper, variant };
     else deepLinkDoneRef.current = true;
   }
+  // topic deep link (?subject&topic) from the Daily Plan / revision items
+  const topicLinkRef = useRef<{ subject: string; topic: string } | null>(null);
+  const topicLinkDoneRef = useRef(false);
+  if (!topicLinkDoneRef.current && topicLinkRef.current === null && !deepLinkRef.current) {
+    const subject = searchParams?.get("subject"), topic = searchParams?.get("topic");
+    if (subject && topic) topicLinkRef.current = { subject, topic };
+    else topicLinkDoneRef.current = true;
+  }
   const [openingLink, setOpeningLink] = useState(Boolean(deepLinkRef.current));
 
   // ---- per-paper practice session (autosaved, resumable) ----
@@ -702,6 +710,28 @@ function PracticeInner() {
         setError("Could not open that paper automatically — pick it below.");
       }
     })();
+  }, [loadingMeta, subjects]);
+
+  // ---- topic deep link (Daily Plan / revision): select subject + topic in topic mode ----
+  useEffect(() => {
+    const link = topicLinkRef.current;
+    if (!link || topicLinkDoneRef.current || loadingMeta || subjects.length === 0) return;
+    topicLinkDoneRef.current = true;
+    const subjectName = resolveSubjectName(subjects, link.subject);
+    if (!subjectName) return;
+    const meta = subjects.find((s) => s.name === subjectName);
+    const wanted = link.topic.toLowerCase();
+    const findTopic = (list: { name: string }[]) =>
+      list.find((t) => t.name.toLowerCase() === wanted) ||
+      list.find((t) => t.name.toLowerCase().includes(wanted) || wanted.includes(t.name.toLowerCase()));
+    const structMatch = findTopic(meta?.types.structured.topics ?? []);
+    const mcqMatch = structMatch ? undefined : findTopic(meta?.types.mcq.topics ?? []);
+    setPracticeMode("topic");
+    setSelectedSubject(subjectName);
+    setQuestionType(structMatch ? "structured" : mcqMatch ? "mcq" : "structured");
+    const match = structMatch ?? mcqMatch;
+    if (match) setSelectedTopic(match.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingMeta, subjects]);
 
   const displayQuestions = useMemo(() => {

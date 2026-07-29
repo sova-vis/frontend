@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/practiceProgress";
 import { daysUntilExam, EXAM_SESSION_LABEL } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
-import { loadAttempts, weakestTopics } from "@/lib/insights";
+import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan } from "@/lib/insights";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
 const ONBOARDING_SEEN_KEY = "propel_onboarding_seen";
@@ -59,13 +59,16 @@ export default function StudentDashboard() {
   const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
   const practiceGraded = practice.filter((p) => p.report); // marked papers, newest-first
 
-  // Phase 1 — weakness map (weakest concepts first) from the attempts backbone
-  const [weakSpots, setWeakSpots] = useState<ReturnType<typeof weakestTopics>>([]);
+  // Phase 1/2 — attempts backbone powers weakness map, momentum and the daily plan
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
   useEffect(() => {
     let cancelled = false;
-    loadAttempts(() => getToken()).then((items) => { if (!cancelled) setWeakSpots(weakestTopics(items, 1).slice(0, 5)); });
+    loadAttempts(() => getToken()).then((items) => { if (!cancelled) setAttempts(items); });
     return () => { cancelled = true; };
   }, [getToken]);
+  const weakSpots = useMemo(() => weakestTopics(attempts, 1).slice(0, 5), [attempts]);
+  const momentum = useMemo(() => momentumScore(attempts), [attempts]);
+  const dailyPlan = useMemo(() => buildDailyPlan(attempts), [attempts]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const daysToExam = daysUntilExam();
@@ -208,6 +211,41 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* Today's plan — concrete daily list from weaknesses + due revisions (Phase 2) */}
+        {dailyPlan.items.length > 0 && (
+          <div className="card card-pad">
+            <div className="row-between wrap" style={{ gap: 10, marginBottom: 12 }}>
+              <div className="flex items-center gap-8">
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center" }}>
+                  <Icon name="bolt" size={18} />
+                </div>
+                <div>
+                  <span className="card-title">Today&apos;s plan</span>
+                  <div className="faint" style={{ fontSize: 12 }}>Built from your weak spots &amp; revisions · ~{dailyPlan.totalMinutes} min</div>
+                </div>
+              </div>
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+              {dailyPlan.items.map((item, i) => {
+                const tone = item.kind === "practice" ? "crimson" : item.kind === "revise" ? "purple" : "coral";
+                return (
+                  <button key={i} onClick={() => go(item.href)} className="flex items-center gap-10"
+                    style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, background: "var(--surface)", border: "1px solid var(--line)", cursor: "pointer" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", background: `var(--${tone}-soft)`, color: `var(--${tone === "crimson" ? "crimson" : tone})` }}>
+                      <Icon name={item.icon} size={15} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</div>
+                      <div className="faint" style={{ fontSize: 11.5 }}>{item.detail} · {item.minutes} min</div>
+                    </div>
+                    <Icon name="chevron_right" size={15} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* HERO ROW */}
         <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
           {/* readiness */}
@@ -230,13 +268,17 @@ export default function StudentDashboard() {
 
           {/* right column: this-week + library */}
           <div className="grid" style={{ gridTemplateRows: "1fr 1fr", gap: 18 }}>
-            <div className="card card-pad hero-amber" style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}>
+            {/* Momentum — soft consistency score that doesn't punish a missed day (Phase 2) */}
+            <div className="card card-pad hero-amber" style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
               <div className="flex items-center gap-10">
                 <Icon name="flame" size={30} fill="rgba(255,255,255,.25)" />
                 <div>
-                  <div className="big-num" style={{ fontSize: 30, color: "#fff" }}><CountUp value={completedThisWeek} /> this week</div>
-                  <div style={{ color: "rgba(255,255,255,.82)", fontSize: 12.5 }}>papers completed</div>
+                  <div className="big-num" style={{ fontSize: 30, color: "#fff" }}><CountUp value={momentum.score} />% momentum</div>
+                  <div style={{ color: "rgba(255,255,255,.82)", fontSize: 12.5 }}>{momentum.label} · {momentum.activeDays} active day{momentum.activeDays === 1 ? "" : "s"} · {completedThisWeek} paper{completedThisWeek === 1 ? "" : "s"} this week</div>
                 </div>
+              </div>
+              <div style={{ height: 7, borderRadius: 5, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
+                <div style={{ width: `${Math.max(3, momentum.score)}%`, height: "100%", background: "#fff", borderRadius: 5 }} />
               </div>
               <button className="btn btn-sm" style={{ background: "#fff", color: "var(--amber-deep)", alignSelf: "flex-start" }} onClick={() => go("/student/paper-practice")}>
                 Keep it going

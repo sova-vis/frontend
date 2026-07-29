@@ -159,6 +159,135 @@ export function mistakeList(attempts: Attempt[]): Attempt[] {
     .sort((a, b) => (b.at || "").localeCompare(a.at || ""));
 }
 
+/* ---------------- Phase 2 — momentum, spaced repetition, daily plan ---------------- */
+
+const DAY = 86_400_000;
+const dayKey = (iso: string) => (Number.isNaN(new Date(iso).getTime()) ? "" : new Date(iso).toISOString().slice(0, 10));
+
+/** Soft consistency score (0-100) that decays gently — one missed day barely hurts. */
+export function momentumScore(attempts: Attempt[], now = Date.now()): { score: number; activeDays: number; label: string } {
+  const active = new Set(attempts.map((a) => dayKey(a.at)).filter(Boolean));
+  const decay = 0.92;
+  const window = 21;
+  let score = 0;
+  let recentActive = 0;
+  for (let i = 0; i < window; i++) {
+    const key = new Date(now - i * DAY).toISOString().slice(0, 10);
+    if (active.has(key)) { score += Math.pow(decay, i); if (i < 14) recentActive += 1; }
+  }
+  const maxScore = (1 - Math.pow(decay, window)) / (1 - decay);
+  const pct = Math.round(Math.min(100, (score / maxScore) * 100));
+  const label = pct >= 70 ? "On fire" : pct >= 40 ? "Steady" : pct >= 15 ? "Warming up" : "Let's begin";
+  return { score: pct, activeDays: recentActive, label };
+}
+
+/** Leitner-style spaced repetition intervals (days) by box. */
+const SRS_INTERVALS = [1, 3, 7, 21, 60];
+
+export interface RevisionItem {
+  key: string;
+  topic: string;
+  subject: string;
+  box: number;         // 1..5 mastery level
+  lastAt: string;
+  nextDueAt: string;
+  due: boolean;
+}
+
+export function buildRevisionSchedule(attempts: Attempt[], now = Date.now()): RevisionItem[] {
+  const byTopic = new Map<string, Attempt[]>();
+  for (const a of attempts) {
+    if (!a.topic || a.topic === "Uncategorised") continue;
+    const key = `${a.subject}|${a.topic}`;
+    const list = byTopic.get(key) ?? [];
+    list.push(a);
+    byTopic.set(key, list);
+  }
+  const items: RevisionItem[] = [];
+  for (const [key, list] of Array.from(byTopic.entries())) {
+    const ordered = list.slice().sort((a, b) => (a.at || "").localeCompare(b.at || ""));
+    let box = 0;
+    for (const a of ordered) box = a.verdict === "correct" ? Math.min(box + 1, SRS_INTERVALS.length) : 0;
+    if (box < 1) continue; // only schedule topics mastered at least once
+    const last = ordered[ordered.length - 1];
+    const interval = SRS_INTERVALS[Math.min(box - 1, SRS_INTERVALS.length - 1)];
+    const nextDueAt = new Date(new Date(last.at).getTime() + interval * DAY).toISOString();
+    items.push({ key, topic: list[0].topic, subject: list[0].subject, box, lastAt: last.at, nextDueAt, due: new Date(nextDueAt).getTime() <= now });
+  }
+  return items.sort((a, b) => (a.nextDueAt || "").localeCompare(b.nextDueAt || ""));
+}
+
+export function dueRevisions(attempts: Attempt[], now = Date.now()): RevisionItem[] {
+  return buildRevisionSchedule(attempts, now).filter((r) => r.due);
+}
+
+export interface PlanItem {
+  kind: "practice" | "revise" | "mistakes";
+  label: string;
+  detail: string;
+  minutes: number;
+  href: string;
+  icon: string;
+}
+
+/** A concrete daily study list built from weaknesses, due revisions and mistakes. */
+export function buildDailyPlan(attempts: Attempt[], now = Date.now()): { items: PlanItem[]; totalMinutes: number } {
+  const weak = weakestTopics(attempts, 1);
+  const due = dueRevisions(attempts, now);
+  const mistakes = mistakeList(attempts);
+  const items: PlanItem[] = [];
+  const seen = new Set<string>();
+
+  for (const w of weak.slice(0, 2)) {
+    seen.add(w.key);
+    items.push({
+      kind: "practice",
+      label: `Practise ${w.topic}`,
+      detail: `${w.subject} · currently ${w.accuracy}%`,
+      minutes: 12,
+      href: `/student/paper-practice?subject=${encodeURIComponent(w.subject)}&topic=${encodeURIComponent(w.topic)}`,
+      icon: "sparkles",
+    });
+  }
+  for (const r of due.slice(0, 2)) {
+    if (seen.has(r.key)) continue;
+    items.push({
+      kind: "revise",
+      label: `Revise ${r.topic}`,
+      detail: `${r.subject} · due for revision`,
+      minutes: 6,
+      href: `/student/paper-practice?subject=${encodeURIComponent(r.subject)}&topic=${encodeURIComponent(r.topic)}`,
+      icon: "rotate",
+    });
+  }
+  if (mistakes.length > 0) {
+    const n = Math.min(mistakes.length, 5);
+    items.push({ kind: "mistakes", label: `Review ${n} mistake${n === 1 ? "" : "s"}`, detail: "From your notebook", minutes: n * 2, href: "/student/notebook", icon: "target" });
+  }
+  return { items, totalMinutes: items.reduce((s, i) => s + i.minutes, 0) };
+}
+
+/* ---------------- Pattern detection (Grok, cached server-side) ---------------- */
+
+export interface PatternResult {
+  patterns: { title: string; detail: string }[];
+  generatedAt: string;
+  basedOnCount: number;
+}
+
+export async function loadPatterns(getToken?: GetTokenFn, refresh = false): Promise<PatternResult | null> {
+  const headers = await authHeader(getToken);
+  if (!headers) return null;
+  try {
+    const res = await fetch(`${apiBase()}/insights/patterns${refresh ? "?refresh=1" : ""}`, {
+      method: refresh ? "POST" : "GET",
+      headers,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as PatternResult;
+  } catch { return null; }
+}
+
 /* ---------------- storage / API ---------------- */
 
 function readLocal(): Attempt[] {
