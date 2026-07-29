@@ -14,6 +14,7 @@ const navItems = [
   { name: "Dashboard", href: "/student/dashboard" },
   { name: "Practice", href: "/student/paper-practice" },
   { name: "Papers", href: "/student/past-papers" },
+  { name: "Notebook", href: "/student/notebook" },
   { name: "Ask AI", href: "/student/ask" },
 ];
 

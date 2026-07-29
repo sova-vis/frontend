@@ -8,10 +8,11 @@ import { useAuth } from "@clerk/nextjs";
 import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
-  PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, SolveMode, PracticeStatus,
+  PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
   loadPracticeProgressList, savePracticeProgress, deletePracticeProgress,
   uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
 } from "@/lib/practiceProgress";
+import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { paperDurationSeconds, durationLabel, clockLabel } from "@/lib/paperDurations";
 
@@ -510,6 +511,7 @@ function PracticeInner() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState(false);
+  const checkedLoggedRef = useRef(false); // ensures MCQ attempts log once per check
   const [showScheme, setShowScheme] = useState(false);
 
   // ---- subjects metadata ----
@@ -561,6 +563,7 @@ function PracticeInner() {
     setMcqAnswers({});
     setPartAnswers({});
     setChecked(false);
+    checkedLoggedRef.current = false;
     setShowScheme(false);
     // reset the per-paper session shell; the restore effect re-hydrates it
     setSolveMode("digital");
@@ -932,6 +935,16 @@ function PracticeInner() {
   function handleTypeChange(type: QuestionType) { setQuestionType(type); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function handleModeChange(mode: PracticeMode) { setPracticeMode(mode); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function resetFilters() { setSelectedSubject(""); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  // "Check" MCQs and log each as an attempt (Phase 1 backbone) — once per check
+  function checkMcqs() {
+    setChecked(true);
+    if (checkedLoggedRef.current) return;
+    checkedLoggedRef.current = true;
+    const records = displayQuestions
+      .filter((q) => q.type === "mcq" && q.correctOption)
+      .map((q) => attemptFromMcq(q, mcqAnswers[q.id], q.correctOption));
+    void logAttempts(records, getToken);
+  }
   // one-click jump into a subject/type/mode, so the blank state isn't a dead end
   function quickStart(subject: string, type: QuestionType, mode: PracticeMode) {
     setPracticeMode(mode); setQuestionType(type); setSelectedSubject(subject);
@@ -1022,6 +1035,7 @@ function PracticeInner() {
     try {
       const result = await gradeOneQuestion(selectedSubject, toGradeInput(q), getToken);
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
+      void logAttempts([attemptFromGraded(q, result)], getToken);
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
     } finally {
@@ -1037,6 +1051,7 @@ function PracticeInner() {
     try {
       const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken);
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
+      void logAttempts([attemptFromGraded(q, result)], getToken);
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
     } finally {
@@ -1073,6 +1088,8 @@ function PracticeInner() {
       setReportOpen(true);
       setPaperStatus("completed");
       setTimerRunning(false);
+      // Phase 1 — log every graded question to the attempts backbone
+      void logAttempts(attemptsFromReport(graded.perQuestion, questions), getToken);
       setUploads(item.uploads ?? []);
       hasRowRef.current = true;
       setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
@@ -1220,7 +1237,7 @@ function PracticeInner() {
                         options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
                     )}
                     {questionType === "mcq" && (
-                      <button onClick={() => setChecked(true)} disabled={gradable.length === 0} className="btn btn-primary">
+                      <button onClick={checkMcqs} disabled={gradable.length === 0} className="btn btn-primary">
                         <Icon name="check_circle" size={16} /> Check
                       </button>
                     )}
@@ -1305,7 +1322,7 @@ function PracticeInner() {
             </div>
             <div className="flex gap-8 wrap items-center">
               {questionType === "mcq" && (
-                <button onClick={() => setChecked(true)} disabled={gradable.length === 0} className="btn btn-primary btn-sm">
+                <button onClick={checkMcqs} disabled={gradable.length === 0} className="btn btn-primary btn-sm">
                   <Icon name="check_circle" size={14} /> Check {gradable.length > 0 ? `(${gradable.length})` : ""}
                 </button>
               )}
@@ -1471,6 +1488,28 @@ function ReportModal({ report, meta, onClose }: {
   );
 }
 
+function MarkBreakdown({ items }: { items: MarkCategory[] }) {
+  return (
+    <div className="flex gap-8 wrap" style={{ marginTop: 8 }}>
+      {items.map((c) => {
+        const pct = c.max ? Math.round((c.earned / c.max) * 100) : 0;
+        const lost = c.max - c.earned;
+        const fill = pct >= 80 ? "var(--teal-deep)" : pct >= 40 ? "var(--amber-deep)" : "var(--coral-bright)";
+        return (
+          <div key={c.category} style={{ flex: "1 1 118px", minWidth: 108, borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface-2)", padding: "8px 10px" }}>
+            <div className="row-between" style={{ fontSize: 11.5 }}>
+              <span style={{ fontWeight: 600 }}>{c.category}</span>
+              <span className="tnum" style={{ fontWeight: 700 }}>{c.earned}/{c.max}</span>
+            </div>
+            <div className="bar" style={{ height: 5, marginTop: 5 }}><i style={{ width: pct + "%", background: fill }} /></div>
+            {lost > 0 && <div className="faint" style={{ fontSize: 10.5, marginTop: 3 }}>−{lost} lost</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function QuestionResultRow({ q }: { q: GradedQuestion }) {
   const tone = verdictColor(q.verdict);
   return (
@@ -1490,6 +1529,8 @@ function QuestionResultRow({ q }: { q: GradedQuestion }) {
         <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", color: tone.fg }}>{q.earned} / {q.max}</span>
       </div>
       <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
+      {/* Phase 1 — marks breakdown by assessment objective */}
+      {q.breakdown && q.breakdown.length > 0 && <MarkBreakdown items={q.breakdown} />}
       {q.missingPoints.length > 0 && (
         <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
           <b>Improve:</b> {q.missingPoints.join("; ")}

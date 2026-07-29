@@ -19,6 +19,12 @@ export interface PracticeUpload {
   url?: string;
 }
 
+export interface MarkCategory {
+  category: "Knowledge" | "Explanation" | "Evaluation";
+  earned: number;
+  max: number;
+}
+
 export interface GradedQuestion {
   id: string;
   questionNumber: string;
@@ -31,6 +37,8 @@ export interface GradedQuestion {
   gradingSource: "deterministic" | "grok" | "grok-vision";
   /** true when a marking scheme was matched; false = examiner-judgement fallback */
   schemeUsed?: boolean;
+  /** marks earned vs available per assessment objective (Knowledge/Explanation/Evaluation) */
+  breakdown?: MarkCategory[];
 }
 
 export interface PracticeReport {

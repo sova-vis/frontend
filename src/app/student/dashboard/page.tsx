@@ -14,6 +14,7 @@ import {
 } from "@/lib/practiceProgress";
 import { daysUntilExam, EXAM_SESSION_LABEL } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+import { loadAttempts, weakestTopics } from "@/lib/insights";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
 const ONBOARDING_SEEN_KEY = "propel_onboarding_seen";
@@ -57,6 +58,14 @@ export default function StudentDashboard() {
   const practiceInProgress = practice.filter((p) => p.status === "in_progress");
   const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
   const practiceGraded = practice.filter((p) => p.report); // marked papers, newest-first
+
+  // Phase 1 — weakness map (weakest concepts first) from the attempts backbone
+  const [weakSpots, setWeakSpots] = useState<ReturnType<typeof weakestTopics>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadAttempts(() => getToken()).then((items) => { if (!cancelled) setWeakSpots(weakestTopics(items, 1).slice(0, 5)); });
+    return () => { cancelled = true; };
+  }, [getToken]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const daysToExam = daysUntilExam();
@@ -272,7 +281,7 @@ export default function StudentDashboard() {
         {/* two-column body */}
         <div className="grid dash-cols" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", alignItems: "start" }}>
           <div className="flex-col gap-18">
-            {/* weak spots — needs attempt data we don't persist yet */}
+            {/* weak spots — real, from the attempts backbone (Phase 1) */}
             <div className="card card-pad">
               <div className="card-head">
                 <div>
@@ -280,16 +289,40 @@ export default function StudentDashboard() {
                     <Icon name="target" size={19} style={{ color: "var(--coral)" }} />
                     <span className="card-title">Your weak spots</span>
                   </div>
-                  <div className="card-sub mt-6">These surface once you start grading answers in Practice.</div>
+                  <div className="card-sub mt-6">Your toughest concepts, weakest first — ranked by accuracy.</div>
                 </div>
+                {weakSpots.length > 0 && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => go("/student/notebook")}>Notebook <Icon name="chevron_right" size={15} /></button>
+                )}
               </div>
-              <EmptyState
-                icon="target"
-                title="No weak spots yet"
-                body="Grade a few written answers in Practice and your toughest topics will rank here, worst-first."
-                cta="Start practising"
-                onCta={() => go("/student/paper-practice")}
-              />
+              {weakSpots.length > 0 ? (
+                <div className="flex-col gap-14">
+                  {weakSpots.map((w) => {
+                    const subj = subjectStyle(w.subject);
+                    const col = w.accuracy >= 75 ? "var(--teal-deep)" : w.accuracy >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
+                    return (
+                      <div key={w.key} className="flex items-center gap-12">
+                        <SubjGlyph subj={subj} size={32} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="row-between" style={{ fontSize: 13, marginBottom: 4, gap: 8 }}>
+                            <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.topic}</span>
+                            <span className="tnum" style={{ fontWeight: 700, color: col, flex: "none" }}>{w.accuracy}%</span>
+                          </div>
+                          <div className="bar" style={{ height: 7 }}><i style={{ width: Math.max(3, w.accuracy) + "%", background: col }} /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  icon="target"
+                  title="No weak spots yet"
+                  body="Grade a few answers or check some MCQs in Practice — your toughest topics will rank here, worst-first."
+                  cta="Start practising"
+                  onCta={() => go("/student/paper-practice")}
+                />
+              )}
             </div>
 
             {/* completed trend (real) */}
