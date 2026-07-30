@@ -136,6 +136,38 @@ function resolveSubjectName(subjects: SubjectMeta[], wanted: string): string | n
 const pruneAnswers = (record: Record<string, string>) =>
   Object.fromEntries(Object.entries(record).filter(([, value]) => value && value.trim()));
 
+/* ---- by-topic persistence: answers + marked results survive a reopen ----
+   Topic drilling isn't a saved "paper", so it kept everything only in memory and
+   lost it on reload. We mirror it to localStorage keyed by the globally-unique
+   question id, so anything written (and any marked result) comes back — whether
+   or not it was marked. */
+const TOPIC_PRACTICE_KEY = "propel_topic_practice";
+type TopicPracticeBlob = {
+  mcq: Record<string, string>;
+  parts: Record<string, string>;
+  results: Record<string, GradedQuestion>;
+};
+function readTopicPractice(): TopicPracticeBlob {
+  const empty: TopicPracticeBlob = { mcq: {}, parts: {}, results: {} };
+  if (typeof window === "undefined") return empty;
+  try {
+    const raw = window.localStorage.getItem(TOPIC_PRACTICE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object") return empty;
+    return { mcq: parsed.mcq ?? {}, parts: parsed.parts ?? {}, results: parsed.results ?? {} };
+  } catch {
+    return empty;
+  }
+}
+function writeTopicPractice(blob: TopicPracticeBlob): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TOPIC_PRACTICE_KEY, JSON.stringify(blob));
+  } catch {
+    // quota or serialization failure — non-fatal; in-memory state still works
+  }
+}
+
 // A "header" part is a lead-in that introduces sub-parts (e.g. "(a)" whose text
 // says "look at the graph and describe the following:", followed by "(a)(i)",
 // "(a)(ii)"). Its answer is given in the sub-parts, so it gets no answer box.
@@ -529,6 +561,9 @@ function PracticeInner() {
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({});
   const [partAnswers, setPartAnswers] = useState<Record<string, string>>({});
+  // per-question grading (topic drills): id -> result, and in-flight ids
+  const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
+  const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
 
   const [topicTotal, setTopicTotal] = useState(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
@@ -607,6 +642,21 @@ function PracticeInner() {
     interactedRef.current = false;
   }
 
+  // Re-hydrate topic answers + marked results for the loaded questions (localStorage).
+  function restoreTopicPractice(loaded: PracticeQuestion[]) {
+    const blob = readTopicPractice();
+    const ids = new Set(loaded.map((q) => q.id));
+    const mcq: Record<string, string> = {};
+    const parts: Record<string, string> = {};
+    const results: Record<string, GradedQuestion> = {};
+    for (const [key, value] of Object.entries(blob.mcq)) if (ids.has(key)) mcq[key] = value;
+    for (const [key, value] of Object.entries(blob.parts)) if (ids.has(key.split("::")[0])) parts[key] = value;
+    for (const [key, value] of Object.entries(blob.results)) if (ids.has(key)) results[key] = value;
+    if (Object.keys(mcq).length) setMcqAnswers((prev) => ({ ...prev, ...mcq }));
+    if (Object.keys(parts).length) setPartAnswers((prev) => ({ ...prev, ...parts }));
+    if (Object.keys(results).length) setOneResults((prev) => ({ ...prev, ...results }));
+  }
+
   // ---- TOPIC mode ----
   useEffect(() => {
     if (practiceMode !== "topic" || !selectedSubject || !selectedTopic) return;
@@ -621,7 +671,7 @@ function PracticeInner() {
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load topic questions.");
         const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
-        if (mounted) { setQuestions(data.questions ?? []); setTopicTotal(data.total ?? 0); }
+        if (mounted) { setQuestions(data.questions ?? []); setTopicTotal(data.total ?? 0); restoreTopicPractice(data.questions ?? []); }
       } catch (loadError) {
         if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load topic questions.");
       } finally {
@@ -641,12 +691,28 @@ function PracticeInner() {
       const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
       setQuestions((prev) => [...prev, ...(data.questions ?? [])]);
       setTopicTotal((prev) => data.total ?? prev);
+      restoreTopicPractice(data.questions ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load more questions.");
     } finally {
       setLoadingMore(false);
     }
   }
+
+  // Persist topic answers + marked results (debounced), merged by question id so
+  // switching topics never drops another topic's saved work.
+  useEffect(() => {
+    if (practiceMode !== "topic") return;
+    const id = setTimeout(() => {
+      const blob = readTopicPractice();
+      writeTopicPractice({
+        mcq: { ...blob.mcq, ...pruneAnswers(mcqAnswers) },
+        parts: { ...blob.parts, ...pruneAnswers(partAnswers) },
+        results: { ...blob.results, ...oneResults },
+      });
+    }, 600);
+    return () => clearTimeout(id);
+  }, [practiceMode, mcqAnswers, partAnswers, oneResults]);
 
   // ---- PAPER mode: available papers ----
   useEffect(() => {
@@ -1091,10 +1157,6 @@ function PracticeInner() {
   }, [mcqAnswers, partAnswers]);
 
   const buildGradeQuestions = (): GradeQuestionInput[] => questions.map(toGradeInput);
-
-  // per-question grading (topic drills): id -> result, and in-flight ids
-  const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
-  const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
 
   // D — collapse solved/marked questions when a paper is reopened. collapsedInitRef
   // is a snapshot of which questions were already solved/marked at load; openMap
