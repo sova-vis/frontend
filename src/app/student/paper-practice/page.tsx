@@ -637,7 +637,7 @@ function PracticeInner() {
     setOneResults({});
     setOneGrading({});
     setOpenMap({});
-    collapsedInitRef.current = new Set();
+    touchedIdsRef.current = new Set();
     restoredKeyRef.current = null;
     interactedRef.current = false;
   }
@@ -938,22 +938,11 @@ function PracticeInner() {
       startedAtRef.current = saved.startedAt;
       hasRowRef.current = true;
       setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-      // D — snapshot which questions were already fully solved or marked, so they
-      // open minimized (with a dropdown) instead of cluttering the reopened paper.
-      const savedMcq = saved.answers?.mcq ?? {};
-      const savedParts = saved.answers?.parts ?? {};
-      const markedIds = new Set((saved.report?.perQuestion ?? []).map((r) => r.id));
-      const initCollapsed = new Set<string>();
-      for (const q of questions) {
-        const fullyAnswered = q.type === "mcq"
-          ? Boolean(savedMcq[q.id]?.trim())
-          : q.parts.length
-            ? q.parts.every((part, i) => isHeaderPart(q.parts, part.label) || Boolean(savedParts[`${q.id}::${i}`]?.trim()))
-            : Boolean(savedParts[`${q.id}::0`]?.trim());
-        if (markedIds.has(q.id) || fullyAnswered) initCollapsed.add(q.id);
-      }
-      collapsedInitRef.current = initCollapsed;
+      // reopening a paper starts with no manual expand/collapse overrides and
+      // nothing "touched" — so the derived collapse minimises already-answered
+      // questions on open.
       setOpenMap({});
+      touchedIdsRef.current = new Set();
     } else {
       setTimerDuration(fallbackDuration);
       timerElapsedRef.current = 0;
@@ -963,8 +952,8 @@ function PracticeInner() {
       startedAtRef.current = null;
       hasRowRef.current = false;
       setSavingState("idle");
-      collapsedInitRef.current = new Set(); // fresh paper — nothing pre-collapsed
       setOpenMap({});
+      touchedIdsRef.current = new Set();
     }
     setTimerNonce((n) => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1158,14 +1147,15 @@ function PracticeInner() {
 
   const buildGradeQuestions = (): GradeQuestionInput[] => questions.map(toGradeInput);
 
-  // D — collapse solved/marked questions when a paper is reopened. collapsedInitRef
-  // is a snapshot of which questions were already solved/marked at load; openMap
-  // holds the student's manual expand/collapse overrides for this paper.
+  // D — collapse solved/marked questions when a paper is reopened. Derived from
+  // the CURRENT answers every render (no snapshot/effect timing to get out of
+  // sync): a paper question is collapsed by default once it's fully answered or
+  // already marked, UNLESS the student has touched it this session (actively
+  // working on it) or manually toggled it. On a reopen nothing is touched yet,
+  // so every already-answered question opens minimized.
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
-  const collapsedInitRef = useRef<Set<string>>(new Set());
-  const isQuestionOpen = (id: string) => openMap[id] ?? !collapsedInitRef.current.has(id);
-  const toggleQuestionOpen = (id: string) =>
-    setOpenMap((prev) => ({ ...prev, [id]: !(prev[id] ?? !collapsedInitRef.current.has(id)) }));
+  const touchedIdsRef = useRef<Set<string>>(new Set());
+  const markTouched = (id: string) => { touchedIdsRef.current.add(id); };
 
   // paper-mode per-question results, keyed by question id (from the saved report)
   const resultById = useMemo(() => {
@@ -1173,6 +1163,17 @@ function PracticeInner() {
     for (const r of report?.perQuestion ?? []) map[r.id] = r;
     return map;
   }, [report]);
+
+  const isQuestionFullyAnswered = (q: PracticeQuestion): boolean => {
+    if (q.type === "mcq") return Boolean(mcqAnswers[q.id]?.trim());
+    if (q.parts.length) return q.parts.every((part, i) => isHeaderPart(q.parts, part.label) || Boolean(partAnswers[`${q.id}::${i}`]?.trim()));
+    return Boolean(partAnswers[`${q.id}::0`]?.trim());
+  };
+  const collapsedByDefault = (q: PracticeQuestion): boolean =>
+    practiceMode === "paper" && !touchedIdsRef.current.has(q.id) && (Boolean(resultById[q.id]) || isQuestionFullyAnswered(q));
+  const isQuestionOpen = (q: PracticeQuestion): boolean => openMap[q.id] ?? !collapsedByDefault(q);
+  const toggleQuestionOpen = (q: PracticeQuestion) =>
+    setOpenMap((prev) => ({ ...prev, [q.id]: !(prev[q.id] ?? !collapsedByDefault(q)) }));
   // topic drills: solve every question on screen, or upload a photo per question
   const [topicSolveMode, setTopicSolveMode] = useState<SolveMode>("digital");
   // schemes/answers can only be revealed once at least one question has been submitted
@@ -1527,8 +1528,8 @@ function PracticeInner() {
                 <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
                   mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
                   readOnly={practiceMode === "paper" && solveMode === "handwritten"}
-                  onMcqAnswer={(value) => { interactedRef.current = true; setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
-                  onPartAnswer={(partKey, value) => { interactedRef.current = true; setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
+                  onMcqAnswer={(value) => { interactedRef.current = true; markTouched(question.id); setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
+                  onPartAnswer={(partKey, value) => { interactedRef.current = true; markTouched(question.id); setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
                   onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
                   onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
                   topicMode={topicSolveMode === "handwritten" ? "upload" : "type"}
@@ -1537,8 +1538,8 @@ function PracticeInner() {
                   gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
                   gradingOne={Boolean(oneGrading[question.id])}
                   // D — paper mode: solved/marked questions open minimized with a dropdown
-                  collapsed={practiceMode === "paper" ? !isQuestionOpen(question.id) : false}
-                  onToggleCollapsed={practiceMode === "paper" ? () => toggleQuestionOpen(question.id) : undefined} />
+                  collapsed={practiceMode === "paper" ? !isQuestionOpen(question) : false}
+                  onToggleCollapsed={practiceMode === "paper" ? () => toggleQuestionOpen(question) : undefined} />
               ))}
 
               {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
