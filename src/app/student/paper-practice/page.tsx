@@ -1169,8 +1169,11 @@ function PracticeInner() {
     if (q.parts.length) return q.parts.every((part, i) => isHeaderPart(q.parts, part.label) || Boolean(partAnswers[`${q.id}::${i}`]?.trim()));
     return Boolean(partAnswers[`${q.id}::0`]?.trim());
   };
+  // Collapse (minimise) a question once it's marked or fully answered — in BOTH
+  // paper and by-topic mode — unless it's been touched this session. resultById
+  // holds paper-mode marks; oneResults holds by-topic marks.
   const collapsedByDefault = (q: PracticeQuestion): boolean =>
-    practiceMode === "paper" && !touchedIdsRef.current.has(q.id) && (Boolean(resultById[q.id]) || isQuestionFullyAnswered(q));
+    !touchedIdsRef.current.has(q.id) && (Boolean(resultById[q.id]) || Boolean(oneResults[q.id]) || isQuestionFullyAnswered(q));
   const isQuestionOpen = (q: PracticeQuestion): boolean => openMap[q.id] ?? !collapsedByDefault(q);
   const toggleQuestionOpen = (q: PracticeQuestion) =>
     setOpenMap((prev) => ({ ...prev, [q.id]: !(prev[q.id] ?? !collapsedByDefault(q)) }));
@@ -1185,6 +1188,7 @@ function PracticeInner() {
     setError("");
     try {
       const result = await gradeOneQuestion(selectedSubject, toGradeInput(q), getToken);
+      markTouched(q.id); // keep it open right after marking; it collapses on reopen
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
       void logAttempts([attemptFromGraded(q, result)], getToken);
     } catch (gradeError) {
@@ -1201,6 +1205,7 @@ function PracticeInner() {
     setError("");
     try {
       const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken);
+      markTouched(q.id); // keep it open right after marking; it collapses on reopen
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
       void logAttempts([attemptFromGraded(q, result)], getToken);
     } catch (gradeError) {
@@ -1537,9 +1542,9 @@ function PracticeInner() {
                   schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
                   gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
                   gradingOne={Boolean(oneGrading[question.id])}
-                  // D — paper mode: solved/marked questions open minimized with a dropdown
-                  collapsed={practiceMode === "paper" ? !isQuestionOpen(question) : false}
-                  onToggleCollapsed={practiceMode === "paper" ? () => toggleQuestionOpen(question) : undefined} />
+                  // D — solved/marked questions open minimized with a dropdown (paper + topic)
+                  collapsed={!isQuestionOpen(question)}
+                  onToggleCollapsed={() => toggleQuestionOpen(question)} />
               ))}
 
               {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
