@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -11,6 +11,7 @@ import { subjectStyle } from "@/components/propel/subjects";
 interface Citation {
   subject?: string; year?: number | string; session?: string; paper?: string;
   variant?: string; questionNumber?: string | number; topicSyllabus?: string; topicGeneral?: string;
+  preview?: string; pageImageUrl?: string;
 }
 interface MarkingPoint { point: string; marks?: number }
 interface ChatMsg {
@@ -20,8 +21,10 @@ interface ChatMsg {
   citations?: Citation[];
   markingPoints?: MarkingPoint[];
   commonMistakes?: string[];
+  mode?: "ask" | "find";
   error?: boolean;
 }
+type Mode = "ask" | "find";
 interface Session { id: string; title: string; updatedAt: string; messages: ChatMsg[] }
 
 const DEFAULT_PROMPTS = [
@@ -30,6 +33,8 @@ const DEFAULT_PROMPTS = [
   { t: "Why do I keep losing marks on Forces?", icon: "target", subj: "physics" },
   { t: "Summarise transport in plants", icon: "dna", subj: "biology" },
 ];
+
+const MAX_STORED_SESSIONS = 10;
 
 function citationLabel(c: Citation): string {
   const parts: string[] = [];
@@ -42,21 +47,111 @@ function citationLabel(c: Citation): string {
   return parts.join(" · ") || "Past paper";
 }
 
+// Inline markdown: **bold** and [text](url) links.
+function renderInline(text: string, keyPrefix = ""): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${keyPrefix}${i}`} style={{ fontSize: "1.08em", color: "#2563EB" }}>{part.slice(2, -2)}</strong>;
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      return (
+        <a key={`${keyPrefix}${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+          style={{ color: "var(--crimson)", textDecoration: "underline" }}>
+          {linkMatch[1]}
+        </a>
+      );
+    }
+    return <span key={`${keyPrefix}${i}`}>{part}</span>;
+  });
+}
+
+// Block-level markdown: headings (###), bullet lists (- ), and paragraphs -
+// built for the chatbot's Ask-mode answers (worked examples + marking points).
+function renderMarkdown(text: string): ReactNode[] {
+  if (!text) return [];
+  const lines = text.replace(/\r/g, "").split("\n");
+  const nodes: ReactNode[] = [];
+  let para: string[] = [];
+  let bullets: string[] = [];
+
+  const flushPara = () => {
+    if (!para.length) return;
+    nodes.push(
+      <p key={`p-${nodes.length}`} style={{ margin: "0 0 10px", fontSize: 14.5, lineHeight: 1.6 }}>
+        {para.map((line, i) => (
+          <span key={i}>{renderInline(line, `pl${nodes.length}-${i}-`)}{i < para.length - 1 && <br />}</span>
+        ))}
+      </p>
+    );
+    para = [];
+  };
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    nodes.push(
+      <div key={`ul-${nodes.length}`} style={{ margin: "0 0 10px" }}>
+        {bullets.map((b, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 44, lineHeight: 1, fontWeight: 700, color: "var(--crimson)", flex: "none" }}>.</span>
+            <span style={{ fontSize: 14.5, lineHeight: 1.6 }}>{renderInline(b, `bl${nodes.length}-${i}-`)}</span>
+          </div>
+        ))}
+      </div>
+    );
+    bullets = [];
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flushPara(); flushBullets(); continue; }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      flushPara(); flushBullets();
+      const level = heading[1].length;
+      nodes.push(
+        level <= 3 ? (
+          <div key={`h-${nodes.length}`} className="eyebrow" style={{ fontSize: 12.5, color: "var(--purple)", marginTop: nodes.length ? 16 : 0, marginBottom: 8 }}>
+            {heading[2]}
+          </div>
+        ) : (
+          <div key={`h-${nodes.length}`} style={{ fontSize: 19, fontWeight: 700, color: "var(--ink)", marginTop: nodes.length ? 16 : 0, marginBottom: 6 }}>
+            {heading[2]}
+          </div>
+        )
+      );
+      continue;
+    }
+
+    const bullet = line.match(/^[-•*]\s+(.*)$/);
+    if (bullet) { flushPara(); bullets.push(bullet[1]); continue; }
+
+    flushBullets();
+    para.push(line);
+  }
+  flushPara(); flushBullets();
+  return nodes;
+}
+
 function AskAIInner() {
   const { user } = useUser();
   const { profile } = useClerkAuth();
   const searchParams = useSearchParams();
   const name = (profile?.full_name || user?.firstName || "there").split(" ")[0];
-  const storageKey = useMemo(() => `propel-ask-sessions-${user?.id || "anon"}`, [user?.id]);
+  const [mode, setMode] = useState<Mode>("ask");
+  // Separate storage key per mode - Ask and Find are independent
+  // conversations, same as the underlying chatbot's own UI keeps them.
+  const storageKey = useMemo(() => `propel-ask-sessions-${mode}-${user?.id || "anon"}`, [user?.id, mode]);
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [scopeSubject, setScopeSubject] = useState("");   // #26 syllabus scope
-  const [toast, setToast] = useState("");                 // #30 transient error toast
+  const [scopeSubject, setScopeSubject] = useState("");   // syllabus scope filter
+  const [toast, setToast] = useState("");                 // transient error toast
   const [bootstrapped, setBootstrapped] = useState(false);
-  const [attached, setAttached] = useState<{ file: File; url: string } | null>(null); // #27 image attach
+  const [attached, setAttached] = useState<{ file: File; url: string } | null>(null); // image attach
   const prefillRef = useRef(false);
   const imageInput = useRef<HTMLInputElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -70,8 +165,16 @@ function AskAIInner() {
     try {
       const raw = localStorage.getItem(storageKey);
       const parsed: Session[] = raw ? JSON.parse(raw) : [];
-      setSessions(parsed);
-      setActiveId(parsed[0]?.id ?? null);
+      // Trim on load too, not just on new-session writes - localStorage may
+      // already hold more than the cap from before this limit existed.
+      const trimmed = parsed.slice(0, MAX_STORED_SESSIONS);
+      setSessions(trimmed);
+      if (trimmed.length !== parsed.length) {
+        try { localStorage.setItem(storageKey, JSON.stringify(trimmed)); } catch { /* ignore */ }
+      }
+      // Always start on a fresh, blank chat - history is still there in the
+      // Recent list to click back into, just never auto-resumed.
+      setActiveId(null);
     } catch { /* ignore */ }
     setBootstrapped(true);
   }, [storageKey]);
@@ -84,8 +187,12 @@ function AskAIInner() {
   }, [toast]);
 
   const persist = (next: Session[]) => {
-    setSessions(next);
-    try { localStorage.setItem(storageKey, JSON.stringify(next.slice(0, 30))); } catch { /* ignore */ }
+    // New sessions are always prepended (index 0 = most recent), so keeping
+    // the first MAX_STORED_SESSIONS here correctly evicts the oldest ones
+    // once the list grows past the cap.
+    const trimmed = next.slice(0, MAX_STORED_SESSIONS);
+    setSessions(trimmed);
+    try { localStorage.setItem(storageKey, JSON.stringify(trimmed)); } catch { /* ignore */ }
   };
 
   const active = sessions.find((s) => s.id === activeId) || null;
@@ -111,7 +218,7 @@ function AskAIInner() {
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    const image = attached;                       // #27 capture attached image
+    const image = attached;
     if ((!trimmed && !image) || loading) return;
     setInput("");
     setAttached(null);
@@ -140,7 +247,7 @@ function AskAIInner() {
     try {
       let data: Record<string, unknown>;
       if (image) {
-        // #27 image path → Grok vision
+        // Image path -> Grok vision, bypasses the Ask/Find text pipeline entirely.
         const fd = new FormData();
         fd.append("question", trimmed || "Read the attached image and answer any question in it, explaining clearly.");
         if (scopeSubject) fd.append("subject", scopeSubject);
@@ -152,24 +259,26 @@ function AskAIInner() {
         const res = await apiCall("/rag/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, limit: 5, history, subject: scopeSubject || undefined }),
+          body: JSON.stringify({ question: trimmed, limit: 5, history, mode, subject: scopeSubject || undefined }),
         });
         if (!res.ok) throw new Error(String(res.status));
         data = await res.json();
       }
+      const responseMode: Mode = data.mode === "find" ? "find" : "ask";
 
-      const citations: Citation[] = ((data.citations as Citation[]) || []).slice(0, 3);
+      const citations: Citation[] = (data.citations as Citation[]) || [];
       const aiMsg: ChatMsg = data.type === "smalltalk" || data.type === "image_answer"
         ? { role: "ai", text: (data.answer as string) || "" }
         : {
             role: "ai",
             text: (data.answer as string) || "",
+            mode: responseMode,
             citations,
             markingPoints: Array.isArray(data.marking_points) ? (data.marking_points as MarkingPoint[]) : undefined,
             commonMistakes: Array.isArray(data.common_mistakes) ? (data.common_mistakes as string[]) : undefined,
           };
 
-      // #29 auto-title the session by subject/topic instead of the raw first message
+      // Auto-title the session by subject/topic instead of the raw first message.
       const subj = String(scopeSubject || (data.subject as string) || citations[0]?.subject || "");
       const topic = citations[0]?.topicSyllabus || citations[0]?.topicGeneral || "";
       const smartTitle = subj ? [subj, topic].filter(Boolean).join(" · ").slice(0, 48) : (trimmed || "Image question").slice(0, 48);
@@ -188,7 +297,7 @@ function AskAIInner() {
     }
   };
 
-  // #20 deep link from a wrong MCQ ("Ask AI why…") — auto-send the ?q= once loaded
+  // Deep link from a wrong MCQ ("Ask AI why…") — auto-send the ?q= once loaded.
   useEffect(() => {
     if (!bootstrapped || prefillRef.current) return;
     const q = searchParams?.get("q");
@@ -222,9 +331,22 @@ function AskAIInner() {
           <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden", minHeight: "calc(100vh - 200px)" }}>
             <div className="flex items-center gap-10" style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
               <div className="brand-mark" style={{ background: "linear-gradient(140deg,var(--purple),#4b32a8)", boxShadow: "none" }}><Icon name="sparkles" size={16} fill="#fff" stroke={0} /></div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>Ask AI</div>
                 <div className="faint" style={{ fontSize: 12 }}>Powered by past papers</div>
+              </div>
+              <div className="flex" style={{ background: "var(--surface-2)", borderRadius: 10, padding: 3, gap: 2 }}>
+                {(["ask", "find"] as Mode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    className={"btn btn-sm" + (mode === m ? " btn-primary" : "")}
+                    style={mode === m ? { padding: "6px 14px" } : { padding: "6px 14px", background: "transparent", border: "none", color: "var(--ink-muted)" }}
+                    title={m === "ask" ? "Explain a concept, grounded in the papers and the web" : "Look up exactly which years/papers a topic was asked in"}
+                  >
+                    {m === "ask" ? "Ask" : "Find"}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -256,7 +378,7 @@ function AskAIInner() {
 
             {/* composer */}
             <div style={{ padding: 14, borderTop: "1px solid var(--line)" }}>
-              {/* #26 optional syllabus scope */}
+              {/* optional syllabus scope */}
               {subjectOptions.length > 0 && (
                 <div className="flex items-center gap-8 wrap" style={{ maxWidth: 720, margin: "0 auto 8px" }}>
                   <span className="faint" style={{ fontSize: 12 }}>Scope:</span>
@@ -270,7 +392,7 @@ function AskAIInner() {
                   </label>
                 </div>
               )}
-              {/* #27 attached-image preview */}
+              {/* attached-image preview */}
               {attached && (
                 <div className="flex items-center gap-10" style={{ maxWidth: 720, margin: "0 auto 8px", padding: "6px 10px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -300,7 +422,7 @@ function AskAIInner() {
         </div>
       </div>
 
-      {/* #30 non-intrusive transient error toast (thread is preserved) */}
+      {/* non-intrusive transient error toast (thread is preserved) */}
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 9999,
           background: "var(--ink)", color: "var(--canvas)", padding: "10px 16px", borderRadius: 12, fontSize: 13.5,
@@ -349,7 +471,7 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
       <AIAvatar />
       <div style={{ flex: 1 }}>
         <div className="card card-pad" style={{ padding: 16 }}>
-          <div style={{ fontSize: 14.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{m.text}</div>
+          <div>{renderMarkdown(m.text || "")}</div>
 
           {m.markingPoints && m.markingPoints.length > 0 && (
             <div className="mt-16">
@@ -380,78 +502,42 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
           )}
 
           {m.citations && m.citations.length > 0 && (
-            <div className="mt-16">
-              <div className="eyebrow" style={{ marginBottom: 8 }}>Sources · from past papers</div>
-              <div className="flex-col gap-8">
-                {m.citations.map((c, i) => <CitationRow key={i} c={c} />)}
+            <div className="mt-16" style={{ overflowX: "auto" }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>
+                {m.mode === "find" ? `Matching questions (${m.citations.length})` : "Sources · from past papers"}
               </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                    {["Subject", "Year", "Session", "Paper", "Variant", "Q#", "Question"].map((h) => (
+                      <th key={h} style={{ textAlign: "left", padding: "6px 10px", fontSize: 11.5, fontWeight: 600, color: "var(--ink-muted)", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.citations.map((c, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.subject ?? "-"}</td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.year ?? "-"}</td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{(c.session || "").replace(/_/g, "/") || "-"}</td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.paper ?? "-"}</td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.variant ?? "-"}</td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.questionNumber ?? "-"}</td>
+                      <td style={{ padding: "8px 10px" }}>
+                        {c.pageImageUrl ? (
+                          <a href={c.pageImageUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--crimson)", textDecoration: "underline" }}>
+                            {c.preview || citationLabel(c)}
+                          </a>
+                        ) : (c.preview || citationLabel(c))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// #28 clickable citation → lazy-loads a preview of the cited question + mark scheme
-function CitationRow({ c }: { c: Citation }) {
-  const s = subjectStyle(c.subject);
-  const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState<{ question: string; scheme: string } | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
-
-  const toggle = async () => {
-    const next = !open;
-    setOpen(next);
-    if (!next || detail || state === "loading") return;
-    if (!c.subject || !c.year || !c.session || !c.paper) { setState("error"); return; }
-    setState("loading");
-    try {
-      const params = new URLSearchParams({
-        subject: String(c.subject), year: String(c.year), session: String(c.session),
-        paper: String(c.paper), variant: c.variant ? String(c.variant) : "",
-      });
-      const res = await fetch(`/api/paper-practice?${params.toString()}`);
-      const data = res.ok ? await res.json() : { questions: [] };
-      const qn = String(c.questionNumber ?? "");
-      const list = (data.questions || []) as Array<{ questionNumber?: string; questionText?: string; markingScheme?: string; parts?: Array<{ answer?: string | null }> }>;
-      const q = list.find((x) => String(x.questionNumber) === qn) || list[0];
-      if (q) {
-        const scheme = [q.markingScheme, ...(((q.parts || []).map((p) => p.answer).filter(Boolean)) as string[])].filter(Boolean).join("\n");
-        setDetail({ question: q.questionText || "", scheme });
-        setState("idle");
-      } else { setState("error"); }
-    } catch { setState("error"); }
-  };
-
-  return (
-    <div style={{ borderRadius: 11, border: "1px solid var(--line)", background: "var(--surface-2)", overflow: "hidden" }}>
-      <button onClick={toggle} className="flex items-center gap-10" style={{ width: "100%", textAlign: "left", padding: "9px 12px", cursor: "pointer", background: "transparent" }}>
-        <span className="dot" style={{ background: s.color }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{citationLabel(c)}</div>
-          {(c.topicSyllabus || c.topicGeneral) && <div className="faint" style={{ fontSize: 11.5 }}>{c.topicSyllabus || c.topicGeneral}</div>}
-        </div>
-        <Icon name={open ? "chevron_down" : "chevron_right"} size={16} className="faint" />
-      </button>
-      {open && (
-        <div style={{ padding: "0 12px 12px", fontSize: 13, lineHeight: 1.5 }}>
-          {state === "loading" ? (
-            <div className="flex items-center gap-8 faint"><Icon name="refresh" size={14} className="spin" /> Loading question…</div>
-          ) : state === "error" || !detail ? (
-            <div className="faint" style={{ fontSize: 12.5 }}>Preview unavailable — open this paper from the Papers tab to view it.</div>
-          ) : (
-            <>
-              {detail.question && <p style={{ whiteSpace: "pre-wrap" }}>{detail.question}</p>}
-              {detail.scheme && (
-                <div style={{ marginTop: 8, borderRadius: 8, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: 8, color: "var(--amber-deep)", fontSize: 12.5, whiteSpace: "pre-wrap" }}>
-                  <b>Mark scheme:</b> {detail.scheme}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }
