@@ -14,7 +14,11 @@ export interface UserProfile {
 }
 
 const PROFILE_CACHE_PREFIX = "propel_profile_";
+// Re-validate the profile (esp. role) from the server at most this often, so a
+// server-side role change can't stay effective in a long-lived tab (A-1).
+const PROFILE_TTL_MS = 5 * 60 * 1000;
 let inMemoryProfile: UserProfile | null = null;
+let profileFetchedAt = 0;
 let inFlightProfileRequest: Promise<UserProfile | null> | null = null;
 
 function cacheKeyForUser(clerkId: string) {
@@ -110,25 +114,25 @@ export function useClerkAuth() {
     }
 
     const clerkId = user.id;
+    const cacheFresh = Date.now() - profileFetchedAt < PROFILE_TTL_MS;
 
-    // Try in-memory cache first
+    // Try in-memory cache first (show instantly, but still revalidate if stale)
     if (inMemoryProfile && inMemoryProfile.clerk_id === clerkId) {
       setProfile(inMemoryProfile);
       setLoading(false);
-      return;
+      if (cacheFresh) return; // fresh → trust cache; stale → fall through to refetch
+    } else {
+      // Try localStorage cache — instant UI, always revalidated below
+      const localProfile = readCachedProfile(clerkId);
+      if (localProfile) {
+        inMemoryProfile = localProfile;
+        setProfile(localProfile);
+        setLoading(false);
+      }
     }
 
-    // Try localStorage cache
-    const localProfile = readCachedProfile(clerkId);
-    if (localProfile) {
-      inMemoryProfile = localProfile;
-      setProfile(localProfile);
-      setLoading(false);
-      // Don't return — still refresh in background, but UI is unblocked
-    }
-
-    // Skip if we've already started a fetch for this user
-    if (fetchedForUser.current === clerkId) return;
+    // Skip only if a fetch already ran for this user AND the cache is still fresh
+    if (cacheFresh && fetchedForUser.current === clerkId) return;
     fetchedForUser.current = clerkId;
 
     let cancelled = false;
@@ -158,6 +162,7 @@ export function useClerkAuth() {
 
         if (cancelled) return;
         inMemoryProfile = resolvedProfile;
+        profileFetchedAt = Date.now();
         setProfile(resolvedProfile);
         writeCachedProfile(clerkId, resolvedProfile);
       } catch (err) {

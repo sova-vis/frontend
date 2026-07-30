@@ -344,9 +344,11 @@ function QuestionCard(props: {
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
   onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; schemeUnlocked?: boolean;
+  collapsed?: boolean; onToggleCollapsed?: () => void;
 }) {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
+  const collapsed = Boolean(props.collapsed);
 
   // per-card status badge so a long list is scannable at a glance
   const isMcq = question.type === "mcq";
@@ -376,7 +378,8 @@ function QuestionCard(props: {
 
   return (
     <article className="card card-pad flex-col gap-16">
-      <div className="row-between wrap" style={{ gap: 10 }}>
+      <div className="row-between wrap" style={{ gap: 10, cursor: collapsed ? "pointer" : "default" }}
+        onClick={collapsed ? props.onToggleCollapsed : undefined}>
         <div className="flex gap-8 wrap items-center">
           <span className="chip-tag badge neutral">Q{question.questionNumber}</span>
           <span className={"badge " + statusTone} style={{ fontSize: 11 }}>{statusLabel}</span>
@@ -388,29 +391,43 @@ function QuestionCard(props: {
           {question.marks !== null && <span>{question.marks} mark{question.marks === 1 ? "" : "s"}</span>}
           {question.session && <span>{question.session.replace(/_/g, " ")}</span>}
           {question.paper && <span>{question.paper.replace(/_/g, " ")}</span>}
-        </div>
-      </div>
-      {question.type === "mcq" ? (
-        <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
-      ) : (
-        // topic upload mode hides the answer boxes — you answer by uploading a photo
-        <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} schemeUnlocked={props.schemeUnlocked} />
-      )}
-
-      {/* per-question AI marking (topic drills): solve here, or upload a photo */}
-      {props.onGradeOne && (
-        <div className="flex-col gap-10">
-          {topicUpload ? (
-            <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
-          ) : (
-            <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
-              {props.gradingOne
-                ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
-                : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : totalParts > 1 ? `Mark my answer · ${answeredParts}/${totalParts}` : "Mark my answer"}</>}
+          {props.onToggleCollapsed && (
+            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); props.onToggleCollapsed?.(); }}
+              aria-label={collapsed ? "Expand question" : "Collapse question"} title={collapsed ? "Expand" : "Collapse (solved)"}
+              style={{ width: 28, height: 28, border: "1px solid var(--line)", flex: "none" }}>
+              <Icon name={collapsed ? "chevron_right" : "chevron_down"} size={15} />
             </button>
           )}
-          {props.gradeResult && <QuestionResultRow q={props.gradeResult} />}
         </div>
+      </div>
+
+      {!collapsed && (
+        <>
+          {question.type === "mcq" ? (
+            <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
+          ) : (
+            // topic upload mode hides the answer boxes — you answer by uploading a photo
+            <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} schemeUnlocked={props.schemeUnlocked} />
+          )}
+
+          {/* per-question AI marking (topic drills): solve here, or upload a photo */}
+          {props.onGradeOne && (
+            <div className="flex-col gap-10">
+              {topicUpload ? (
+                <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
+              ) : (
+                <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
+                  {props.gradingOne
+                    ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
+                    : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : totalParts > 1 ? `Mark my answer · ${answeredParts}/${totalParts}` : "Mark my answer"}</>}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* marking result — topic drill, or a reopened graded paper (D) — with part-wise model answers (C) */}
+          {props.gradeResult && <QuestionResultRow q={props.gradeResult} parts={question.parts} />}
+        </>
       )}
     </article>
   );
@@ -584,6 +601,8 @@ function PracticeInner() {
     setReportOpen(false);
     setOneResults({});
     setOneGrading({});
+    setOpenMap({});
+    collapsedInitRef.current = new Set();
     restoredKeyRef.current = null;
     interactedRef.current = false;
   }
@@ -853,6 +872,22 @@ function PracticeInner() {
       startedAtRef.current = saved.startedAt;
       hasRowRef.current = true;
       setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      // D — snapshot which questions were already fully solved or marked, so they
+      // open minimized (with a dropdown) instead of cluttering the reopened paper.
+      const savedMcq = saved.answers?.mcq ?? {};
+      const savedParts = saved.answers?.parts ?? {};
+      const markedIds = new Set((saved.report?.perQuestion ?? []).map((r) => r.id));
+      const initCollapsed = new Set<string>();
+      for (const q of questions) {
+        const fullyAnswered = q.type === "mcq"
+          ? Boolean(savedMcq[q.id]?.trim())
+          : q.parts.length
+            ? q.parts.every((part, i) => isHeaderPart(q.parts, part.label) || Boolean(savedParts[`${q.id}::${i}`]?.trim()))
+            : Boolean(savedParts[`${q.id}::0`]?.trim());
+        if (markedIds.has(q.id) || fullyAnswered) initCollapsed.add(q.id);
+      }
+      collapsedInitRef.current = initCollapsed;
+      setOpenMap({});
     } else {
       setTimerDuration(fallbackDuration);
       timerElapsedRef.current = 0;
@@ -862,16 +897,21 @@ function PracticeInner() {
       startedAtRef.current = null;
       hasRowRef.current = false;
       setSavingState("idle");
+      collapsedInitRef.current = new Set(); // fresh paper — nothing pre-collapsed
+      setOpenMap({});
     }
     setTimerNonce((n) => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [practiceMode, currentPaperKey, loadingQuestions, questions, progressMap]);
 
-  // debounced autosave whenever the student's work changes
+  // debounced autosave whenever the student's work changes. The very first save
+  // (before a row exists) fires fast so the draft is captured the moment they
+  // start writing; subsequent saves debounce a little longer to batch keystrokes.
   useEffect(() => {
     if (!currentPaperKey || restoredKeyRef.current !== currentPaperKey || !interactedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { void doSave(); }, 900);
+    const delay = hasRowRef.current ? 800 : 250;
+    saveTimerRef.current = setTimeout(() => { void doSave(); }, delay);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [mcqAnswers, partAnswers, solveMode, paperStatus, currentPaperKey, doSave]);
 
@@ -892,9 +932,11 @@ function PracticeInner() {
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush);
+    window.addEventListener("blur", flush);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", flush);
+      window.removeEventListener("blur", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [buildDoc, currentPaperKey]);
@@ -1053,6 +1095,22 @@ function PracticeInner() {
   // per-question grading (topic drills): id -> result, and in-flight ids
   const [oneResults, setOneResults] = useState<Record<string, GradedQuestion>>({});
   const [oneGrading, setOneGrading] = useState<Record<string, boolean>>({});
+
+  // D — collapse solved/marked questions when a paper is reopened. collapsedInitRef
+  // is a snapshot of which questions were already solved/marked at load; openMap
+  // holds the student's manual expand/collapse overrides for this paper.
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
+  const collapsedInitRef = useRef<Set<string>>(new Set());
+  const isQuestionOpen = (id: string) => openMap[id] ?? !collapsedInitRef.current.has(id);
+  const toggleQuestionOpen = (id: string) =>
+    setOpenMap((prev) => ({ ...prev, [id]: !(prev[id] ?? !collapsedInitRef.current.has(id)) }));
+
+  // paper-mode per-question results, keyed by question id (from the saved report)
+  const resultById = useMemo(() => {
+    const map: Record<string, GradedQuestion> = {};
+    for (const r of report?.perQuestion ?? []) map[r.id] = r;
+    return map;
+  }, [report]);
   // topic drills: solve every question on screen, or upload a photo per question
   const [topicSolveMode, setTopicSolveMode] = useState<SolveMode>("digital");
   // schemes/answers can only be revealed once at least one question has been submitted
@@ -1414,7 +1472,11 @@ function PracticeInner() {
                   topicMode={topicSolveMode === "handwritten" ? "upload" : "type"}
                   // scheme only unlocks once this question is marked (topic) or the paper is graded (paper)
                   schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
-                  gradeResult={oneResults[question.id]} gradingOne={Boolean(oneGrading[question.id])} />
+                  gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
+                  gradingOne={Boolean(oneGrading[question.id])}
+                  // D — paper mode: solved/marked questions open minimized with a dropdown
+                  collapsed={practiceMode === "paper" ? !isQuestionOpen(question.id) : false}
+                  onToggleCollapsed={practiceMode === "paper" ? () => toggleQuestionOpen(question.id) : undefined} />
               ))}
 
               {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
@@ -1436,6 +1498,7 @@ function PracticeInner() {
         <ReportModal
           report={report}
           meta={{ subject: selectedSubject, year: selectedPaper.year, session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant }}
+          partsById={Object.fromEntries(questions.map((q) => [q.id, q.parts]))}
           onClose={() => setReportOpen(false)}
         />,
         document.body,
@@ -1445,9 +1508,10 @@ function PracticeInner() {
 }
 
 /* ---- AI marking report modal ---- */
-function ReportModal({ report, meta, onClose }: {
+function ReportModal({ report, meta, partsById, onClose }: {
   report: PracticeReport;
   meta: { subject: string; year: string; session: string; paper: string; variant: string };
+  partsById?: Record<string, PracticePart[]>;
   onClose: () => void;
 }) {
   const ringColor = report.percent >= 70 ? "var(--teal-deep)" : report.percent >= 45 ? "var(--amber-deep)" : "var(--coral-bright)";
@@ -1505,7 +1569,7 @@ function ReportModal({ report, meta, onClose }: {
           {/* per-question breakdown */}
           <div className="flex-col gap-8">
             <div className="eyebrow" style={{ padding: "0 2px" }}>Question breakdown</div>
-            {report.perQuestion.map((q) => <QuestionResultRow key={q.id} q={q} />)}
+            {report.perQuestion.map((q) => <QuestionResultRow key={q.id} q={q} parts={partsById?.[q.id]} />)}
           </div>
         </div>
 
@@ -1546,8 +1610,68 @@ function MarkBreakdown({ items }: { items: MarkCategory[] }) {
   );
 }
 
-function QuestionResultRow({ q }: { q: GradedQuestion }) {
+/* ---- part-wise model answers: one top line, "see more" expands to every part ---- */
+function ModelAnswerRow({ part }: { part: PracticePart }) {
+  const [more, setMore] = useState(false);
+  const text = (part.answer || "").trim();
+  const long = text.length > 110;
+  return (
+    <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--amber-deep)" }}>
+      <div className="flex items-baseline" style={{ justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontWeight: 700 }}>{part.label || "Answer"}</span>
+        {part.marks != null && <span style={{ flex: "none", fontWeight: 700, opacity: 0.75 }}>[{part.marks}]</span>}
+      </div>
+      <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap",
+        ...(more || !long ? {} : { display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>
+        {text}
+      </p>
+      {long && (
+        <button onClick={() => setMore((v) => !v)} className="btn btn-ghost btn-sm"
+          style={{ padding: "1px 0", fontSize: 11, color: "var(--amber-deep)", textDecoration: "underline" }}>
+          {more ? "less" : "more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ModelAnswers({ parts }: { parts: PracticePart[] }) {
+  const [open, setOpen] = useState(false);
+  const answered = useMemo(
+    () => parts.filter((p) => p.answer && p.answer.trim() && !isHeaderPart(parts, p.label)),
+    [parts],
+  );
+  if (answered.length === 0) return null;
+  const shown = open ? answered : answered.slice(0, 1);
+  return (
+    <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: "9px 11px" }}>
+      <div className="row-between" style={{ gap: 8, alignItems: "center" }}>
+        <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>
+          Model answer{answered.length > 1 ? `s · ${answered.length} parts` : ""}
+        </span>
+        {answered.length > 1 && (
+          <button onClick={() => setOpen((v) => !v)} className="btn btn-ghost btn-sm"
+            style={{ padding: "2px 8px", fontSize: 11.5, color: "var(--amber-deep)", whiteSpace: "nowrap" }}>
+            <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {open ? "Show less" : `See all ${answered.length} parts`}
+          </button>
+        )}
+      </div>
+      <div className="flex-col" style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {shown.map((part, index) => <ModelAnswerRow key={index} part={part} />)}
+      </div>
+    </div>
+  );
+}
+
+function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePart[] }) {
   const tone = verdictColor(q.verdict);
+  const missing = q.missingPoints ?? [];
+  const expected = q.expectedPoints ?? [];
+  const norm = (value: string) => value.trim().toLowerCase();
+  const keyOf = (list: string[]) => list.map(norm).filter(Boolean).sort().join("|");
+  // A ~0 answer makes the model return the same points as both "missing" and
+  // "expected"; collapse them into one block instead of showing duplicates (B).
+  const samePoints = missing.length > 0 && keyOf(missing) === keyOf(expected);
   return (
     <div className="card card-pad" style={{ padding: 14 }}>
       <div className="row-between" style={{ gap: 10, alignItems: "flex-start" }}>
@@ -1572,16 +1696,26 @@ function QuestionResultRow({ q }: { q: GradedQuestion }) {
       <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
       {/* Phase 1 — marks breakdown by assessment objective */}
       {q.breakdown && q.breakdown.length > 0 && <MarkBreakdown items={q.breakdown} />}
-      {q.missingPoints.length > 0 && (
+      {samePoints ? (
         <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
-          <b>Improve:</b> {q.missingPoints.join("; ")}
+          <b>Key points you needed:</b> {expected.join("; ")}
         </p>
+      ) : (
+        <>
+          {missing.length > 0 && (
+            <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
+              <b>Improve:</b> {missing.join("; ")}
+            </p>
+          )}
+          {expected.length > 0 && (
+            <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 4 }}>
+              <b>Key points:</b> {expected.join("; ")}
+            </p>
+          )}
+        </>
       )}
-      {q.expectedPoints.length > 0 && (
-        <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 4 }}>
-          <b>Key points:</b> {q.expectedPoints.join("; ")}
-        </p>
-      )}
+      {/* Part-wise model answers (C) — one line each, "see more" reveals every part */}
+      {parts && parts.length > 0 && <ModelAnswers parts={parts} />}
       {/* Phase 3 — command-word coach */}
       {q.commandWordNote && (
         <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--purple-soft)" }}>

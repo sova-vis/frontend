@@ -11,7 +11,10 @@ export function getApiUrl(): string {
 }
 
 /**
- * Fetch wrapper that uses the correct API URL
+ * Fetch wrapper that uses the correct API URL and automatically attaches the
+ * current Clerk session token (unless the caller already set Authorization).
+ * This means every backend call is authenticated by default — required now
+ * that the AI, papers and content routes are all behind clerkAuth.
  */
 export async function apiCall(
   endpoint: string,
@@ -19,7 +22,17 @@ export async function apiCall(
 ): Promise<Response> {
   const baseUrl = getApiUrl();
   const url = `${baseUrl}${endpoint}`;
-  return fetch(url, options);
+  const headers = new Headers(options?.headers || {});
+  if (!headers.has("Authorization") && typeof window !== "undefined") {
+    try {
+      const clerk = (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }).Clerk;
+      const token = clerk?.session ? await clerk.session.getToken() : null;
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+    } catch {
+      // no session yet — request goes out unauthenticated and the route decides
+    }
+  }
+  return fetch(url, { ...options, headers });
 }
 
 export interface QaGradingRequest {

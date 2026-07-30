@@ -148,6 +148,17 @@ export function downloadReport(
       : q.schemeUsed
         ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#0f7a5e;background:#e6f6f0">✓ Mark scheme</span>`
         : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#6b5f57;background:#efece8">Examiner judgement</span>`;
+  const norm = (value: string) => value.trim().toLowerCase();
+  const keyOf = (list: string[]) => list.map(norm).filter(Boolean).sort().join("|");
+  const pointsHtml = (q: GradedQuestion) => {
+    const missing = q.missingPoints ?? [];
+    const expected = q.expectedPoints ?? [];
+    // When a ~0 answer makes both lists identical, show a single block (fix B).
+    if (missing.length > 0 && keyOf(missing) === keyOf(expected)) {
+      return `<div style="margin-top:6px;font-size:13px;color:#9a3b2a"><b>Key points you needed:</b> ${expected.map(escapeHtml).join("; ")}</div>`;
+    }
+    return `${missing.length ? `<div style="margin-top:6px;font-size:13px;color:#9a3b2a"><b>Improve:</b> ${missing.map(escapeHtml).join("; ")}</div>` : ""}${expected.length ? `<div style="margin-top:4px;font-size:13px;color:#3a3a3a"><b>Key points:</b> ${expected.map(escapeHtml).join("; ")}</div>` : ""}`;
+  };
   const rows = report.perQuestion.map((q) => `
     <tr>
       <td style="font-weight:600;white-space:nowrap">Q${escapeHtml(q.questionNumber)}</td>
@@ -155,8 +166,7 @@ export function downloadReport(
       <td style="white-space:nowrap">${pill(q.verdict)}${schemeTag(q)}</td>
       <td>
         <div>${escapeHtml(q.feedback)}</div>
-        ${q.missingPoints.length ? `<div style="margin-top:6px;font-size:13px;color:#9a3b2a"><b>Improve:</b> ${q.missingPoints.map(escapeHtml).join("; ")}</div>` : ""}
-        ${q.expectedPoints.length ? `<div style="margin-top:4px;font-size:13px;color:#3a3a3a"><b>Key points:</b> ${q.expectedPoints.map(escapeHtml).join("; ")}</div>` : ""}
+        ${pointsHtml(q)}
       </td>
     </tr>`).join("");
 

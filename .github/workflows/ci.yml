@@ -1,0 +1,27 @@
+# Continuous integration for sova-vis/frontend (Architecture report · Phase 6).
+# Runs type-check and lint on every push/PR — both need no environment, so this
+# stays green without secrets. The full `next build` is validated by Vercel on
+# deploy (and needs NEXT_PUBLIC_* env), so it is intentionally not duplicated
+# here to keep CI fast and non-flaky.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npm run type-check
+      - name: Lint
+        run: npm run lint
