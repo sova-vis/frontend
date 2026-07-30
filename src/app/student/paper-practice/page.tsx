@@ -1610,68 +1610,60 @@ function MarkBreakdown({ items }: { items: MarkCategory[] }) {
   );
 }
 
-/* ---- part-wise model answers: one top line, "see more" expands to every part ---- */
-function ModelAnswerRow({ part }: { part: PracticePart }) {
-  const [more, setMore] = useState(false);
+/* ---- answers dropdown: full model answer per part + the marks you were awarded ---- */
+type PartScore = { label: string; earned: number; max: number };
+const normPartLabel = (value: string) => (value || "").trim().toLowerCase().replace(/\s+/g, "");
+
+function AnswerRow({ part, score }: { part: PracticePart; score?: PartScore }) {
   const text = (part.answer || "").trim();
-  const long = text.length > 110;
   return (
-    <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--amber-deep)" }}>
+    <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--amber-deep)" }}>
       <div className="flex items-baseline" style={{ justifyContent: "space-between", gap: 8 }}>
         <span style={{ fontWeight: 700 }}>{part.label || "Answer"}</span>
-        {part.marks != null && <span style={{ flex: "none", fontWeight: 700, opacity: 0.75 }}>[{part.marks}]</span>}
+        {score && <span style={{ flex: "none", fontWeight: 700 }}>{score.earned} / {score.max}</span>}
       </div>
-      <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap",
-        ...(more || !long ? {} : { display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>
-        {text}
-      </p>
-      {long && (
-        <button onClick={() => setMore((v) => !v)} className="btn btn-ghost btn-sm"
-          style={{ padding: "1px 0", fontSize: 11, color: "var(--amber-deep)", textDecoration: "underline" }}>
-          {more ? "less" : "more"}
-        </button>
-      )}
+      <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{text}</p>
     </div>
   );
 }
 
-function ModelAnswers({ parts }: { parts: PracticePart[] }) {
+function ModelAnswers({ parts, partScores }: { parts: PracticePart[]; partScores?: PartScore[] }) {
   const [open, setOpen] = useState(false);
   const answered = useMemo(
     () => parts.filter((p) => p.answer && p.answer.trim() && !isHeaderPart(parts, p.label)),
     [parts],
   );
+  const scoreByLabel = useMemo(() => {
+    const map = new Map<string, PartScore>();
+    for (const s of partScores ?? []) map.set(normPartLabel(s.label), s);
+    return map;
+  }, [partScores]);
   if (answered.length === 0) return null;
-  const shown = open ? answered : answered.slice(0, 1);
+  const single = answered.length === 1;
+  const show = single || open;
   return (
     <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: "9px 11px" }}>
-      <div className="row-between" style={{ gap: 8, alignItems: "center" }}>
-        <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>
-          Model answer{answered.length > 1 ? `s · ${answered.length} parts` : ""}
-        </span>
-        {answered.length > 1 && (
-          <button onClick={() => setOpen((v) => !v)} className="btn btn-ghost btn-sm"
+      <div className="row-between" style={{ gap: 8, alignItems: "center", cursor: single ? "default" : "pointer" }}
+        onClick={single ? undefined : () => setOpen((v) => !v)}>
+        <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>Answers</span>
+        {!single && (
+          <button onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} className="btn btn-ghost btn-sm"
             style={{ padding: "2px 8px", fontSize: 11.5, color: "var(--amber-deep)", whiteSpace: "nowrap" }}>
-            <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {open ? "Show less" : `See all ${answered.length} parts`}
+            <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {open ? "Hide" : `Show answers · ${answered.length} parts`}
           </button>
         )}
       </div>
-      <div className="flex-col" style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        {shown.map((part, index) => <ModelAnswerRow key={index} part={part} />)}
-      </div>
+      {show && (
+        <div className="flex-col" style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          {answered.map((part, index) => <AnswerRow key={index} part={part} score={scoreByLabel.get(normPartLabel(part.label))} />)}
+        </div>
+      )}
     </div>
   );
 }
 
 function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePart[] }) {
   const tone = verdictColor(q.verdict);
-  const missing = q.missingPoints ?? [];
-  const expected = q.expectedPoints ?? [];
-  const norm = (value: string) => value.trim().toLowerCase();
-  const keyOf = (list: string[]) => list.map(norm).filter(Boolean).sort().join("|");
-  // A ~0 answer makes the model return the same points as both "missing" and
-  // "expected"; collapse them into one block instead of showing duplicates (B).
-  const samePoints = missing.length > 0 && keyOf(missing) === keyOf(expected);
   return (
     <div className="card card-pad" style={{ padding: 14 }}>
       <div className="row-between" style={{ gap: 10, alignItems: "flex-start" }}>
@@ -1696,26 +1688,8 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
       <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
       {/* Phase 1 — marks breakdown by assessment objective */}
       {q.breakdown && q.breakdown.length > 0 && <MarkBreakdown items={q.breakdown} />}
-      {samePoints ? (
-        <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
-          <b>Key points you needed:</b> {expected.join("; ")}
-        </p>
-      ) : (
-        <>
-          {missing.length > 0 && (
-            <p style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 6, color: "var(--coral-bright)" }}>
-              <b>Improve:</b> {missing.join("; ")}
-            </p>
-          )}
-          {expected.length > 0 && (
-            <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 4 }}>
-              <b>Key points:</b> {expected.join("; ")}
-            </p>
-          )}
-        </>
-      )}
-      {/* Part-wise model answers (C) — one line each, "see more" reveals every part */}
-      {parts && parts.length > 0 && <ModelAnswers parts={parts} />}
+      {/* Answers — full model answer per part with the marks awarded (dropdown) */}
+      {parts && parts.length > 0 && <ModelAnswers parts={parts} partScores={q.partScores} />}
       {/* Phase 3 — command-word coach */}
       {q.commandWordNote && (
         <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--purple-soft)" }}>

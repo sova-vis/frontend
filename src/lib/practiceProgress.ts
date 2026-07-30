@@ -43,6 +43,8 @@ export interface GradedQuestion {
   commandWord?: string;
   commandWordNote?: string;
   examinerNote?: string;
+  /** per sub-part awarded marks (earned vs available), labelled to the scheme parts */
+  partScores?: { label: string; earned: number; max: number }[];
 }
 
 export interface PracticeReport {
