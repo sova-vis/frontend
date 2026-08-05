@@ -559,8 +559,9 @@ function PaperPanel({ url, title, onClose }: { url: string; title: string; onClo
     // the portal mounts on document.body, outside the app's .pr scope, so without
     // this the panel chrome falls back to transparent and the page shows through.
     <div className="pr" style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", justifyContent: "flex-end" }}>
-      {/* click-through scrim: dim but let the question list stay visible for compare */}
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,.45)" }} />
+      {/* transparent click-catcher: closes on outside click but leaves the page
+          fully visible (undimmed) so it can be read alongside the paper */}
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "transparent" }} />
       <aside
         style={{
           position: "relative", height: "100%", width: "min(760px, 92vw)",
