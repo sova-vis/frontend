@@ -549,7 +549,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
 // can be dragged aside to compare. Move it by its title bar; resize from the
 // bottom-right corner.
 function PaperModal({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
-  const DEF_W = 560, DEF_H = 680;
+  const DEF_W = 420, DEF_H = 460;
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: DEF_W, h: DEF_H });
@@ -558,11 +558,11 @@ function PaperModal({ url, title, onClose }: { url: string; title: string; onClo
 
   useEffect(() => {
     setMounted(true);
-    // open centred, clamped to the viewport
+    // open small, docked to the right, clamped to the viewport
     const w = Math.min(DEF_W, window.innerWidth - 24);
     const h = Math.min(DEF_H, window.innerHeight - 24);
     setSize({ w, h });
-    setPos({ x: Math.max(12, (window.innerWidth - w) / 2), y: Math.max(12, (window.innerHeight - h) / 2) });
+    setPos({ x: Math.max(12, window.innerWidth - w - 16), y: Math.max(12, (window.innerHeight - h) / 2) });
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
