@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -14,6 +15,7 @@ import {
 } from "@/lib/practiceProgress";
 import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
+import { apiCall, getApiUrl } from "@/lib/api";
 import { paperDurationSeconds, durationLabel, clockLabel } from "@/lib/paperDurations";
 
 type QuestionType = "mcq" | "structured";
@@ -192,8 +194,10 @@ function Passages({ sources }: { sources: PracticeSource[] }) {
             </figcaption>
           )}
           {source.image?.src && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={source.image.src} alt={source.label || "passage"} style={{ margin: "8px auto 0", maxHeight: 300, width: "100%", maxWidth: 640, objectFit: "contain" }} loading="lazy" />
+            // Islamiyat's Arabic verse strips are ~3680px wide; at the inline cap
+            // the diacritics are unreadable, so these need enlarging as much as
+            // the diagrams do.
+            <SourceImage src={source.image.src} label={source.label} />
           )}
           {source.translation && <p style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.7 }}>{source.translation}</p>}
         </figure>
@@ -202,13 +206,177 @@ function Passages({ sources }: { sources: PracticeSource[] }) {
   );
 }
 
+// Full-screen viewer for a diagram. Exam figures are often taller than the inline
+// cap (a Maths question can be 906x1387), so fitting them to the card shrinks the
+// detail past reading size — the graph gridlines and axis labels are exactly what
+// the student needs. Double-click cycles the zoom, the wheel zooms about the
+// cursor, and dragging pans once magnified.
+const ZOOM_STEPS = [1, 2, 3];
+
+function ImageLightbox({ src, alt, caption, onClose }: {
+  src: string; alt?: string | null; caption?: string | null; onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "+" || e.key === "=") setZoom((z) => Math.min(6, z * 1.4));
+      if (e.key === "-") setZoom((z) => Math.max(1, z / 1.4));
+      if (e.key === "0") { setZoom(1); setOffset({ x: 0, y: 0 }); }
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";      // don't scroll the page behind
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+
+  // step through the zoom levels, resetting the pan when we land back at fit
+  const cycleZoom = () => setZoom((z) => {
+    const next = ZOOM_STEPS.find((s) => s > z + 0.01) ?? ZOOM_STEPS[0];
+    if (next === 1) setOffset({ x: 0, y: 0 });
+    return next;
+  });
+
+  const onWheel = (e: ReactWheelEvent) => {
+    setZoom((z) => {
+      const next = Math.min(6, Math.max(1, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      if (next === 1) setOffset({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (zoom <= 1) return;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+    setDragging(true);
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    if (!drag.current) return;
+    setOffset({ x: drag.current.ox + (e.clientX - drag.current.x), y: drag.current.oy + (e.clientY - drag.current.y) });
+  };
+  const endDrag = () => { drag.current = null; setDragging(false); };
+
+  if (!mounted) return null;
+
+  const overlay = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={caption || alt || "Figure"}
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 2000, background: "rgba(8,10,14,.92)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        className="flex items-center gap-8"
+        onClick={(e) => e.stopPropagation()}
+        style={{ position: "absolute", top: 12, right: 12, zIndex: 1 }}
+      >
+        <button type="button" onClick={() => setZoom((z) => Math.max(1, z / 1.4))} aria-label="Zoom out"
+          style={lightboxBtn}>&minus;</button>
+        <span style={{ minWidth: 52, textAlign: "center", color: "#fff", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+          {Math.round(zoom * 100)}%
+        </span>
+        <button type="button" onClick={() => setZoom((z) => Math.min(6, z * 1.4))} aria-label="Zoom in"
+          style={lightboxBtn}>+</button>
+        <button type="button" onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }} aria-label="Reset zoom"
+          style={lightboxBtn}>Reset</button>
+        <button type="button" onClick={onClose} aria-label="Close" style={lightboxBtn}>&times;</button>
+      </div>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={cycleZoom}
+        onWheel={onWheel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={{
+          maxWidth: "96vw", maxHeight: "88vh", overflow: "hidden",
+          cursor: zoom > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in",
+          touchAction: zoom > 1 ? "none" : "auto",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt || caption || "figure"}
+          draggable={false}
+          style={{
+            display: "block", maxWidth: "96vw", maxHeight: "88vh", objectFit: "contain",
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transformOrigin: "center center",
+            transition: dragging ? "none" : "transform .15s ease-out",
+            background: "#fff", borderRadius: 6,
+          }}
+        />
+      </div>
+
+      <p style={{ marginTop: 10, color: "rgba(255,255,255,.72)", fontSize: 12, textAlign: "center", padding: "0 16px" }}>
+        {caption ? `${caption} — ` : ""}double-click or scroll to zoom, drag to pan, Esc to close
+      </p>
+    </div>
+  );
+
+  // portal to the body: a fixed overlay nested inside a transformed or
+  // overflow-hidden ancestor gets clipped to that ancestor instead of the viewport
+  return createPortal(overlay, document.body);
+}
+
+const lightboxBtn: CSSProperties = {
+  minWidth: 34, height: 34, padding: "0 10px", borderRadius: 8, cursor: "pointer",
+  border: "1px solid rgba(255,255,255,.28)", background: "rgba(255,255,255,.10)",
+  color: "#fff", fontSize: 15, fontWeight: 600, lineHeight: 1,
+};
+
+function SourceImage({ src, label }: { src: string; label?: string | null }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        onDoubleClick={() => setOpen(true)}
+        title="Click to enlarge"
+        aria-label={`Enlarge ${label || "passage"}`}
+        style={{ display: "block", width: "100%", padding: 0, border: 0, background: "none", cursor: "zoom-in" }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={label || "passage"} style={{ margin: "8px auto 0", maxHeight: 300, width: "100%", maxWidth: 640, objectFit: "contain" }} loading="lazy" />
+      </button>
+      {open && <ImageLightbox src={src} alt={label} caption={label} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 function QuestionImage({ image }: { image: PracticeImage }) {
+  const [open, setOpen] = useState(false);
   if (!image.src) return null;
   return (
     <figure style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 12 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image.src} alt={image.alt} style={{ margin: "0 auto", maxHeight: 520, width: "100%", maxWidth: 760, objectFit: "contain" }} loading="lazy" />
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        onDoubleClick={() => setOpen(true)}
+        title="Click to enlarge"
+        aria-label={`Enlarge figure${image.caption ? `: ${image.caption}` : ""}`}
+        style={{ display: "block", width: "100%", padding: 0, border: 0, background: "none", cursor: "zoom-in" }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={image.src} alt={image.alt} style={{ margin: "0 auto", maxHeight: 520, width: "100%", maxWidth: 760, objectFit: "contain" }} loading="lazy" />
+      </button>
       {image.caption && <figcaption style={{ marginTop: 8, textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--ink-faint)" }}>{image.caption}</figcaption>}
+      {open && <ImageLightbox src={image.src} alt={image.alt} caption={image.caption} onClose={() => setOpen(false)} />}
     </figure>
   );
 }
@@ -371,6 +539,70 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
   );
 }
 
+// Opens the question's ORIGINAL past-paper PDF in a new tab. The extracted crops
+// are usually enough, but when one is unclear the student can fall back to the
+// real paper. The paper is resolved server-side from the question's identity
+// (subject/year/session/paper/variant, which the filename encodes) against Drive.
+function OpenPaperButton({ question }: { question: PracticeQuestion }) {
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+
+  const refName = (() => {
+    const p = question.reference && (question.reference as Record<string, unknown>).past_paper_pdf;
+    return typeof p === "string" ? p : "";
+  })();
+
+  const canResolve = Boolean(refName || (question.subject && question.year && question.session && question.paper));
+  if (!canResolve) return null;
+
+  const openPaper = async () => {
+    if (state === "loading") return;
+    setState("loading");
+    try {
+      const qs = new URLSearchParams();
+      if (refName) qs.set("name", refName);
+      else {
+        qs.set("subject", question.subject);
+        qs.set("year", question.year);
+        qs.set("session", question.session);
+        qs.set("paper", question.paper);
+        if (question.variant) qs.set("variant", question.variant);
+      }
+      // open a blank tab synchronously so the later navigation is not treated as a
+      // popup (the async fetch would otherwise lose the user-gesture context)
+      const tab = window.open("", "_blank", "noopener");
+      const res = await apiCall(`/papers/find-qp?${qs.toString()}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const data = (await res.json()) as { viewUrl?: string };
+      if (!data.viewUrl) throw new Error("no url");
+      const url = `${getApiUrl()}${data.viewUrl}`;
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank", "noopener");
+      setState("idle");
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 2500);
+    }
+  };
+
+  return (
+    <button
+      className="icon-btn"
+      onClick={(e) => { e.stopPropagation(); openPaper(); }}
+      disabled={state === "loading"}
+      aria-label="Open the original past paper"
+      title={state === "error" ? "Paper not found" : "Open the original past paper"}
+      style={{
+        width: 28, height: 28, flex: "none",
+        border: "1px solid " + (state === "error" ? "var(--coral, #e11d48)" : "var(--line)"),
+        color: state === "error" ? "var(--coral, #e11d48)" : undefined,
+      }}
+    >
+      <Icon name={state === "loading" ? "refresh" : "eye"} size={15}
+        className={state === "loading" ? "spin" : undefined} />
+    </button>
+  );
+}
+
 function QuestionCard(props: {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
@@ -423,6 +655,7 @@ function QuestionCard(props: {
           {question.marks !== null && <span>{question.marks} mark{question.marks === 1 ? "" : "s"}</span>}
           {question.session && <span>{question.session.replace(/_/g, " ")}</span>}
           {question.paper && <span>{question.paper.replace(/_/g, " ")}</span>}
+          <OpenPaperButton question={question} />
           {props.onToggleCollapsed && (
             <button className="icon-btn" onClick={(e) => { e.stopPropagation(); props.onToggleCollapsed?.(); }}
               aria-label={collapsed ? "Expand question" : "Collapse question"} title={collapsed ? "Expand" : "Collapse (solved)"}
