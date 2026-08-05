@@ -555,18 +555,22 @@ function PaperPanel({ url, title, onClose }: { url: string; title: string; onClo
   if (!mounted) return null;
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 1900, display: "flex", justifyContent: "flex-end" }}>
+    // Wrap in .pr so the propel theme variables (--surface, --line, --ink) resolve:
+    // the portal mounts on document.body, outside the app's .pr scope, so without
+    // this the panel chrome falls back to transparent and the page shows through.
+    <div className="pr" style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", justifyContent: "flex-end" }}>
       {/* click-through scrim: dim but let the question list stay visible for compare */}
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,.35)" }} />
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,.45)" }} />
       <aside
         style={{
           position: "relative", height: "100%", width: "min(760px, 92vw)",
-          background: "var(--surface, #fff)", boxShadow: "-8px 0 32px rgba(0,0,0,.28)",
+          background: "var(--surface)", color: "var(--ink)",
+          boxShadow: "-8px 0 32px rgba(0,0,0,.28)",
           display: "flex", flexDirection: "column",
         }}
       >
-        <div className="row-between" style={{ gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
-          <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div className="row-between" style={{ gap: 10, padding: "10px 12px", background: "var(--surface)", borderBottom: "1px solid var(--line)" }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {title}
           </span>
           <div className="flex gap-8 items-center" style={{ flex: "none" }}>
