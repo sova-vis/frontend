@@ -539,12 +539,58 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
   );
 }
 
-// Opens the question's ORIGINAL past-paper PDF in a new tab. The extracted crops
-// are usually enough, but when one is unclear the student can fall back to the
-// real paper. The paper is resolved server-side from the question's identity
-// (subject/year/session/paper/variant, which the filename encodes) against Drive.
+// Side panel that shows the question's ORIGINAL past-paper PDF, jumped to the page
+// the question is on, so a student can compare it against the extracted crop
+// without leaving the practice list. Resolved server-side from the question's
+// identity (subject/year/session/paper/variant, which the paper's filename
+// encodes) — the backend also locates the page by matching the question text.
+function PaperPanel({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  if (!mounted) return null;
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 1900, display: "flex", justifyContent: "flex-end" }}>
+      {/* click-through scrim: dim but let the question list stay visible for compare */}
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,.35)" }} />
+      <aside
+        style={{
+          position: "relative", height: "100%", width: "min(760px, 92vw)",
+          background: "var(--surface, #fff)", boxShadow: "-8px 0 32px rgba(0,0,0,.28)",
+          display: "flex", flexDirection: "column",
+        }}
+      >
+        <div className="row-between" style={{ gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
+          <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {title}
+          </span>
+          <div className="flex gap-8 items-center" style={{ flex: "none" }}>
+            <a className="icon-btn" href={url} target="_blank" rel="noopener noreferrer"
+              title="Open in a new tab" aria-label="Open in a new tab"
+              style={{ width: 28, height: 28, border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="file_text" size={15} />
+            </a>
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close"
+              style={{ width: 28, height: 28, border: "1px solid var(--line)" }}>
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+        </div>
+        <iframe src={url} title={title} style={{ flex: 1, width: "100%", border: 0, background: "#525659" }} />
+      </aside>
+    </div>,
+    document.body,
+  );
+}
+
 function OpenPaperButton({ question }: { question: PracticeQuestion }) {
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [panel, setPanel] = useState<{ url: string; title: string } | null>(null);
 
   const refName = (() => {
     const p = question.reference && (question.reference as Record<string, unknown>).past_paper_pdf;
@@ -567,16 +613,15 @@ function OpenPaperButton({ question }: { question: PracticeQuestion }) {
         qs.set("paper", question.paper);
         if (question.variant) qs.set("variant", question.variant);
       }
-      // open a blank tab synchronously so the later navigation is not treated as a
-      // popup (the async fetch would otherwise lose the user-gesture context)
-      const tab = window.open("", "_blank", "noopener");
+      // send the question text so the backend can find which page it is on
+      if (question.questionText) qs.set("text", question.questionText.slice(0, 400));
       const res = await apiCall(`/papers/find-qp?${qs.toString()}`);
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as { viewUrl?: string };
+      const data = (await res.json()) as { viewUrl?: string; page?: number | null; name?: string };
       if (!data.viewUrl) throw new Error("no url");
-      const url = `${getApiUrl()}${data.viewUrl}`;
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank", "noopener");
+      const url = `${getApiUrl()}${data.viewUrl}${data.page ? `#page=${data.page}` : ""}`;
+      const title = `${data.name || "Past paper"}${data.page ? ` — p.${data.page}` : ""}`;
+      setPanel({ url, title });
       setState("idle");
     } catch {
       setState("error");
@@ -585,21 +630,24 @@ function OpenPaperButton({ question }: { question: PracticeQuestion }) {
   };
 
   return (
-    <button
-      className="icon-btn"
-      onClick={(e) => { e.stopPropagation(); openPaper(); }}
-      disabled={state === "loading"}
-      aria-label="Open the original past paper"
-      title={state === "error" ? "Paper not found" : "Open the original past paper"}
-      style={{
-        width: 28, height: 28, flex: "none",
-        border: "1px solid " + (state === "error" ? "var(--coral, #e11d48)" : "var(--line)"),
-        color: state === "error" ? "var(--coral, #e11d48)" : undefined,
-      }}
-    >
-      <Icon name={state === "loading" ? "refresh" : "eye"} size={15}
-        className={state === "loading" ? "spin" : undefined} />
-    </button>
+    <>
+      <button
+        className="icon-btn"
+        onClick={(e) => { e.stopPropagation(); openPaper(); }}
+        disabled={state === "loading"}
+        aria-label="View the original past paper"
+        title={state === "error" ? "Paper not found" : "View the original past paper"}
+        style={{
+          width: 28, height: 28, flex: "none",
+          border: "1px solid " + (state === "error" ? "var(--coral, #e11d48)" : "var(--line)"),
+          color: state === "error" ? "var(--coral, #e11d48)" : undefined,
+        }}
+      >
+        <Icon name={state === "loading" ? "refresh" : "eye"} size={15}
+          className={state === "loading" ? "spin" : undefined} />
+      </button>
+      {panel && <PaperPanel url={panel.url} title={panel.title} onClose={() => setPanel(null)} />}
+    </>
   );
 }
 
