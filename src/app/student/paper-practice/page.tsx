@@ -554,11 +554,16 @@ function PaperPanel({ url, title, onClose }: { url: string; title: string; onClo
   }, [onClose]);
   if (!mounted) return null;
 
+  // Portal INTO the app's .pr root (not document.body) so the theme variables
+  // (--surface, --line, --ink) resolve for the panel chrome. Portaling to body
+  // and re-adding className="pr" instead would repaint .pr's full-viewport
+  // background + ::before tint over the whole page, blanking it. .pr has no
+  // transform, so the fixed panel still positions against the viewport.
+  const target = (typeof document !== "undefined" && document.querySelector(".pr")) || (typeof document !== "undefined" ? document.body : null);
+  if (!target) return null;
+
   return createPortal(
-    // Wrap in .pr so the propel theme variables (--surface, --line, --ink) resolve:
-    // the portal mounts on document.body, outside the app's .pr scope, so without
-    // this the panel chrome falls back to transparent and the page shows through.
-    <div className="pr" style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", justifyContent: "flex-end" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", justifyContent: "flex-end" }}>
       {/* transparent click-catcher: closes on outside click but leaves the page
           fully visible (undimmed) so it can be read alongside the paper */}
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "transparent" }} />
