@@ -11,6 +11,7 @@ export interface UserProfile {
   full_name: string;
   email: string;
   selected_subjects?: string[];
+  onboarding_complete?: boolean;
 }
 
 const PROFILE_CACHE_PREFIX = "propel_profile_";

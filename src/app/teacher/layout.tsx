@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import TeacherShell from "@/components/teacher/TeacherShell";
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -16,6 +17,12 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
 
         if (!user) {
             router.replace("/sign-in");
+            return;
+        }
+
+        // New account that hasn't chosen a role yet → onboarding.
+        if (profile && profile.onboarding_complete === false) {
+            router.replace("/onboarding");
             return;
         }
 
@@ -38,5 +45,5 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         );
     }
 
-    return <>{children}</>;
+    return <TeacherShell>{children}</TeacherShell>;
 }

@@ -12,6 +12,7 @@ import LevelToggle from "@/components/student/LevelToggle";
 
 const navItems = [
   { name: "Dashboard", href: "/student/dashboard" },
+  { name: "Assignments", href: "/student/assignments" },
   { name: "Practice", href: "/student/paper-practice" },
   { name: "Papers", href: "/student/past-papers" },
   { name: "Notebook", href: "/student/notebook" },

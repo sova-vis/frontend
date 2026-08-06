@@ -31,10 +31,16 @@ function preloadClerk() {
   import('@clerk/nextjs').catch(() => {});
 }
 
-function destForUser(user: any, profile: { role?: string } | null): string {
+function destForUser(user: any, profile: { role?: string; onboarding_complete?: boolean } | null): string {
   const email = (user?.primaryEmailAddress?.emailAddress || "").toLowerCase();
   const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
     .split(",").map((i) => i.trim().toLowerCase()).filter(Boolean);
+  // A brand-new account (no profile, or onboarding not done) picks its role first.
+  if (!profile || profile.onboarding_complete === false) {
+    // Admin emails skip onboarding straight to the admin area.
+    if (adminEmails.includes(email)) return "/admin/dashboard";
+    return "/onboarding";
+  }
   const metadataRole = typeof user?.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
   const role = profile?.role || metadataRole || (adminEmails.includes(email) ? "admin" : "student");
   if (role === "teacher") return "/teacher/dashboard";
@@ -67,7 +73,7 @@ const clerkAppearance = (accent: 'sign-in' | 'sign-up') => ({
 
 function HomePageContent() {
   const { user, isLoaded } = useUser();
-  const { profile } = useClerkAuth();
+  const { profile, loading: profileLoading } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -102,9 +108,12 @@ function HomePageContent() {
   // waiting on the backend profile round-trip, so a new user never lingers here.
   useEffect(() => {
     if (!isLoaded || !user) return;
+    // Wait for the profile so we can tell a new (un-onboarded) account from a
+    // returning one before choosing where to send them.
+    if (profileLoading) return;
     setAuthModal(null);
     router.replace(destForUser(user, profile));
-  }, [isLoaded, user, profile?.role, router]);
+  }, [isLoaded, user, profileLoading, profile, router]);
 
   // Prefetch every dashboard + warm the Clerk auth chunk so both feel instant.
   useEffect(() => {

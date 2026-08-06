@@ -23,6 +23,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 			return;
 		}
 
+		// New account that hasn't chosen a role yet → onboarding.
+		if (profile && profile.onboarding_complete === false) {
+			router.replace('/onboarding');
+			return;
+		}
+
 		if (profile && profile.role !== 'student') {
 			router.replace('/');
 		}

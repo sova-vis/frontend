@@ -312,6 +312,9 @@ function normalizeOptions(options: DbQuestion["options"]) {
 function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
   return {
     id: question.question_id || question.id,
+    // Stable DB uuid (public.questions.id) — used by the teacher portal to
+    // reference a question in an assignment. Additive; the practice UI ignores it.
+    uid: question.id,
     subject: question.subject,
     type: question.type,
     year: String(question.exam_year),
