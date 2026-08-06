@@ -16,6 +16,7 @@ import { daysUntilExam, EXAM_SESSION_LABEL, EXAM_DATE } from "@/lib/examCountdow
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 import DatesheetCard from "@/components/student/DatesheetCard";
+import { resolveName } from "@/lib/displayName";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
 const ONBOARDING_SEEN_KEY = "propel_onboarding_seen";
@@ -47,7 +48,13 @@ export default function StudentDashboard() {
   const { getToken } = useAuth();
   const { profile } = useClerkAuth();
   const stats = useStudentStats();
-  const name = (profile?.full_name || user?.firstName || "there").split(" ")[0];
+  const name = resolveName({
+    full_name: profile?.full_name,
+    firstName: user?.firstName,
+    username: user?.username,
+    email: user?.primaryEmailAddress?.emailAddress,
+    fallback: "there",
+  }).split(" ")[0];
 
   // practice-paper sessions (autosaved answers/timer) — for resume + progress
   const [practice, setPractice] = useState<PracticeProgress[]>([]);

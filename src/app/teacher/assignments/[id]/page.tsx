@@ -71,7 +71,7 @@ export default function AssignmentDetailPage() {
   };
 
   const remove = async () => {
-    if (!window.confirm("Delete this draft assignment?")) return;
+    if (!window.confirm("Delete this assignment? This removes its questions and every student's submission for it. This cannot be undone.")) return;
     setBusy(true);
     try {
       await deleteAssignment(id);
@@ -133,11 +133,9 @@ export default function AssignmentDetailPage() {
                 <button onClick={() => void duplicate()} disabled={busy} className="ed-btn-ghost px-4 py-2.5">
                   <Copy size={15} /> Duplicate
                 </button>
-                {a.status === "draft" && (
-                  <button onClick={() => void remove()} disabled={busy} className="ed-btn-ghost px-4 py-2.5 text-crimson">
-                    <Trash2 size={15} />
-                  </button>
-                )}
+                <button onClick={() => void remove()} disabled={busy} className="ed-btn-ghost px-4 py-2.5 text-crimson" title="Delete assignment">
+                  <Trash2 size={15} />
+                </button>
               </div>
             </div>
           </section>

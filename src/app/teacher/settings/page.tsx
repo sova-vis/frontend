@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Save } from "lucide-react";
+import { Building2, Save, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
+import DeleteAccountModal from "@/components/DeleteAccountModal";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { TeacherSettings, getSettings, patchSettings } from "@/lib/portalAdmin";
 import { VISIBILITY_LABELS } from "@/lib/assignments";
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [showDelete, setShowDelete] = useState(false);
 
   useEffect(() => {
     void getSettings().then(setS).catch((e) => setError(e.message));
@@ -142,7 +144,18 @@ export default function SettingsPage() {
           </button>
           {saved && <span className="text-sm text-mint-ink">Saved</span>}
         </div>
+
+        {/* Danger zone */}
+        <section className="ed-card p-6 border border-crimson/30">
+          <h2 className="font-display text-lg font-semibold text-crimson">Danger zone</h2>
+          <p className="text-sm text-ink-muted mt-1">Permanently delete your account and all your Propel data.</p>
+          <button onClick={() => setShowDelete(true)} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-crimson/40 text-crimson px-4 py-2.5 text-sm font-semibold hover:bg-crimson-soft">
+            <Trash2 size={15} /> Delete account
+          </button>
+        </section>
       </div>
+
+      {showDelete && <DeleteAccountModal onClose={() => setShowDelete(false)} />}
     </div>
   );
 }

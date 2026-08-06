@@ -225,6 +225,24 @@ function ResultsView({ result }: { result: StudentResult }) {
             </p>
             <span className="text-sm font-semibold">{q.score}/{q.available}</span>
           </div>
+          {q.question_text && <p className="text-xs text-ink-muted mt-1 whitespace-pre-wrap">{q.question_text}</p>}
+          {(q.your_answer || q.your_option || (q.your_images && q.your_images.length > 0)) && (
+            <div className="ed-card-soft p-2.5 mt-2">
+              <p className="ed-label mb-1">Your answer</p>
+              {q.your_option && <p className="text-sm text-ink">Selected: <span className="font-mono font-bold">{q.your_option}</span></p>}
+              {q.your_answer && <p className="text-sm text-ink whitespace-pre-wrap">{q.your_answer}</p>}
+              {q.your_images && q.your_images.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {q.your_images.map((img, k) =>
+                    img?.data_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={k} src={img.data_url} alt="your work" className="h-24 rounded-lg border border-line object-cover" />
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {q.voice_note && (
             <div className="mt-2">
               <p className="text-xs text-ink-faint mb-1">Voice note from your teacher</p>

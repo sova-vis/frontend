@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { User, CreditCard } from "lucide-react";
+import { User, CreditCard, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
+import DeleteAccountModal from "@/components/DeleteAccountModal";
 
 export default function SettingsPage() {
     const [name, setName] = useState("Student");
+    const [showDelete, setShowDelete] = useState(false);
 
     useEffect(() => {
         const storedName = localStorage.getItem("studentName");
@@ -87,7 +89,19 @@ export default function SettingsPage() {
                         Save Changes
                     </button>
                 </div>
+
+                <Reveal>
+                    <div className="ed-card p-6 border border-crimson/30 mt-4">
+                        <h2 className="font-display text-lg font-semibold text-crimson">Danger zone</h2>
+                        <p className="text-sm text-ink-muted mt-1">Permanently delete your account and all your Propel data.</p>
+                        <button onClick={() => setShowDelete(true)} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-crimson/40 text-crimson px-4 py-2.5 text-sm font-semibold hover:bg-crimson-soft">
+                            <Trash2 size={15} /> Delete account
+                        </button>
+                    </div>
+                </Reveal>
             </div>
+
+            {showDelete && <DeleteAccountModal onClose={() => setShowDelete(false)} />}
         </div>
     );
 }

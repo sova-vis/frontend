@@ -20,9 +20,10 @@ import { useClerkAuth } from "@/lib/useClerkAuth";
 import { subjectStyle } from "@/components/propel/subjects";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
 import { DashboardData, getDashboard } from "@/lib/teacherInsights";
+import { resolveName } from "@/lib/displayName";
 
 export default function TeacherHome() {
-  const { profile } = useClerkAuth();
+  const { profile, user } = useClerkAuth();
   const router = useRouter();
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [dash, setDash] = useState<DashboardData | null>(null);
@@ -40,7 +41,12 @@ export default function TeacherHome() {
     })();
   }, []);
 
-  const firstName = (profile?.full_name || "").split(" ")[0] || "there";
+  const firstName = resolveName({
+    full_name: profile?.full_name,
+    firstName: user?.firstName,
+    email: user?.primaryEmailAddress?.emailAddress,
+    fallback: "there",
+  }).split(" ")[0];
   const hasClasses = classes.length > 0;
   const totalStudents = classes.reduce((sum, c) => sum + (c.student_count ?? 0), 0);
   const aq = dash?.action_queue;

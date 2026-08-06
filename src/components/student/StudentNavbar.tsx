@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, LayoutGrid, LogOut, School, Settings } from "lucide-react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { resolveName } from "@/lib/displayName";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import LevelToggle from "@/components/student/LevelToggle";
 
@@ -35,7 +36,13 @@ export default function StudentNavbar() {
   // O/A Levels switch is only relevant while browsing the paper library
   const showLevelToggle = isActivePath(pathname, "/student/past-papers");
 
-  const name = profile?.full_name || user?.firstName || "Student";
+  const name = resolveName({
+    full_name: profile?.full_name,
+    firstName: user?.firstName,
+    username: user?.username,
+    email: user?.primaryEmailAddress?.emailAddress,
+    fallback: "Student",
+  });
   const initial = name.trim().charAt(0).toUpperCase() || "S";
   const photoUrl = user?.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
 

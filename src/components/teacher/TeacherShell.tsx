@@ -6,6 +6,7 @@ import { BarChart3, ClipboardList, Home, LogOut, Settings, Users } from "lucide-
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import NotificationsBell from "@/components/teacher/NotificationsBell";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { resolveName } from "@/lib/displayName";
 
 interface NavItem {
   href: string;
@@ -33,7 +34,12 @@ export default function TeacherShell({ children }: { children: React.ReactNode }
   const router = useRouter();
   const { profile, user, signOut } = useClerkAuth();
 
-  const displayName = profile?.full_name || user?.primaryEmailAddress?.emailAddress || "Teacher";
+  const displayName = resolveName({
+    full_name: profile?.full_name,
+    firstName: user?.firstName,
+    email: user?.primaryEmailAddress?.emailAddress,
+    fallback: "Teacher",
+  });
 
   return (
     <div className="min-h-screen bg-paper text-ink">

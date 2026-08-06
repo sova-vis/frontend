@@ -36,6 +36,10 @@ export interface StudentResult {
   questions?: {
     topic: string | null;
     number: string | number | null;
+    question_text?: string | null;
+    your_answer?: string | null;
+    your_option?: string | null;
+    your_images?: { data_url?: string }[];
     score: number;
     available: number;
     voice_note?: string | null;
