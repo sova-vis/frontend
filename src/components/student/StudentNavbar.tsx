@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, School, Settings } from "lucide-react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -12,7 +12,6 @@ import LevelToggle from "@/components/student/LevelToggle";
 
 const navItems = [
   { name: "Dashboard", href: "/student/dashboard" },
-  { name: "Assignments", href: "/student/assignments" },
   { name: "Practice", href: "/student/paper-practice" },
   { name: "Papers", href: "/student/past-papers" },
   { name: "Notebook", href: "/student/notebook" },
@@ -96,6 +95,7 @@ export default function StudentNavbar() {
         </div>
 
         <div className="relative hidden items-center gap-2 lg:flex">
+          <ModeToggle pathname={pathname} />
           {showLevelToggle && <LevelToggle />}
           <ThemeToggle />
           <button
@@ -124,6 +124,23 @@ export default function StudentNavbar() {
               </div>
               <div className="py-1">
                 <Link
+                  href="/student/dashboard"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-[#6B5F57] transition hover:bg-[#FAF6F0] hover:text-[#1C1714]"
+                >
+                  <LayoutGrid size={15} />
+                  Personal
+                </Link>
+                <Link
+                  href="/student/classroom"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-[#6B5F57] transition hover:bg-[#FAF6F0] hover:text-[#1C1714]"
+                >
+                  <School size={15} />
+                  Classroom
+                </Link>
+                <div className="my-1 border-t border-[#1C1714]/[.06]" />
+                <Link
                   href="/student/settings"
                   onClick={() => setProfileOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-[#6B5F57] transition hover:bg-[#FAF6F0] hover:text-[#1C1714]"
@@ -144,5 +161,26 @@ export default function StudentNavbar() {
         )}
       </div>
     </nav>
+  );
+}
+
+// Personal / Classroom mode switch, beside the profile.
+function ModeToggle({ pathname }: { pathname: string | null }) {
+  const inClassroom = (pathname || "").startsWith("/student/classroom");
+  return (
+    <div className="inline-flex gap-1 rounded-full border border-[#1C1714]/[.09] bg-white/70 p-1 shadow-sm">
+      <Link
+        href="/student/dashboard"
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${!inClassroom ? "bg-gradient-to-br from-crimson to-crimson-deep text-white" : "text-ink-muted hover:text-ink"}`}
+      >
+        <LayoutGrid size={13} /> Personal
+      </Link>
+      <Link
+        href="/student/classroom"
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${inClassroom ? "bg-gradient-to-br from-crimson to-crimson-deep text-white" : "text-ink-muted hover:text-ink"}`}
+      >
+        <School size={13} /> Classroom
+      </Link>
+    </div>
   );
 }

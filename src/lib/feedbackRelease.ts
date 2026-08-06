@@ -38,6 +38,7 @@ export interface StudentResult {
     number: string | number | null;
     score: number;
     available: number;
+    voice_note?: string | null;
     criteria:
       | {
           criterion_text: string | null;

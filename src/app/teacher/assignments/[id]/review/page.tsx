@@ -13,10 +13,12 @@ import {
   overrideMark,
   approveRemainder,
   sampleAssignment,
+  saveVoiceNote,
   setThreshold as saveThreshold,
 } from "@/lib/review";
 import { applyMissedGuidance, saveCriterionComment } from "@/lib/feedbackRelease";
 import CommentBankButton from "@/components/teacher/CommentBankButton";
+import VoiceNote from "@/components/teacher/VoiceNote";
 
 type Filter = "all" | "below_threshold" | "ocr_failed" | "overridden" | "flagged";
 
@@ -43,6 +45,11 @@ export default function ReviewPage() {
   const [error, setError] = useState("");
   // Sampling mode (§9.7): restrict the queue to a genuinely random subset.
   const [sample, setSample] = useState<{ ids: Set<string>; size: number; total: number; rate: number } | null>(null);
+  // Optional focus on a single student (opened from the submission board).
+  const [studentFilter, setStudentFilter] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window !== "undefined") setStudentFilter(new URLSearchParams(window.location.search).get("student"));
+  }, []);
 
   const load = useCallback(
     async (f: Filter, keepIndex = false) => {
@@ -65,10 +72,12 @@ export default function ReviewPage() {
   }, [filter, load]);
 
   const allItems = data?.items ?? [];
-  const items = useMemo(
-    () => (sample ? allItems.filter((it) => sample.ids.has(it.mark_id)) : allItems),
-    [allItems, sample]
-  );
+  const items = useMemo(() => {
+    let arr = allItems;
+    if (studentFilter) arr = arr.filter((it) => it.student_clerk_id === studentFilter);
+    if (sample) arr = arr.filter((it) => sample.ids.has(it.mark_id));
+    return arr;
+  }, [allItems, sample, studentFilter]);
   const current: QueueItem | undefined = items[index];
 
   // Initialise the local awarded-state from the teacher's final marks if present,
@@ -341,6 +350,17 @@ export default function ReviewPage() {
                       {current.answer.text || current.answer.ocr_text || <span className="text-ink-faint">No answer.</span>}
                     </p>
                   )}
+                  {/* Original handwritten image(s), retained for review (§8.2) */}
+                  {Array.isArray(current.answer.images) && current.answer.images.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(current.answer.images as { data_url?: string }[]).map((img, i) =>
+                        img?.data_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={i} src={img.data_url} alt="handwritten answer" className="h-32 rounded-lg border border-line object-cover" />
+                        ) : null
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Criteria + AI marks panel with per-criterion override */}
@@ -415,6 +435,18 @@ export default function ReviewPage() {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Voice note for this answer */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="ed-label">Voice note</span>
+                <VoiceNote
+                  value={current.voice_note}
+                  onChange={async (audio) => {
+                    markLocal(current.mark_id, { voice_note: audio });
+                    try { await saveVoiceNote(current.mark_id, audio); } catch { /* ignore */ }
+                  }}
+                />
               </div>
 
               {/* Actions */}

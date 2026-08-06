@@ -15,6 +15,7 @@ export interface QueueItem {
   mark_id: string;
   submission_id: string;
   assignment_question_id: string;
+  student_clerk_id: string;
   student_name: string;
   question: { number: string | number; topic: string | null; marks: number | null; text: string; type: "mcq" | "theory" };
   answer: { text: string | null; selected_option: string | null; ocr_text: string | null; ocr_status: string; images: unknown[] };
@@ -28,6 +29,7 @@ export interface QueueItem {
   status: string;
   flagged: boolean;
   examiner_note: string | null;
+  voice_note: string | null;
 }
 
 export interface QueueResponse {
@@ -59,6 +61,16 @@ export async function overrideMark(markId: string, criteria: { awarded: boolean;
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ criteria }),
+    })
+  );
+}
+
+export async function saveVoiceNote(markId: string, audio: string | null): Promise<void> {
+  await json(
+    await apiCall(`/review/marks/${markId}/voice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audio }),
     })
   );
 }

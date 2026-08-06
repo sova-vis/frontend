@@ -5,11 +5,39 @@ import { apiCall } from "./api";
 export interface AvailableAssignment {
   id: string;
   title: string;
+  class_id: string;
+  class_name: string;
   deadline_at: string | null;
   timed: boolean;
   duration_minutes: number | null;
   submission_id: string | null;
   submission_status: "not_started" | "in_progress" | "submitted" | "late" | "returned";
+  released: boolean;
+}
+
+export interface Classroom {
+  class_id: string;
+  class_name: string;
+  subject: string;
+  syllabus_code: string;
+  level: string;
+  teacher_clerk_id: string;
+  teacher_name: string;
+  enrollment_status: "active" | "pending";
+}
+
+export async function getMyClassrooms(): Promise<Classroom[]> {
+  return json(await apiCall("/classes/student/mine"));
+}
+
+export async function joinClassByCode(code: string): Promise<{ status: string; class_id: string; class_name?: string; already?: boolean }> {
+  return json(
+    await apiCall("/classes/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+  );
 }
 
 export interface StudentQuestion {
@@ -94,6 +122,20 @@ export async function saveAnswer(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignment_question_id: assignmentQuestionId, ...answer }),
+    })
+  );
+}
+
+export async function uploadHandwritten(
+  submissionId: string,
+  assignmentQuestionId: string,
+  imageBase64: string
+): Promise<{ ocr_text: string; ocr_confidence: number; ocr_status: string }> {
+  return json(
+    await apiCall(`/submissions/${submissionId}/answer/ocr`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignment_question_id: assignmentQuestionId, image: imageBase64 }),
     })
   );
 }

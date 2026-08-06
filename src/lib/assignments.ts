@@ -45,6 +45,7 @@ export interface Assignment {
   created_at: string;
   updated_at: string;
   question_count?: number;
+  pending_reviews?: number;
   can_grade?: boolean;
   is_owner?: boolean;
   questions?: AssignmentQuestionRow[];

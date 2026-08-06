@@ -10,8 +10,10 @@ import {
   saveAnswer,
   startSubmission,
   submitSubmission,
+  uploadHandwritten,
 } from "@/lib/submissions";
 import { StudentResult, getStudentResult } from "@/lib/feedbackRelease";
+import VoiceNote from "@/components/teacher/VoiceNote";
 
 export default function TakeAssignmentPage() {
   const params = useParams<{ id: string }>();
@@ -66,6 +68,27 @@ export default function TakeAssignmentPage() {
   const setOption = (aqId: string, option: string) => {
     setAnswers((prev) => ({ ...prev, [aqId]: { answer_text: prev[aqId]?.answer_text || "", selected_option: option } }));
     persist(aqId, { selected_option: option });
+  };
+
+  // Handwritten upload → OCR (per theory question).
+  const [mode, setMode] = useState<Record<string, "type" | "upload">>({});
+  const [uploads, setUploads] = useState<Record<string, { thumb?: string; confidence?: number; status?: string; busy?: boolean }>>({});
+
+  const handleUpload = (aqId: string, file: File) => {
+    if (!submissionId) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result || "");
+      setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, busy: true } }));
+      try {
+        const r = await uploadHandwritten(submissionId, aqId, dataUrl);
+        setText(aqId, r.ocr_text || "");
+        setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, confidence: r.ocr_confidence, status: r.ocr_status, busy: false } }));
+      } catch {
+        setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, status: "failed", busy: false } }));
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const answeredCount = useMemo(() => {
@@ -157,6 +180,10 @@ export default function TakeAssignmentPage() {
               onText={(t) => setText(q.assignment_question_id, t)}
               onTextBlur={(t) => persist(q.assignment_question_id, { answer_text: t })}
               onOption={(o) => setOption(q.assignment_question_id, o)}
+              mode={mode[q.assignment_question_id] || "type"}
+              onMode={(m) => setMode((prev) => ({ ...prev, [q.assignment_question_id]: m }))}
+              upload={uploads[q.assignment_question_id]}
+              onUpload={(f) => handleUpload(q.assignment_question_id, f)}
             />
           ))}
         </div>
@@ -198,6 +225,12 @@ function ResultsView({ result }: { result: StudentResult }) {
             </p>
             <span className="text-sm font-semibold">{q.score}/{q.available}</span>
           </div>
+          {q.voice_note && (
+            <div className="mt-2">
+              <p className="text-xs text-ink-faint mb-1">Voice note from your teacher</p>
+              <VoiceNote value={q.voice_note} readOnly />
+            </div>
+          )}
           {q.criteria && (
             <div className="mt-2 space-y-1.5">
               {q.criteria.map((c, ci) => (
@@ -229,6 +262,10 @@ function QuestionCard({
   onText,
   onTextBlur,
   onOption,
+  mode,
+  onMode,
+  upload,
+  onUpload,
 }: {
   index: number;
   q: StudentQuestion;
@@ -237,6 +274,10 @@ function QuestionCard({
   onText: (t: string) => void;
   onTextBlur: (t: string) => void;
   onOption: (o: string) => void;
+  mode: "type" | "upload";
+  onMode: (m: "type" | "upload") => void;
+  upload?: { thumb?: string; confidence?: number; status?: string; busy?: boolean };
+  onUpload: (f: File) => void;
 }) {
   return (
     <div className="ed-card p-5">
@@ -269,15 +310,54 @@ function QuestionCard({
               ))}
             </div>
           ) : (
-            <textarea
-              value={value.answer_text}
-              onChange={(e) => onText(e.target.value)}
-              onBlur={(e) => onTextBlur(e.target.value)}
-              rows={5}
-              disabled={readOnly}
-              placeholder="Type your answer…"
-              className="ed-input mt-3 px-3 py-2.5 text-sm resize-y disabled:opacity-80"
-            />
+            <div className="mt-3">
+              {!readOnly && (
+                <div className="inline-flex rounded-lg border border-line overflow-hidden mb-2">
+                  <button onClick={() => onMode("type")} className={`px-3 py-1.5 text-xs font-semibold ${mode === "type" ? "bg-crimson-soft text-crimson-ink" : "text-ink-muted"}`}>✏️ Type</button>
+                  <button onClick={() => onMode("upload")} className={`px-3 py-1.5 text-xs font-semibold ${mode === "upload" ? "bg-crimson-soft text-crimson-ink" : "text-ink-muted"}`}>📷 Upload handwritten</button>
+                </div>
+              )}
+
+              {mode === "upload" && !readOnly ? (
+                <div>
+                  <label className="ed-card-soft p-4 flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed border-2 border-line rounded-xl">
+                    <span className="text-sm text-ink-muted">{upload?.busy ? "Reading your handwriting…" : "Tap to upload a photo of your written answer"}</span>
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+                  </label>
+                  {upload?.thumb && (
+                    <div className="mt-2 flex items-start gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={upload.thumb} alt="your answer" className="h-24 w-24 object-cover rounded-lg border border-line" />
+                      <div className="flex-1">
+                        {upload.status === "failed" ? (
+                          <p className="text-xs text-crimson">Couldn&apos;t read that clearly — try a sharper photo, or type it below.</p>
+                        ) : (
+                          <p className="text-xs text-mint-ink">Read your answer{upload.confidence != null ? ` (${Math.round(upload.confidence * 100)}% legible)` : ""}. Check and edit if needed:</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <textarea
+                    value={value.answer_text}
+                    onChange={(e) => onText(e.target.value)}
+                    onBlur={(e) => onTextBlur(e.target.value)}
+                    rows={4}
+                    placeholder="Extracted text appears here — edit if needed…"
+                    className="ed-input mt-2 px-3 py-2.5 text-sm resize-y"
+                  />
+                </div>
+              ) : (
+                <textarea
+                  value={value.answer_text}
+                  onChange={(e) => onText(e.target.value)}
+                  onBlur={(e) => onTextBlur(e.target.value)}
+                  rows={5}
+                  disabled={readOnly}
+                  placeholder="Type your answer…"
+                  className="ed-input px-3 py-2.5 text-sm resize-y disabled:opacity-80"
+                />
+              )}
+            </div>
           )}
         </div>
       </div>

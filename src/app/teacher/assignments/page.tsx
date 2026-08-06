@@ -21,6 +21,7 @@ export default function AssignmentsPage() {
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [classFilter, setClassFilter] = useState("");
+  const [tab, setTab] = useState<"all" | "pending" | "done">("all");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -38,10 +39,13 @@ export default function AssignmentsPage() {
   }, []);
 
   const classNameOf = (id: string) => classes.find((c) => c.id === id)?.name || "Class";
-  const visible = useMemo(
-    () => (classFilter ? assignments.filter((a) => a.class_id === classFilter) : assignments),
-    [assignments, classFilter]
-  );
+  const pendingCount = useMemo(() => assignments.filter((a) => (a.pending_reviews ?? 0) > 0).length, [assignments]);
+  const visible = useMemo(() => {
+    let arr = classFilter ? assignments.filter((a) => a.class_id === classFilter) : assignments;
+    if (tab === "pending") arr = arr.filter((a) => (a.pending_reviews ?? 0) > 0);
+    else if (tab === "done") arr = arr.filter((a) => (a.status === "published" || a.status === "closed") && (a.pending_reviews ?? 0) === 0);
+    return arr;
+  }, [assignments, classFilter, tab]);
 
   return (
     <div className="px-4 md:px-8 py-8">
@@ -65,15 +69,32 @@ export default function AssignmentsPage() {
           </div>
         </Reveal>
 
-        {classes.length > 0 && assignments.length > 0 && (
-          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="ed-input px-3 py-2 text-sm w-auto">
-            <option value="">All classes</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+        {assignments.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-1">
+              {([
+                { k: "all", label: "All" },
+                { k: "pending", label: `Pending reviews${pendingCount ? ` (${pendingCount})` : ""}` },
+                { k: "done", label: "Done" },
+              ] as const).map((t) => (
+                <button
+                  key={t.k}
+                  onClick={() => setTab(t.k)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${tab === t.k ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {classes.length > 0 && (
+              <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="ed-input px-3 py-2 text-sm w-auto ml-auto">
+                <option value="">All classes</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
 
         {error && <p className="text-sm text-crimson">{error}</p>}
@@ -104,6 +125,11 @@ export default function AssignmentsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-ink truncate">{a.title}</h3>
                       <span className={`text-[0.65rem] ${STATUS_STYLE[a.status]}`}>{a.status}</span>
+                      {(a.pending_reviews ?? 0) > 0 ? (
+                        <span className="ed-pill-crimson text-[0.6rem]">{a.pending_reviews} to review</span>
+                      ) : (a.status === "published" || a.status === "closed") ? (
+                        <span className="ed-pill-mint text-[0.6rem]">Reviewed</span>
+                      ) : null}
                     </div>
                     <p className="text-xs text-ink-faint mt-0.5">
                       {classNameOf(a.class_id)} · {a.question_count ?? 0} questions · {a.total_marks} marks

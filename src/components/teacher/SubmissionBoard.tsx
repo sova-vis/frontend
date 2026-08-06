@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarPlus, MessageSquare, RotateCcw, Sparkles, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarPlus, ClipboardCheck, MessageSquare, RotateCcw, Sparkles, X } from "lucide-react";
 import {
   STATUS_LABELS,
   STATUS_STYLE,
@@ -16,6 +17,7 @@ import CommentBankButton from "@/components/teacher/CommentBankButton";
 // Submission status board (spec §7.1) with deadline extension (§7.3) and
 // reopen (§7.4).
 export default function SubmissionBoard({ assignmentId }: { assignmentId: string }) {
+  const router = useRouter();
   const [board, setBoard] = useState<StatusBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -131,6 +133,13 @@ export default function SubmissionBoard({ assignmentId }: { assignmentId: string
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
                   {r.submission_id && ["submitted", "late", "returned"].includes(r.status) && (
                     <>
+                      <button
+                        onClick={() => router.push(`/teacher/assignments/${assignmentId}/review?student=${r.student_clerk_id}`)}
+                        className="ed-btn-ghost px-2 py-1 text-xs"
+                        title="Review this student"
+                      >
+                        <ClipboardCheck size={13} />
+                      </button>
                       <button
                         onClick={() => setFeedbackFor({ submissionId: r.submission_id!, name: r.full_name || r.email || "Student" })}
                         className="ed-btn-ghost px-2 py-1 text-xs"

@@ -33,7 +33,10 @@ function preloadClerk() {
 
 function destForUser(user: any, profile: { role?: string; onboarding_complete?: boolean } | null): string {
   const email = (user?.primaryEmailAddress?.emailAddress || "").toLowerCase();
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "sovavis2025@gmail.com")
+  // No hardcoded admin account. Admin access comes only from a deliberately
+  // assigned role (profile.role === 'admin'); optionally, an ops team can set
+  // NEXT_PUBLIC_ADMIN_EMAILS to allow-list emails, but there is no default.
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
     .split(",").map((i) => i.trim().toLowerCase()).filter(Boolean);
   // A brand-new account (no profile, or onboarding not done) picks its role first.
   if (!profile || profile.onboarding_complete === false) {
@@ -103,16 +106,28 @@ function HomePageContent() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [searchParams]);
 
-  // Instant redirect: the moment auth is confirmed, leave the landing page.
-  // Default to the student dashboard immediately (the common case) instead of
-  // waiting on the backend profile round-trip, so a new user never lingers here.
+  // Instant redirect the moment auth is confirmed — no lingering on the landing
+  // page. Returning users are routed from their cached profile immediately; a
+  // brand-new user (no cache yet) goes straight to onboarding without waiting on
+  // the backend round-trip. The onboarding page bounces anyone already onboarded.
   useEffect(() => {
     if (!isLoaded || !user) return;
-    // Wait for the profile so we can tell a new (un-onboarded) account from a
-    // returning one before choosing where to send them.
-    if (profileLoading) return;
     setAuthModal(null);
-    router.replace(destForUser(user, profile));
+
+    let resolved: { role?: string; onboarding_complete?: boolean } | null = !profileLoading ? profile : null;
+    if (!resolved && typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(`propel_profile_${user.id}`);
+        if (raw) resolved = JSON.parse(raw);
+      } catch { /* ignore */ }
+    }
+
+    if (resolved) {
+      router.replace(destForUser(user, resolved));
+    } else {
+      // No profile known yet → treat as new; onboard immediately.
+      router.replace("/onboarding");
+    }
   }, [isLoaded, user, profileLoading, profile, router]);
 
   // Prefetch every dashboard + warm the Clerk auth chunk so both feel instant.
@@ -200,7 +215,7 @@ function HomePageContent() {
         </motion.div>
         <div className="flex items-center gap-3 text-ink-muted">
           <Loader2 className="h-5 w-5 animate-spin text-crimson" />
-          <span className="text-sm font-semibold">Taking you to your dashboard…</span>
+          <span className="text-sm font-semibold">Getting things ready…</span>
         </div>
       </div>
     );
