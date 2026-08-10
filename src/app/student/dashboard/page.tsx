@@ -16,6 +16,7 @@ import { EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
+import WeakPointsBySubject from "@/components/student/WeakPointsBySubject";
 import { resolveName } from "@/lib/displayName";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
@@ -249,27 +250,20 @@ export default function StudentDashboard() {
 
         {/* HERO ROW */}
         <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
-          {/* readiness */}
-          <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-            <Ring value={readiness} size={168} label={readinessLabel} sub={stats.goalsTotal > 0 ? "of your goals" : "momentum"} />
-            <div style={{ flex: 1, minWidth: 180, position: "relative", zIndex: 1 }}>
-              <div className="eyebrow" style={{ color: "rgba(255,255,255,.75)" }}>North-star metric</div>
-              <h2 style={{ color: "#fff", fontSize: 24, marginTop: 4 }}>Exam readiness</h2>
-              <p style={{ color: "rgba(255,255,255,.86)", marginTop: 8, fontSize: 14.5, lineHeight: 1.5 }}>
-                {stats.goalsTotal > 0
-                  ? <>You&apos;ve completed <b>{stats.goalsDone} of {stats.goalsTotal}</b> goal papers. Finish the rest to reach the green zone.</>
-                  : <>Set a few goal papers in <b>Papers</b> and complete them — your readiness builds from real progress.</>}
-              </p>
-              <div className="flex gap-8 wrap mt-16">
-                <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}><Icon name="book" size={13} /> {stats.completedCount} solved</span>
-                <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}><Icon name="target" size={13} /> target 100%</span>
+          {/* LEFT: compact readiness + momentum */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Exam readiness — compact "north-star" chip */}
+            <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+              <Ring value={readiness} size={76} label={`${readiness}%`} sub="ready" />
+              <div style={{ flex: 1, minWidth: 0, position: "relative", zIndex: 1 }}>
+                <div className="eyebrow" style={{ color: "rgba(255,255,255,.75)" }}>Exam readiness</div>
+                <div style={{ color: "#fff", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{readinessLabel}</div>
+                <div style={{ color: "rgba(255,255,255,.85)", fontSize: 12.5, marginTop: 3 }}>
+                  {stats.goalsTotal > 0 ? `${stats.goalsDone}/${stats.goalsTotal} goal papers` : `${stats.completedCount} solved`} · target 100%
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* right column: datesheet (your subjects) on top, then momentum */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <NewspaperDatesheet />
             {/* Momentum — soft consistency score that doesn't punish a missed day (Phase 2) */}
             <div className="card card-pad hero-amber" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
               <div className="flex items-center gap-10">
@@ -286,6 +280,11 @@ export default function StudentDashboard() {
                 Keep it going
               </button>
             </div>
+          </div>
+
+          {/* RIGHT: datesheet (your subjects) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <NewspaperDatesheet />
           </div>
         </div>
 
@@ -380,34 +379,7 @@ export default function StudentDashboard() {
                   <button className="btn btn-ghost btn-sm" onClick={() => go("/student/notebook")}>Notebook <Icon name="chevron_right" size={15} /></button>
                 )}
               </div>
-              {weakSpots.length > 0 ? (
-                <div className="flex-col gap-14">
-                  {weakSpots.map((w) => {
-                    const subj = subjectStyle(w.subject);
-                    const col = w.accuracy >= 75 ? "var(--teal-deep)" : w.accuracy >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
-                    return (
-                      <div key={w.key} className="flex items-center gap-12">
-                        <SubjGlyph subj={subj} size={32} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="row-between" style={{ fontSize: 13, marginBottom: 4, gap: 8 }}>
-                            <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.topic}</span>
-                            <span className="tnum" style={{ fontWeight: 700, color: col, flex: "none" }}>{w.accuracy}%</span>
-                          </div>
-                          <div className="bar" style={{ height: 7 }}><i style={{ width: Math.max(3, w.accuracy) + "%", background: col }} /></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  icon="target"
-                  title="No weak spots yet"
-                  body="Grade a few answers or check some MCQs in Practice — your toughest topics will rank here, worst-first."
-                  cta="Start practising"
-                  onCta={() => go("/student/paper-practice")}
-                />
-              )}
+              <WeakPointsBySubject weak={weakSpots.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
             </div>
 
             {/* completed trend (real) */}
