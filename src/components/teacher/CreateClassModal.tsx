@@ -21,13 +21,22 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [syllabusQuery, setSyllabusQuery] = useState("");
+  const [syllabusOpen, setSyllabusOpen] = useState(false);
 
   const options = useMemo(() => syllabusesForLevel(level), [level]);
+  const selectedSyllabus = options.find((o) => o.code === syllabusCode) || null;
+  const filteredSyllabuses = useMemo(() => {
+    const q = syllabusQuery.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => `${o.subject} ${o.code} ${o.board}`.toLowerCase().includes(q));
+  }, [options, syllabusQuery]);
 
   const handleSyllabus = (code: string) => {
     setSyllabusCode(code);
+    // Always adopt the canonical catalog subject so the question bank resolves it.
     const found = options.find((o) => o.code === code);
-    if (found && !subject) setSubject(found.subject);
+    if (found) setSubject(found.subject);
   };
 
   const handleSubmit = async () => {
@@ -87,20 +96,33 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
             </div>
           </div>
 
-          <div>
+          <div className="relative">
             <label className="ed-label">Syllabus code</label>
-            <select
-              value={syllabusCode}
-              onChange={(e) => handleSyllabus(e.target.value)}
+            <input
+              value={syllabusOpen ? syllabusQuery : (selectedSyllabus ? `${selectedSyllabus.subject} — ${selectedSyllabus.code} (${selectedSyllabus.board})` : "")}
+              onChange={(e) => { setSyllabusQuery(e.target.value); setSyllabusOpen(true); }}
+              onFocus={() => { setSyllabusOpen(true); setSyllabusQuery(""); }}
+              onBlur={() => window.setTimeout(() => setSyllabusOpen(false), 150)}
+              placeholder="Search subject or code…"
               className="ed-input mt-1 px-3 py-2.5 text-sm"
-            >
-              <option value="">Select a syllabus…</option>
-              {options.map((o) => (
-                <option key={o.code} value={o.code}>
-                  {o.subject} — {o.code} ({o.board})
-                </option>
-              ))}
-            </select>
+            />
+            {syllabusOpen && (
+              <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-line bg-paper shadow-lg">
+                {filteredSyllabuses.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-ink-faint">No syllabus matches “{syllabusQuery}”.</div>
+                ) : filteredSyllabuses.map((o) => (
+                  <button
+                    key={o.code}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { handleSyllabus(o.code); setSyllabusOpen(false); setSyllabusQuery(""); }}
+                    className={`block w-full text-left px-3 py-2 text-sm hover:bg-surface-soft ${o.code === syllabusCode ? "bg-crimson-soft text-crimson-ink" : "text-ink"}`}
+                  >
+                    {o.subject} — {o.code} <span className="text-ink-faint">({o.board})</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

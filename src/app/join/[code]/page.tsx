@@ -38,6 +38,14 @@ export default function JoinPage() {
           setState({ kind: "error", message: body.error || "Could not join this class." });
           return;
         }
+        // Remember we arrived via a classroom link: default the workspace to
+        // Classroom and let onboarding pre-fill level/subject from the class.
+        try {
+          window.localStorage.setItem("propel_mode", "classroom");
+          window.localStorage.setItem("propel_join_context", JSON.stringify({
+            className: body.class_name ?? null, level: body.level ?? null, subject: body.subject ?? null,
+          }));
+        } catch { /* ignore storage errors */ }
         setState({ kind: "done", status: body.status, className: body.class_name });
       } catch {
         setState({ kind: "error", message: "Something went wrong. Please try again." });
@@ -72,8 +80,8 @@ export default function JoinPage() {
             <>
               <CheckCircle2 className="text-mint-ink mx-auto" size={40} />
               <p className="mt-3 font-semibold">You&apos;re in{state.className ? ` — ${state.className}` : ""}!</p>
-              <button onClick={() => router.push("/student/dashboard")} className="ed-btn-primary mt-4 px-5 py-2.5 mx-auto">
-                Go to dashboard
+              <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-4 px-5 py-2.5 mx-auto">
+                Go to classroom
               </button>
             </>
           )}
@@ -83,8 +91,8 @@ export default function JoinPage() {
               <Clock className="text-gold-ink mx-auto" size={40} />
               <p className="mt-3 font-semibold">Request sent</p>
               <p className="text-ink-muted text-sm mt-1">Your teacher needs to approve you. You&apos;ll get access once they do.</p>
-              <button onClick={() => router.push("/student/dashboard")} className="ed-btn-ghost mt-4 px-5 py-2.5 mx-auto">
-                Back to dashboard
+              <button onClick={() => router.push("/student/classroom")} className="ed-btn-ghost mt-4 px-5 py-2.5 mx-auto">
+                Go to classroom
               </button>
             </>
           )}

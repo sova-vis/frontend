@@ -8,7 +8,6 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
-  Circle,
   FileStack,
   GraduationCap,
   Layers,
@@ -269,7 +268,9 @@ function SetupChecklist({ hasStudents }: { hasStudents: boolean }) {
         <div className="mt-6 space-y-3">
           {steps.map((s, i) => (
             <div key={i} className="ed-card-soft p-4 flex items-center gap-3">
-              {s.done ? <CheckCircle2 className="text-mint-ink" size={22} /> : <Circle className="text-ink-faint" size={22} />}
+              {s.done
+                ? <CheckCircle2 className="text-mint-ink shrink-0" size={22} />
+                : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-crimson text-white text-xs font-bold">{i + 1}</span>}
               <span className={`flex-1 font-medium ${s.done ? "text-ink-faint line-through" : "text-ink"}`}>{s.label}</span>
               {!s.done && <Link href={s.href} className="ed-btn-primary px-3 py-1.5 text-xs">{s.cta}</Link>}
             </div>

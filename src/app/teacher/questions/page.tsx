@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Share2, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Plus, Share2, Trash2, X } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import {
   Criterion,
@@ -63,6 +64,9 @@ export default function CustomQuestionsPage() {
     <div className="px-4 md:px-8 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         <Reveal>
+          <Link href="/teacher/assignments" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink mb-3">
+            <ArrowLeft size={15} /> Back to assignments
+          </Link>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight">

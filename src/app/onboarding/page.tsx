@@ -56,6 +56,32 @@ export default function OnboardingPage() {
     if (user) setData((d) => ({ ...d, firstName: d.firstName || user.firstName || "", lastName: d.lastName || user.lastName || "" }));
   }, [user]);
 
+  // Class-join context: students who arrived via a classroom link are clearly
+  // students, and their level + subject are already known from the class — so we
+  // skip the role picker and the level step and pre-fill what the teacher set.
+  const [joinContext, setJoinContext] = useState<{ className: string | null; level: string | null; subject: string | null } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("propel_join_context");
+      if (raw) setJoinContext(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (!joinContext) return;
+    setRole((r) => r ?? "student");
+    const canonical = joinContext.subject
+      ? SUBJECTS.find((s) => {
+          const n = joinContext.subject!.toLowerCase();
+          return n === s.toLowerCase() || n.startsWith(s.toLowerCase()) || s.toLowerCase().startsWith(n);
+        }) ?? null
+      : null;
+    setData((d) => ({
+      ...d,
+      level: d.level || (joinContext.level === "A" ? "A Level" : joinContext.level === "O" ? "O Level" : d.level),
+      subjects: canonical && !d.subjects.includes(canonical) ? [...d.subjects, canonical] : d.subjects,
+    }));
+  }, [joinContext]);
+
   // Already onboarded → straight to the right place.
   useEffect(() => {
     if (!isLoaded) return;
@@ -68,7 +94,7 @@ export default function OnboardingPage() {
   const set = (patch: Partial<Data>) => setData((d) => ({ ...d, ...patch }));
   const go = (n: number) => { setDir(n > step ? 1 : -1); setStep(n); };
   const next = () => go(step + 1);
-  const back = () => (step === 0 ? setRole(null) : go(step - 1));
+  const back = () => (step === 0 ? (joinContext ? undefined : setRole(null)) : go(step - 1));
 
   const onPhoto = (f: File | null) => {
     setPhotoFile(f);
@@ -77,7 +103,8 @@ export default function OnboardingPage() {
   };
 
   // Step definitions per role (blocking vs skippable handled in the CTA).
-  const studentSteps = ["name", "level", "session", "subjects", "target", "study", "confidence"];
+  // Class-join students already have their level from the class → drop that step.
+  const studentSteps = (joinContext ? ["name", "session", "subjects", "target", "study", "confidence"] : ["name", "level", "session", "subjects", "target", "study", "confidence"]);
   const teacherSteps = ["name", "experience", "school"];
   const steps = role === "teacher" ? teacherSteps : studentSteps;
   const blockingCount = role === "teacher" ? 3 : 4; // first N are required
@@ -141,7 +168,10 @@ export default function OnboardingPage() {
       if (typeof window !== "undefined" && user?.id) window.localStorage.removeItem(`propel_profile_${user.id}`);
       // Seed the local subject store so Practice/Papers are populated immediately.
       if (role === "student") saveSelectedSubjects(data.subjects.map((n) => ({ id: subjectSlug(n), name: n })));
-      window.location.href = role === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
+      // Class-join students land in their Classroom, not the personal dashboard.
+      const joinedClass = typeof window !== "undefined" && !!window.localStorage.getItem("propel_join_context");
+      if (typeof window !== "undefined") window.localStorage.removeItem("propel_join_context");
+      window.location.href = role === "teacher" ? "/teacher/dashboard" : joinedClass ? "/student/classroom" : "/student/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setSubmitting(false);
@@ -167,11 +197,15 @@ export default function OnboardingPage() {
 
   return (
     <Shell>
-      {/* Progress */}
-      <div className="flex items-center gap-1.5 mb-8">
-        {steps.map((_, i) => (
-          <span key={i} className={`h-1.5 rounded-full transition-all ${i <= step ? "bg-crimson" : "bg-surface-soft"} ${i === step ? "w-8" : "w-4"}`} />
-        ))}
+      {/* Progress — numbered so it's clear where you are */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <span className="ed-eyebrow text-crimson">Step {step + 1} of {steps.length}</span>
+          <span className="text-xs text-ink-faint">{Math.round(((step + 1) / steps.length) * 100)}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-surface-soft overflow-hidden">
+          <div className="h-full rounded-full bg-crimson transition-all" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
+        </div>
       </div>
 
       <div className="min-h-[280px]">

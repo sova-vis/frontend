@@ -73,6 +73,18 @@ export default function ClassDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
 
+  // Poll enrolments in the background so new join requests appear without a
+  // manual reload. Silent — no loading spinner, and pauses when the tab is hidden.
+  useEffect(() => {
+    if (!classId) return;
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try { setEnrollments(await listEnrollments(classId)); } catch { /* keep last good */ }
+    };
+    const id = window.setInterval(() => void tick(), 12000);
+    return () => window.clearInterval(id);
+  }, [classId]);
+
   const pending = enrollments.filter((e) => e.status === "pending");
   const active = enrollments.filter((e) => e.status === "active");
 

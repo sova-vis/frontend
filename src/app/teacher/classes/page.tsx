@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GraduationCap, Plus, Users } from "lucide-react";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { subjectStyle } from "@/components/propel/subjects";
@@ -12,6 +13,7 @@ import CreateClassModal from "@/components/teacher/CreateClassModal";
 type SortKey = "name" | "subject" | "recent";
 
 export default function ClassesPage() {
+  const router = useRouter();
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -159,6 +161,8 @@ export default function ClassesPage() {
           onCreated={(created) => {
             setClasses((prev) => [created, ...prev]);
             setShowCreate(false);
+            // Jump straight into the new class so the teacher can share the join code.
+            router.push(`/teacher/classes/${created.id}`);
           }}
         />
       )}

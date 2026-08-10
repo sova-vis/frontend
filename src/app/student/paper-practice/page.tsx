@@ -14,6 +14,7 @@ import {
   uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
 } from "@/lib/practiceProgress";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
+import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { apiCall, getApiUrl } from "@/lib/api";
@@ -934,17 +935,37 @@ function PracticeInner() {
   const checkedLoggedRef = useRef(false); // ensures MCQ attempts log once per check
   const [showScheme, setShowScheme] = useState(false);
 
+  const [subjTick, setSubjTick] = useState(0); // bumped when the student edits their subjects
+  useEffect(() => {
+    const onChange = () => setSubjTick((t) => t + 1);
+    window.addEventListener("propel:selected-subjects-change", onChange);
+    return () => window.removeEventListener("propel:selected-subjects-change", onChange);
+  }, []);
+
   // ---- subjects metadata (cached for instant paint, then revalidated) ----
   useEffect(() => {
     let mounted = true;
-    const sortSubjects = (list: SubjectMeta[]) => [...list].sort((a, b) => {
+    const normName = (s: string) => s.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/\d+/g, " ").replace(/[^a-z]+/g, " ").trim();
+    // Show only the subjects the student picked (whole-word match so "Mathematics"
+    // never pulls in "Additional Mathematics"). Fall back to the full catalog if
+    // they've chosen none, or none of theirs exist in the bank.
+    const filterToSelected = (list: SubjectMeta[]) => {
+      const selected = loadSelectedSubjects().map((s) => normName(s.name)).filter(Boolean);
+      if (!selected.length) return list;
+      const mine = list.filter((s) => {
+        const f = normName(s.name);
+        return selected.some((n) => f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
+      });
+      return mine.length ? mine : list;
+    };
+    const prepare = (list: SubjectMeta[]) => filterToSelected([...list].sort((a, b) => {
       const ai = preferredSubjects.indexOf(a.name);
       const bi = preferredSubjects.indexOf(b.name);
       if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
       return a.name.localeCompare(b.name);
-    });
+    }));
     const cached = cacheGet<SubjectMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
-    if (cached && cached.length) { setSubjects(sortSubjects(cached)); setLoadingMeta(false); }
+    if (cached && cached.length) { setSubjects(prepare(cached)); setLoadingMeta(false); }
     (async () => {
       if (!cached) { setLoadingMeta(true); setError(""); }
       try {
@@ -953,7 +974,7 @@ function PracticeInner() {
         const data = (await response.json()) as { subjects: SubjectMeta[] };
         if (!mounted) return;
         cacheSet("pp:practice:subjects", data.subjects ?? []);
-        setSubjects(sortSubjects(data.subjects ?? []));
+        setSubjects(prepare(data.subjects ?? []));
       } catch (loadError) {
         if (mounted && !cached) setError(loadError instanceof Error ? loadError.message : "Could not load practice metadata.");
       } finally {
@@ -961,7 +982,7 @@ function PracticeInner() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [subjTick]);
 
   useEffect(() => setPortalMounted(true), []);
 
@@ -981,7 +1002,8 @@ function PracticeInner() {
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
   const currentTypeMeta = currentSubject?.types[questionType] ?? null;
   const availableYears = currentTypeMeta?.years ?? [];
-  const availableTopics = currentTypeMeta?.topics ?? [];
+  // Hide the catch-all "Uncategorized" bucket — it isn't a real revision topic.
+  const availableTopics = (currentTypeMeta?.topics ?? []).filter((t) => t.name.trim().toLowerCase() !== "uncategorized");
 
   function clearQuestions() {
     setQuestions([]);

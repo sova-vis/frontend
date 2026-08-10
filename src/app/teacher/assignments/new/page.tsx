@@ -14,7 +14,7 @@ import {
   createAssignment,
 } from "@/lib/assignments";
 import { Enrollment, TeacherClass, listClasses, listEnrollments } from "@/lib/teacherClasses";
-import { syllabusLabel } from "@/lib/syllabus";
+import { syllabusByCode, syllabusLabel } from "@/lib/syllabus";
 
 export default function NewAssignmentPage() {
   return (
@@ -190,7 +190,7 @@ function Builder() {
                 <div className="ed-card p-5">
                   <h2 className="font-display text-lg font-semibold mb-3">Choose questions</h2>
                   <QuestionBrowser
-                    subject={selectedClass.subject}
+                    subject={syllabusByCode(selectedClass.syllabus_code)?.subject || selectedClass.subject}
                     cartKeys={cartKeys}
                     onAdd={addQuestion}
                     onAddMany={addMany}
