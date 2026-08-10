@@ -13,6 +13,7 @@ import { Icon } from "@/components/propel/Icon";
 import { SubjGlyph, EmptyState, ToastProvider, useToast } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+import { cacheGet, cacheSet } from "@/lib/sessionCache";
 
 // Normalise a subject/folder name for comparison: drop bracketed syllabus codes,
 // digits and punctuation so "Mathematics (4024)" ≈ "Mathematics".
@@ -168,16 +169,30 @@ function PapersInner() {
     return () => { active = false; };
   }, [getToken]);
 
+  // Show only the subjects the student has chosen. Fall back to the full library
+  // if they've picked none, or none of theirs exist in the drive.
+  const filterToSelected = (folders: FolderItem[]) => {
+    const selected = loadSelectedSubjects().map((s) => s.name);
+    if (!selected.length) return folders;
+    const mine = folders.filter((f) => matchesSelected(f.name, selected));
+    return mine.length ? mine : folders;
+  };
+
   // root subjects — reloads whenever the O/A Levels toggle changes
   useEffect(() => {
     if (!levelReady) return; // wait for the persisted level to restore
     let active = true;
     subjToken.current++; yearToken.current++;   // cancel in-flight subject/year loads
     yearCache.current.clear();
-    setLoadingRoot(true); setRootError(null);
-    setSubjects([]); setActiveSubject(null);
+    setActiveSubject(null);
     setYears([]); setActiveYear(null); setPapers([]);
     setSession("all"); setQ("");
+    setRootError(null);
+    // Instant paint from the cached listing (stale-while-revalidate).
+    const rootKey = `pp:root:${level}`;
+    const cachedRoot = cacheGet<FolderItem[]>(rootKey);
+    if (cachedRoot && cachedRoot.length) { setSubjects(filterToSelected(cachedRoot)); setLoadingRoot(false); }
+    else { setSubjects([]); setLoadingRoot(true); }
     (async () => {
       try {
         const root = await browse(undefined, level);
@@ -186,21 +201,16 @@ function PapersInner() {
           const inner = await browse(folders[0].id);
           folders = inner.items.filter((i) => i.isFolder);
         }
-        // Show only the subjects the student has chosen. Fall back to the full
-        // library if they've picked none, or none of theirs exist in the drive.
-        const selected = loadSelectedSubjects().map((s) => s.name);
-        if (selected.length) {
-          const mine = folders.filter((f) => matchesSelected(f.name, selected));
-          if (mine.length) folders = mine;
-        }
-        if (active) setSubjects(folders);
+        cacheSet(rootKey, folders);
+        if (active) setSubjects(filterToSelected(folders));
       } catch (e) {
-        if (active) setRootError(e instanceof Error ? e.message : "Failed to load papers");
+        if (active && !cachedRoot) setRootError(e instanceof Error ? e.message : "Failed to load papers");
       } finally {
         if (active) setLoadingRoot(false);
       }
     })();
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, levelReady, subjTick]);
 
   useEffect(() => {
@@ -212,7 +222,15 @@ function PapersInner() {
     setActiveSubject(folder);
     setSession("all"); setQ(""); setPapers([]); setActiveYear(null); setYears([]);
     const token = ++subjToken.current;
-    setLoadingYears(true);
+    // Instant paint of year tabs from cache, then revalidate.
+    const yearsKey = `pp:years:${folder.id}`;
+    const cachedYears = cacheGet<FolderItem[]>(yearsKey);
+    if (cachedYears && cachedYears.length) {
+      setYears(cachedYears);
+      void selectYear(cachedYears[0], folder);
+    } else {
+      setLoadingYears(true);
+    }
     try {
       // subject → (Past_Papers) → year folders
       const inside = await browse(folder.id);
@@ -223,10 +241,11 @@ function PapersInner() {
         .filter((i) => i.isFolder && /^\d{4}$/.test(i.name.trim()))
         .sort((a, b) => b.name.localeCompare(a.name));
       if (token !== subjToken.current) return;
+      cacheSet(yearsKey, yearFolders);
       setYears(yearFolders);
-      if (yearFolders.length) void selectYear(yearFolders[0], folder);
+      if (yearFolders.length && !cachedYears) void selectYear(yearFolders[0], folder);
     } catch {
-      if (token === subjToken.current) setYears([]);
+      if (token === subjToken.current && !cachedYears) setYears([]);
     } finally {
       if (token === subjToken.current) setLoadingYears(false);
     }
@@ -240,17 +259,24 @@ function PapersInner() {
     const cacheKey = `${subject.id}|${yearFolder.id}`;
     const cached = yearCache.current.get(cacheKey);
     if (cached) { setPapers(cached); return; }
+    // Survive navigations via sessionStorage; still refresh in the background.
+    const sessionKey = `pp:papers:${cacheKey}`;
+    const sessionCached = cacheGet<Paper[]>(sessionKey);
+    if (sessionCached && sessionCached.length) {
+      yearCache.current.set(cacheKey, sessionCached);
+      setPapers(sessionCached);
+    }
     const token = ++yearToken.current;
-    setLoadingPapers(true);
-    setPapers([]);
+    if (!sessionCached) { setLoadingPapers(true); setPapers([]); }
     try {
       const files = await collectYear(yearFolder.id, [subject.name, yearFolder.name]);
       if (token !== yearToken.current) return;
       const built = buildPapers(files, yearFolder.name);
       yearCache.current.set(cacheKey, built);
+      cacheSet(sessionKey, built);
       setPapers(built);
     } catch {
-      if (token === yearToken.current) setPapers([]);
+      if (token === yearToken.current && !sessionCached) setPapers([]);
     } finally {
       if (token === yearToken.current) setLoadingPapers(false);
     }

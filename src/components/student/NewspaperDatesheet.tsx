@@ -108,7 +108,7 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
 
       {open && next && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/60 backdrop-blur-md p-4" onClick={() => setOpen(false)}>
-          <div className="ed-card max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" style={{ fontFamily: "Georgia, serif" }} onClick={(e) => e.stopPropagation()}>
+          <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 rounded-[0.75rem] border-2 border-ink bg-paper shadow-2xl" style={{ fontFamily: "Georgia, serif" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between border-b-2 border-ink pb-2 mb-3">
               <div>
                 <p className="text-lg font-black uppercase tracking-[0.15em]">The Exam Times</p>

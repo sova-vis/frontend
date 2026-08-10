@@ -10,11 +10,11 @@ import { Bar, CountUp, Delta, Ring, SubjGlyph, EmptyState } from "@/components/p
 import { subjectStyle } from "@/components/propel/subjects";
 import type { TrackedPaper } from "@/lib/paperTracking";
 import {
-  PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
+  PracticeProgress, loadPracticeProgressList, loadPracticeProgressLocal, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
 import { EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
-import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
+import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 import { resolveName } from "@/lib/displayName";
 
@@ -56,8 +56,9 @@ export default function StudentDashboard() {
     fallback: "there",
   }).split(" ")[0];
 
-  // practice-paper sessions (autosaved answers/timer) — for resume + progress
-  const [practice, setPractice] = useState<PracticeProgress[]>([]);
+  // practice-paper sessions (autosaved answers/timer) — for resume + progress.
+  // Seeded from the local mirror for an instant first paint, then revalidated.
+  const [practice, setPractice] = useState<PracticeProgress[]>(() => loadPracticeProgressLocal());
   useEffect(() => {
     let cancelled = false;
     loadPracticeProgressList(() => getToken()).then((items) => { if (!cancelled) setPractice(items); });
@@ -67,8 +68,9 @@ export default function StudentDashboard() {
   const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
   const practiceGraded = practice.filter((p) => p.report); // marked papers, newest-first
 
-  // Phase 1/2 — attempts backbone powers weakness map, momentum and the daily plan
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  // Phase 1/2 — attempts backbone powers weakness map, momentum and the daily plan.
+  // Local seed first so the dashboard renders immediately on revisits.
+  const [attempts, setAttempts] = useState<Attempt[]>(() => loadAttemptsLocal());
   useEffect(() => {
     let cancelled = false;
     loadAttempts(() => getToken()).then((items) => { if (!cancelled) setAttempts(items); });
@@ -246,7 +248,7 @@ export default function StudentDashboard() {
         )}
 
         {/* HERO ROW */}
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "start" }}>
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
           {/* readiness */}
           <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <Ring value={readiness} size={168} label={readinessLabel} sub={stats.goalsTotal > 0 ? "of your goals" : "momentum"} />
@@ -265,11 +267,11 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* right column: datesheet (your subjects) on top, then momentum + library */}
+          {/* right column: datesheet (your subjects) on top, then momentum */}
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <NewspaperDatesheet />
             {/* Momentum — soft consistency score that doesn't punish a missed day (Phase 2) */}
-            <div className="card card-pad hero-amber" style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
+            <div className="card card-pad hero-amber" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
               <div className="flex items-center gap-10">
                 <Icon name="flame" size={30} fill="rgba(255,255,255,.25)" />
                 <div>
@@ -283,23 +285,6 @@ export default function StudentDashboard() {
               <button className="btn btn-sm" style={{ background: "#fff", color: "var(--amber-deep)", alignSelf: "flex-start" }} onClick={() => go("/student/paper-practice")}>
                 Keep it going
               </button>
-            </div>
-
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}>
-              <div className="flex items-center gap-10">
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--purple-soft)", color: "var(--purple)", display: "grid", placeItems: "center" }}>
-                  <Icon name="layers" size={22} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>Your library</div>
-                  <div className="faint" style={{ fontSize: 12.5 }}>{stats.papers.length} papers tracked</div>
-                </div>
-              </div>
-              <div className="flex gap-8 wrap">
-                <span className="badge teal">{stats.completedCount} done</span>
-                <span className="badge amber">{stats.inProgressCount} in progress</span>
-                <span className="badge crimson">{stats.bookmarkedCount} saved</span>
-              </div>
             </div>
           </div>
         </div>

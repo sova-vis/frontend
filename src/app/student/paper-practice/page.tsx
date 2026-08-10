@@ -10,9 +10,10 @@ import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
   PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
-  loadPracticeProgressList, savePracticeProgress, deletePracticeProgress,
+  loadPracticeProgressList, loadPracticeProgressLocal, savePracticeProgress, deletePracticeProgress,
   uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
 } from "@/lib/practiceProgress";
+import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { apiCall, getApiUrl } from "@/lib/api";
@@ -933,26 +934,28 @@ function PracticeInner() {
   const checkedLoggedRef = useRef(false); // ensures MCQ attempts log once per check
   const [showScheme, setShowScheme] = useState(false);
 
-  // ---- subjects metadata ----
+  // ---- subjects metadata (cached for instant paint, then revalidated) ----
   useEffect(() => {
     let mounted = true;
+    const sortSubjects = (list: SubjectMeta[]) => [...list].sort((a, b) => {
+      const ai = preferredSubjects.indexOf(a.name);
+      const bi = preferredSubjects.indexOf(b.name);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      return a.name.localeCompare(b.name);
+    });
+    const cached = cacheGet<SubjectMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
+    if (cached && cached.length) { setSubjects(sortSubjects(cached)); setLoadingMeta(false); }
     (async () => {
-      setLoadingMeta(true);
-      setError("");
+      if (!cached) { setLoadingMeta(true); setError(""); }
       try {
         const response = await fetch("/api/paper-practice");
         if (!response.ok) throw new Error("Could not load practice metadata.");
         const data = (await response.json()) as { subjects: SubjectMeta[] };
         if (!mounted) return;
-        const sorted = [...(data.subjects ?? [])].sort((a, b) => {
-          const ai = preferredSubjects.indexOf(a.name);
-          const bi = preferredSubjects.indexOf(b.name);
-          if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-          return a.name.localeCompare(b.name);
-        });
-        setSubjects(sorted);
+        cacheSet("pp:practice:subjects", data.subjects ?? []);
+        setSubjects(sortSubjects(data.subjects ?? []));
       } catch (loadError) {
-        if (mounted) setError(loadError instanceof Error ? loadError.message : "Could not load practice metadata.");
+        if (mounted && !cached) setError(loadError instanceof Error ? loadError.message : "Could not load practice metadata.");
       } finally {
         if (mounted) setLoadingMeta(false);
       }
@@ -962,9 +965,12 @@ function PracticeInner() {
 
   useEffect(() => setPortalMounted(true), []);
 
-  // ---- saved practice sessions (remote, local fallback) ----
+  // ---- saved practice sessions (local seed → remote revalidate) ----
   useEffect(() => {
     let mounted = true;
+    // Instant paint from the local mirror so the grid isn't stuck on "loading".
+    const seed = loadPracticeProgressLocal();
+    if (seed.length) setProgressMap(new Map(seed.map((item) => [item.paperKey, item])));
     loadPracticeProgressList(getToken).then((items) => {
       if (mounted) setProgressMap(new Map(items.map((item) => [item.paperKey, item])));
     });

@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
-import { loadTrackedPapersForUser, TrackedPaper } from "./paperTracking";
+import { loadTrackedPapers, loadTrackedPapersForUser, TrackedPaper } from "./paperTracking";
 
 export interface StudentStats {
   loading: boolean;
@@ -24,18 +24,19 @@ const STATUS_RANK: Record<string, number> = { completed: 0, in_progress: 1, goal
 
 export function useStudentStats(): StudentStats {
   const { getToken } = useAuth();
-  const [papers, setPapers] = useState<TrackedPaper[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seed from the local mirror synchronously so revisits paint instantly; the
+  // network refresh then reconciles in the background (stale-while-revalidate).
+  const [papers, setPapers] = useState<TrackedPaper[]>(() => loadTrackedPapers());
+  const [loading, setLoading] = useState(() => loadTrackedPapers().length === 0);
   const [nonce, setNonce] = useState(0);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     loadTrackedPapersForUser(() => getToken())
       .then((items) => { if (!cancelled) setPapers(items); })
-      .catch(() => { if (!cancelled) setPapers([]); })
+      .catch(() => { /* keep the local seed on failure */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [getToken, nonce]);

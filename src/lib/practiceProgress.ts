@@ -158,6 +158,11 @@ async function authHeader(getToken?: GetTokenFn): Promise<Record<string, string>
   }
 }
 
+/** Synchronous read of the local mirror, newest first — for instant first paint. */
+export function loadPracticeProgressLocal(): PracticeProgress[] {
+  return Object.values(readLocal()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+}
+
 /** All practice sessions for the student, newest first (remote, local fallback). */
 export async function loadPracticeProgressList(getToken?: GetTokenFn): Promise<PracticeProgress[]> {
   const local = Object.values(readLocal()).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));

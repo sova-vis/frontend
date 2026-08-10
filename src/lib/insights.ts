@@ -420,6 +420,11 @@ export async function logAttempts(records: Attempt[], getToken?: GetTokenFn): Pr
   } catch {}
 }
 
+/** Synchronous read of the local mirror — for instant first paint before revalidation. */
+export function loadAttemptsLocal(): Attempt[] {
+  return readLocal();
+}
+
 /** Load all attempts (server authoritative, local fallback). */
 export async function loadAttempts(getToken?: GetTokenFn): Promise<Attempt[]> {
   const local = readLocal();
