@@ -26,6 +26,18 @@ export interface Classroom {
   enrollment_status: "active" | "pending";
 }
 
+export interface WeakTopic {
+  topic: string;
+  missed: number;
+  total: number;
+  accuracy: number;
+  mistakes: string[];
+}
+
+export async function getWeakSpots(): Promise<{ topics: WeakTopic[] }> {
+  return json(await apiCall("/submissions/weak-spots"));
+}
+
 export async function getMyClassrooms(): Promise<Classroom[]> {
   return json(await apiCall("/classes/student/mine"));
 }

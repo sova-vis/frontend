@@ -15,7 +15,7 @@ import {
 import { daysUntilExam, EXAM_SESSION_LABEL, EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
-import DatesheetCard from "@/components/student/DatesheetCard";
+import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 import { resolveName } from "@/lib/displayName";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
@@ -180,8 +180,10 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Exam datesheet — real dates for the student's declared session + subjects */}
-        <DatesheetCard />
+        {/* Exam datesheet — newspaper-style, real dates for the student's session */}
+        <div style={{ maxWidth: 360 }}>
+          <NewspaperDatesheet />
+        </div>
 
         {/* first-run onboarding flow — dismissible, auto-expires after a week */}
         {showOnboarding && (
