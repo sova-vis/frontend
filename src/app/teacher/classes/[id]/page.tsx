@@ -314,10 +314,13 @@ function RosterTab({ classId, active, onAdd }: { classId: string; active: Enroll
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-paper text-[0.6rem] font-bold">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-paper text-[0.6rem] font-bold">
                       {(e.full_name || e.email || "S").slice(0, 2).toUpperCase()}
                     </span>
-                    <span className="font-medium text-ink">{e.full_name || e.email || "Student"}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink truncate">{e.full_name || e.email || "Student"}</p>
+                      {e.email && e.full_name && <p className="text-xs text-ink-faint truncate">{e.email}</p>}
+                    </div>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-ink-faint">—</td>
@@ -359,9 +362,11 @@ function RequestsTab({
       </div>
       {pending.map((e) => (
         <div key={e.id} className="ed-card-soft p-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="font-medium text-ink">{e.full_name || e.email || "Student"}</p>
-            <p className="text-xs text-ink-faint">Requested {new Date(e.requested_at).toLocaleDateString()}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-ink truncate">{e.full_name || e.email || "Student"}</p>
+            <p className="text-xs text-ink-faint truncate">
+              {e.email && e.full_name ? `${e.email} · ` : ""}Requested {new Date(e.requested_at).toLocaleDateString()}
+            </p>
           </div>
           <div className="flex gap-2">
             <button

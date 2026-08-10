@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, GraduationCap, School, XCircle } from "lucide-react";
 import { apiCall } from "@/lib/api";
 
 type JoinState =
@@ -12,12 +12,14 @@ type JoinState =
   | { kind: "done"; status: "active" | "pending"; className?: string }
   | { kind: "error"; message: string };
 
-// Student join-by-link (spec §3.2). Resolves the same enrolment as the code/QR.
+// Student join-by-link (spec §3.2). A branded landing that resolves the same
+// enrolment as the code/QR, then drops the student straight into their Classroom
+// — no onboarding survey, since we already know their class.
 export default function JoinPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
   const code = (params?.code ?? "") as string;
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [state, setState] = useState<JoinState>({ kind: "loading" });
 
   useEffect(() => {
@@ -31,78 +33,93 @@ export default function JoinPage() {
         const res = await apiCall("/classes/join", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: code }),
+          body: JSON.stringify({ code }),
         });
         const body = await res.json();
         if (!res.ok) {
           setState({ kind: "error", message: body.error || "Could not join this class." });
           return;
         }
-        // Remember we arrived via a classroom link: default the workspace to
-        // Classroom and let onboarding pre-fill level/subject from the class.
+        // We're a classroom member now: default the workspace to Classroom and
+        // drop the stale profile cache so the app sees onboarding as complete.
         try {
           window.localStorage.setItem("propel_mode", "classroom");
-          window.localStorage.setItem("propel_join_context", JSON.stringify({
-            className: body.class_name ?? null, level: body.level ?? null, subject: body.subject ?? null,
-          }));
+          if (user?.id) window.localStorage.removeItem(`propel_profile_${user.id}`);
         } catch { /* ignore storage errors */ }
         setState({ kind: "done", status: body.status, className: body.class_name });
       } catch {
         setState({ kind: "error", message: "Something went wrong. Please try again." });
       }
     })();
-  }, [isLoaded, isSignedIn, code]);
+  }, [isLoaded, isSignedIn, code, user?.id]);
 
   return (
-    <div className="min-h-screen bg-paper text-ink grid place-items-center px-4">
-      <div className="ed-card p-8 max-w-md w-full text-center">
-        <p className="ed-label">Class code</p>
-        <p className="font-display text-3xl font-bold tracking-[0.3em] mt-1">{String(code).toUpperCase()}</p>
+    <div className="min-h-screen bg-paper text-ink grid place-items-center px-4 relative overflow-hidden">
+      {/* soft brand backdrop */}
+      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-crimson-soft blur-3xl opacity-60" />
+      <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-gold-soft blur-3xl opacity-50" />
 
-        <div className="mt-6">
-          {state.kind === "loading" && (
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-crimson mx-auto" />
-          )}
+      <div className="relative w-full max-w-md">
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-crimson to-crimson-deep font-display text-xl font-bold text-white shadow-[0_6px_16px_rgba(168,18,60,.28)]">P</div>
+          <span className="font-display text-3xl font-semibold tracking-tight text-crimson">Propel</span>
+        </div>
 
-          {state.kind === "need-signin" && (
-            <>
-              <p className="text-ink-muted">Sign in to join this class.</p>
-              <button
-                onClick={() => router.push(`/sign-in?redirect_url=/join/${code}`)}
-                className="ed-btn-primary mt-4 px-5 py-2.5 mx-auto"
-              >
-                Sign in
-              </button>
-            </>
-          )}
+        <div className="ed-card p-8 text-center">
+          <p className="ed-label">You&apos;ve been invited to join</p>
+          <p className="font-display text-3xl font-bold tracking-[0.3em] mt-1">{String(code).toUpperCase()}</p>
 
-          {state.kind === "done" && state.status === "active" && (
-            <>
-              <CheckCircle2 className="text-mint-ink mx-auto" size={40} />
-              <p className="mt-3 font-semibold">You&apos;re in{state.className ? ` — ${state.className}` : ""}!</p>
-              <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-4 px-5 py-2.5 mx-auto">
-                Go to classroom
-              </button>
-            </>
-          )}
+          <div className="mt-7">
+            {state.kind === "loading" && (
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-crimson mx-auto" />
+            )}
 
-          {state.kind === "done" && state.status === "pending" && (
-            <>
-              <Clock className="text-gold-ink mx-auto" size={40} />
-              <p className="mt-3 font-semibold">Request sent</p>
-              <p className="text-ink-muted text-sm mt-1">Your teacher needs to approve you. You&apos;ll get access once they do.</p>
-              <button onClick={() => router.push("/student/classroom")} className="ed-btn-ghost mt-4 px-5 py-2.5 mx-auto">
-                Go to classroom
-              </button>
-            </>
-          )}
+            {state.kind === "need-signin" && (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><School size={26} /></div>
+                <p className="mt-4 font-display text-lg font-semibold">Sign in to join your class</p>
+                <p className="text-ink-muted text-sm mt-1">Use your Google account — it takes a second, no setup needed.</p>
+                <button
+                  onClick={() => router.push(`/sign-in?redirect_url=/join/${code}`)}
+                  className="ed-btn-primary mt-5 px-6 py-2.5 mx-auto"
+                >
+                  Continue
+                </button>
+              </>
+            )}
 
-          {state.kind === "error" && (
-            <>
-              <XCircle className="text-crimson mx-auto" size={40} />
-              <p className="mt-3 text-ink-muted">{state.message}</p>
-            </>
-          )}
+            {state.kind === "done" && state.status === "active" && (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-mint-soft text-mint-ink"><CheckCircle2 size={28} /></div>
+                <p className="mt-4 font-display text-lg font-semibold">You&apos;re in{state.className ? ` — ${state.className}` : ""}!</p>
+                <p className="text-ink-muted text-sm mt-1">Your assignments and class are ready in your Classroom.</p>
+                <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-5 px-6 py-2.5 mx-auto">
+                  <GraduationCap size={16} /> Go to my classroom
+                </button>
+              </>
+            )}
+
+            {state.kind === "done" && state.status === "pending" && (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gold-soft text-gold-ink"><Clock size={26} /></div>
+                <p className="mt-4 font-display text-lg font-semibold">Request sent</p>
+                <p className="text-ink-muted text-sm mt-1">Your teacher needs to approve you — you&apos;ll get access the moment they do.</p>
+                <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-5 px-6 py-2.5 mx-auto">
+                  <GraduationCap size={16} /> Go to my classroom
+                </button>
+              </>
+            )}
+
+            {state.kind === "error" && (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><XCircle size={26} /></div>
+                <p className="mt-4 text-ink-muted">{state.message}</p>
+                <button onClick={() => router.push("/student/classroom")} className="ed-btn-ghost mt-5 px-6 py-2.5 mx-auto">
+                  Go to my classroom
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
