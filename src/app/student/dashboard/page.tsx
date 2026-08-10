@@ -12,7 +12,7 @@ import type { TrackedPaper } from "@/lib/paperTracking";
 import {
   PracticeProgress, loadPracticeProgressList, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
-import { daysUntilExam, EXAM_SESSION_LABEL, EXAM_DATE } from "@/lib/examCountdown";
+import { EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { Attempt, loadAttempts, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
@@ -81,7 +81,6 @@ export default function StudentDashboard() {
   const timeline = useMemo(() => readinessTimeline(attempts, EXAM_DATE), [attempts]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  const daysToExam = daysUntilExam();
 
   // readiness = goal completion when goals exist (real), else completed-paper momentum
   const readiness = stats.goalsTotal > 0
@@ -160,29 +159,18 @@ export default function StudentDashboard() {
   return (
     <div className="pr">
       <div className="main stagger flex-col gap-24">
-        {/* greeting + countdown */}
-        <div className="row-between wrap" style={{ gap: 14 }}>
-          <div>
+        {/* greeting + newspaper datesheet (your selected subjects) */}
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between" style={{ gap: 20 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
             <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
-            <p className="muted mt-6" style={{ fontSize: 15.5 }}>
-              You&apos;re <b style={{ color: "var(--ink)" }}>{daysToExam} days</b> from the next O-Level session. A focused paper today keeps your momentum.
+            <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
+              Keep your momentum — a focused paper today moves the needle. Your exam dates are on the right.
             </p>
           </div>
-          <div className="card card-pad" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flex: "none" }}>
-            <div style={{ width: 44, height: 44, borderRadius: 13, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center" }}>
-              <Icon name="calendar" size={22} />
-            </div>
-            <div>
-              <div className="stat-num" style={{ fontSize: 30, color: "var(--crimson)" }}><CountUp value={daysToExam} /></div>
-              <div className="faint" style={{ fontSize: 12 }}>days · {EXAM_SESSION_LABEL}</div>
-            </div>
+          <div style={{ width: "100%", maxWidth: 340, flex: "none" }}>
+            <NewspaperDatesheet />
           </div>
-        </div>
-
-        {/* Exam datesheet — newspaper-style, real dates for the student's session */}
-        <div style={{ maxWidth: 360 }}>
-          <NewspaperDatesheet />
         </div>
 
         {/* first-run onboarding flow — dismissible, auto-expires after a week */}

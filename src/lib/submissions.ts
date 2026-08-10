@@ -34,8 +34,9 @@ export interface WeakTopic {
   mistakes: string[];
 }
 
-export async function getWeakSpots(): Promise<{ topics: WeakTopic[] }> {
-  return json(await apiCall("/submissions/weak-spots"));
+export async function getWeakSpots(classId?: string): Promise<{ topics: WeakTopic[] }> {
+  const q = classId ? `?class_id=${classId}` : "";
+  return json(await apiCall(`/submissions/weak-spots${q}`));
 }
 
 export async function getMyClassrooms(): Promise<Classroom[]> {

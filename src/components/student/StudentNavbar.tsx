@@ -11,7 +11,7 @@ import StudentSettingsModal from "@/components/student/StudentSettingsModal";
 // Classroom is its own workspace — a reduced nav (no Practice / Papers).
 const CLASSROOM_NAV = [
   { name: "Dashboard", href: "/student/classroom" },
-  { name: "Notebook", href: "/student/notebook" },
+  { name: "Notebook", href: "/student/classroom/notebook" },
   { name: "Planner", href: "/student/planner" },
   { name: "Ask AI", href: "/student/ask" },
 ];
@@ -30,7 +30,7 @@ type Mode = "personal" | "classroom";
 
 function isActivePath(pathname: string | null, href: string) {
   if (!pathname) return false;
-  if (href === "/student/dashboard") return pathname === href;
+  if (href === "/student/dashboard" || href === "/student/classroom") return pathname === href;
   return pathname.startsWith(href);
 }
 

@@ -130,7 +130,7 @@ export default function StudentClassroomPage() {
 
             {/* SIDEBAR */}
             <div className="space-y-4">
-              <NewspaperDatesheet />
+              <NewspaperDatesheet scope="classroom" />
 
               {/* Classrooms + join */}
               <div className="ed-card p-4">

@@ -32,8 +32,9 @@ function daysTo(d: string | null | undefined): number | null {
 }
 
 // Newspaper-styled exam datesheet: a compact "front page" that opens the full
-// timetable in a modal. Shows dates for the student's declared session.
-export default function NewspaperDatesheet() {
+// timetable in a modal. `scope="personal"` uses the student's own subjects;
+// `scope="classroom"` uses the subjects of the classes they've joined.
+export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "personal" | "classroom" }) {
   const [data, setData] = useState<Datesheet | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -41,11 +42,11 @@ export default function NewspaperDatesheet() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiCall("/datesheet");
+        const res = await apiCall(`/datesheet?scope=${scope}`);
         if (res.ok) setData(await res.json());
       } catch { /* ignore */ } finally { setLoading(false); }
     })();
-  }, []);
+  }, [scope]);
 
   if (loading) return <div className="ed-card p-4 h-56 animate-pulse" />;
   if (!data) return null;
