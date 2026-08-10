@@ -1,9 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { SyllabusLevel, syllabusesForLevel } from "@/lib/syllabus";
 import { CreateClassInput, TeacherClass, createClass } from "@/lib/teacherClasses";
+import { apiCall } from "@/lib/api";
+
+// Normalise a subject/folder name so "Mathematics (Syllabus D)" ≈ "Mathematics".
+function normSubject(s: string): string {
+  return s.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/\d+/g, " ").replace(/[^a-z]+/g, " ").trim();
+}
 
 interface Props {
   onClose: () => void;
@@ -23,8 +29,45 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
   const [error, setError] = useState("");
   const [syllabusQuery, setSyllabusQuery] = useState("");
   const [syllabusOpen, setSyllabusOpen] = useState(false);
+  const [librarySubjects, setLibrarySubjects] = useState<string[] | null>(null); // null = not loaded yet
 
-  const options = useMemo(() => syllabusesForLevel(level), [level]);
+  // Load the subjects that actually exist in the past-paper library for this
+  // level, so the picker only offers subjects we have papers for.
+  useEffect(() => {
+    let active = true;
+    setLibrarySubjects(null);
+    type Folder = { id: string; name: string; isFolder: boolean; folderType?: string };
+    const browse = async (path: string): Promise<Folder[]> => {
+      const res = await apiCall(path);
+      if (!res.ok) throw new Error("browse failed");
+      const data = (await res.json()) as { items?: Folder[] };
+      return (data.items ?? []).filter((i) => i.isFolder);
+    };
+    void (async () => {
+      try {
+        let folders = await browse(`/papers/browse?level=${level === "A" ? "alevel" : "olevel"}`);
+        // Some libraries wrap everything in one category folder.
+        if (folders.length === 1 && folders[0].folderType === "category") {
+          folders = await browse(`/papers/browse/${folders[0].id}`);
+        }
+        if (active) setLibrarySubjects(folders.map((f) => normSubject(f.name)).filter(Boolean));
+      } catch {
+        if (active) setLibrarySubjects([]); // fall back to the full catalogue
+      }
+    })();
+    return () => { active = false; };
+  }, [level]);
+
+  const options = useMemo(() => {
+    const all = syllabusesForLevel(level);
+    // Before the library loads, or if it's unavailable, show the full catalogue.
+    if (!librarySubjects || librarySubjects.length === 0) return all;
+    const mine = all.filter((o) => {
+      const n = normSubject(o.subject);
+      return librarySubjects.some((f) => f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
+    });
+    return mine.length ? mine : all;
+  }, [level, librarySubjects]);
   const selectedSyllabus = options.find((o) => o.code === syllabusCode) || null;
   const filteredSyllabuses = useMemo(() => {
     const q = syllabusQuery.trim().toLowerCase();
