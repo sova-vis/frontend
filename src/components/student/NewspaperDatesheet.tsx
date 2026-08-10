@@ -40,12 +40,18 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    void (async () => {
+    let active = true;
+    const load = async () => {
       try {
         const res = await apiCall(`/datesheet?scope=${scope}`);
-        if (res.ok) setData(await res.json());
-      } catch { /* ignore */ } finally { setLoading(false); }
-    })();
+        if (res.ok && active) setData(await res.json());
+      } catch { /* ignore */ } finally { if (active) setLoading(false); }
+    };
+    void load();
+    // Personal datesheet tracks the student's live subject selection.
+    const onChange = () => { if (scope === "personal") void load(); };
+    window.addEventListener("propel:selected-subjects-change", onChange);
+    return () => { active = false; window.removeEventListener("propel:selected-subjects-change", onChange); };
   }, [scope]);
 
   if (loading) return <div className="ed-card p-4 h-56 animate-pulse" />;
@@ -101,7 +107,7 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
       </button>
 
       {open && next && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/60 backdrop-blur-md p-4" onClick={() => setOpen(false)}>
           <div className="ed-card max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" style={{ fontFamily: "Georgia, serif" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between border-b-2 border-ink pb-2 mb-3">
               <div>

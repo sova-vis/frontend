@@ -159,18 +159,13 @@ export default function StudentDashboard() {
   return (
     <div className="pr">
       <div className="main stagger flex-col gap-24">
-        {/* greeting + newspaper datesheet (your selected subjects) */}
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between" style={{ gap: 20 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
-            <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
-            <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
-              Keep your momentum — a focused paper today moves the needle. Your exam dates are on the right.
-            </p>
-          </div>
-          <div style={{ width: "100%", maxWidth: 340, flex: "none" }}>
-            <NewspaperDatesheet />
-          </div>
+        {/* greeting */}
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
+          <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
+          <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
+            Keep your momentum — a focused paper today moves the needle. Your exam dates are on the right.
+          </p>
         </div>
 
         {/* first-run onboarding flow — dismissible, auto-expires after a week */}
@@ -251,7 +246,7 @@ export default function StudentDashboard() {
         )}
 
         {/* HERO ROW */}
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "start" }}>
           {/* readiness */}
           <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <Ring value={readiness} size={168} label={readinessLabel} sub={stats.goalsTotal > 0 ? "of your goals" : "momentum"} />
@@ -270,8 +265,9 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* right column: this-week + library */}
-          <div className="grid" style={{ gridTemplateRows: "1fr 1fr", gap: 18 }}>
+          {/* right column: datesheet (your subjects) on top, then momentum + library */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <NewspaperDatesheet />
             {/* Momentum — soft consistency score that doesn't punish a missed day (Phase 2) */}
             <div className="card card-pad hero-amber" style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
               <div className="flex items-center gap-10">

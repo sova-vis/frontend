@@ -7,14 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Camera, Check, GraduationCap, School } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";
-
-const SUBJECTS = [
-  "Mathematics", "Additional Mathematics", "Further Mathematics", "Statistics",
-  "Physics", "Chemistry", "Biology", "Computer Science",
-  "Economics", "Business", "Accounting", "Sociology", "Psychology",
-  "English Language", "English Literature", "Urdu",
-  "Geography", "History", "Islamiyat", "Pakistan Studies",
-];
+import { SUBJECT_OPTIONS as SUBJECTS, subjectSlug } from "@/lib/studentSubjects";
+import { saveSelectedSubjects } from "@/lib/studentPersonalization";
 const SESSIONS = ["Oct/Nov 2026", "May/June 2027", "Oct/Nov 2027", "Not sure yet"];
 const GRADES = ["A*", "A", "B", "C", "Just want to pass"];
 const STUDY = [
@@ -145,6 +139,8 @@ export default function OnboardingPage() {
         throw new Error(body.error || "Could not finish onboarding");
       }
       if (typeof window !== "undefined" && user?.id) window.localStorage.removeItem(`propel_profile_${user.id}`);
+      // Seed the local subject store so Practice/Papers are populated immediately.
+      if (role === "student") saveSelectedSubjects(data.subjects.map((n) => ({ id: subjectSlug(n), name: n })));
       window.location.href = role === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

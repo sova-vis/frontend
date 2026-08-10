@@ -12,6 +12,22 @@ import {
 import { Icon } from "@/components/propel/Icon";
 import { SubjGlyph, EmptyState, ToastProvider, useToast } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
+import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+
+// Normalise a subject/folder name for comparison: drop bracketed syllabus codes,
+// digits and punctuation so "Mathematics (4024)" ≈ "Mathematics".
+function normSubject(s: string): string {
+  return s.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/\d+/g, " ").replace(/[^a-z]+/g, " ").trim();
+}
+// A Drive subject folder is kept if it matches one of the student's chosen
+// subjects (whole-word, so "Mathematics" never pulls in "Additional Mathematics").
+function matchesSelected(folderName: string, selected: string[]): boolean {
+  const f = normSubject(folderName);
+  return selected.some((s) => {
+    const n = normSubject(s);
+    return !!n && (f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
+  });
+}
 
 interface FolderItem {
   id: string; name: string; isFolder: boolean; folderType?: string;
@@ -134,8 +150,16 @@ function PapersInner() {
   const [session, setSession] = useState("all");
   const [viewType, setViewType] = useState<"qp" | "ms">("qp");
   const [q, setQ] = useState("");
+  const [subjTick, setSubjTick] = useState(0); // bumped when the student edits their subjects
 
   useEffect(() => setMounted(true), []);
+
+  // Re-filter the library whenever the student changes their subjects in settings.
+  useEffect(() => {
+    const onChange = () => setSubjTick((t) => t + 1);
+    window.addEventListener("propel:selected-subjects-change", onChange);
+    return () => window.removeEventListener("propel:selected-subjects-change", onChange);
+  }, []);
 
   // tracked papers (independent of the selected level)
   useEffect(() => {
@@ -162,6 +186,13 @@ function PapersInner() {
           const inner = await browse(folders[0].id);
           folders = inner.items.filter((i) => i.isFolder);
         }
+        // Show only the subjects the student has chosen. Fall back to the full
+        // library if they've picked none, or none of theirs exist in the drive.
+        const selected = loadSelectedSubjects().map((s) => s.name);
+        if (selected.length) {
+          const mine = folders.filter((f) => matchesSelected(f.name, selected));
+          if (mine.length) folders = mine;
+        }
         if (active) setSubjects(folders);
       } catch (e) {
         if (active) setRootError(e instanceof Error ? e.message : "Failed to load papers");
@@ -170,7 +201,7 @@ function PapersInner() {
       }
     })();
     return () => { active = false; };
-  }, [level, levelReady]);
+  }, [level, levelReady, subjTick]);
 
   useEffect(() => {
     if (!activeSubject && subjects.length) selectSubject(subjects[0]);
