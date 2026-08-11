@@ -305,6 +305,21 @@ function QuestionCard({
           <p className="text-ink whitespace-pre-wrap">{q.question_text}</p>
           <p className="text-xs text-ink-faint mt-1">{q.marks} marks</p>
 
+          {/* Question figures/diagrams that came with the assigned question. */}
+          {q.images && q.images.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-3">
+              {q.images.map((img, k) =>
+                img.src ? (
+                  <figure key={k} className="m-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.src} alt={img.alt || "Question figure"} className="max-h-72 rounded-lg border border-line object-contain bg-white" />
+                    {img.caption && <figcaption className="text-[0.7rem] text-ink-faint mt-1">{img.caption}</figcaption>}
+                  </figure>
+                ) : null
+              )}
+            </div>
+          )}
+
           {q.type === "mcq" ? (
             <div className="mt-3 space-y-2">
               {q.options.map((o) => (

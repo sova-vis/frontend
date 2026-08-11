@@ -61,7 +61,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 		return () => clearTimeout(t);
 	}, [loading, isLoaded, user, profile, router]);
 
-	if (loading || !isLoaded || !user || (profile && profile.role !== 'student')) {
+	// Only block on the full-screen spinner when we have nothing cached yet.
+	// A cached profile renders the dashboard instantly while it revalidates.
+	if ((!profile && loading) || !isLoaded || !user || (profile && profile.role !== 'student')) {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-paper">
 				<div className="text-center">

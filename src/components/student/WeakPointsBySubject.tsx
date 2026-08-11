@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Target } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Sparkles, Target } from "lucide-react";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 
@@ -42,7 +43,7 @@ export default function WeakPointsBySubject({ weak }: { weak: WeakItem[] }) {
     if (!m) return [];
     const set = new Set<string>();
     [...(m.types.mcq?.topics ?? []), ...(m.types.structured?.topics ?? [])].forEach((t) => {
-      if (t.name && t.name.trim().toLowerCase() !== "uncategorized") set.add(t.name);
+      if (t.name && !t.name.trim().toLowerCase().startsWith("uncategor")) set.add(t.name);
     });
     return Array.from(set).sort();
   }, [meta]);
@@ -56,8 +57,23 @@ export default function WeakPointsBySubject({ weak }: { weak: WeakItem[] }) {
     return <p className="faint" style={{ fontSize: 13 }}>Add your subjects in settings to see topic-by-topic weak points.</p>;
   }
 
+  const noData = weak.length === 0;
+
   return (
     <div className="flex-col" style={{ display: "flex", gap: 8 }}>
+      {/* New students have no marked work yet — nudge them to start practising. */}
+      {noData && (
+        <Link
+          href="/student/paper-practice"
+          className="row-between"
+          style={{ textDecoration: "none", padding: "12px 14px", borderRadius: 12, background: "var(--crimson-soft, #fbe9ee)", color: "var(--crimson-ink, #8a123c)", marginBottom: 4 }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 13.5 }}>
+            <Sparkles size={15} /> Start practising these topics
+          </span>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>→</span>
+        </Link>
+      )}
       {subjects.map((s) => {
         const topics = topicsFor(s);
         const weakCount = topics.filter((t) => { const a = accFor(s, t); return a !== null && a < 75; }).length;

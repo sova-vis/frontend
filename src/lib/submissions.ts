@@ -60,6 +60,7 @@ export interface StudentQuestion {
   question_text: string;
   options: { label: string; text: string }[];
   marks: number;
+  images?: { src: string; alt?: string; caption?: string | null }[];
 }
 
 export interface SavedAnswer {

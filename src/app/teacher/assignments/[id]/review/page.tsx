@@ -382,7 +382,8 @@ export default function ReviewPage() {
             value={current.voice_note}
             onChange={async (audio) => {
               markLocal(current.mark_id, { voice_note: audio });
-              try { await saveVoiceNote(current.mark_id, audio); } catch { /* ignore */ }
+              try { await saveVoiceNote(current.mark_id, audio); setError(""); }
+              catch (e) { setError(e instanceof Error ? e.message : "Voice note failed to save — try a shorter recording."); }
             }}
           />
         </div>

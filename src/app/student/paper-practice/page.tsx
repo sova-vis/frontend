@@ -1002,8 +1002,9 @@ function PracticeInner() {
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
   const currentTypeMeta = currentSubject?.types[questionType] ?? null;
   const availableYears = currentTypeMeta?.years ?? [];
-  // Hide the catch-all "Uncategorized" bucket — it isn't a real revision topic.
-  const availableTopics = (currentTypeMeta?.topics ?? []).filter((t) => t.name.trim().toLowerCase() !== "uncategorized");
+  // Hide the catch-all "Uncategorised" bucket — it isn't a real revision topic.
+  // (Data uses the British spelling, so match the "uncategor" prefix.)
+  const availableTopics = (currentTypeMeta?.topics ?? []).filter((t) => !t.name.trim().toLowerCase().startsWith("uncategor"));
 
   function clearQuestions() {
     setQuestions([]);
