@@ -25,6 +25,7 @@ export default function TakeAssignmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<StudentResult | null>(null);
   const startRef = useRef<number>(0);
 
@@ -105,8 +106,11 @@ export default function TakeAssignmentPage() {
     setSubmitting(true);
     try {
       const seconds = Math.round((Date.now() - startRef.current) / 1000);
-      const { status } = await submitSubmission(submissionId, seconds);
-      router.push(`/student/assignments?submitted=${status}`);
+      await submitSubmission(submissionId, seconds);
+      // Show the success modal, then drop back into the classroom.
+      try { window.localStorage.setItem("propel_mode", "classroom"); } catch { /* ignore */ }
+      setSubmitted(true);
+      setTimeout(() => router.push("/student/classroom"), 2200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");
       setSubmitting(false);
@@ -135,6 +139,20 @@ export default function TakeAssignmentPage() {
 
   return (
     <div className="min-h-screen bg-paper text-ink px-4 md:px-8 py-8">
+      {submitted && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/50 backdrop-blur-sm p-4">
+          <div className="ed-card p-8 text-center max-w-sm w-full">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-mint-soft text-mint-ink">
+              <CheckCircle2 size={38} />
+            </div>
+            <h2 className="font-display text-xl font-semibold mt-4">Submitted!</h2>
+            <p className="text-ink-muted text-sm mt-1">Your answers are in. Your teacher will review them and release your feedback.</p>
+            <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-5 px-5 py-2.5 mx-auto">
+              Back to classroom
+            </button>
+          </div>
+        </div>
+      )}
       <div className="max-w-3xl mx-auto space-y-5">
         <button onClick={() => router.push("/student/assignments")} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1">
           <ChevronLeft size={15} /> Assignments

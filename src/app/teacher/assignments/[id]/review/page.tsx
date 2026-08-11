@@ -12,7 +12,8 @@ import {
   overrideMark,
   saveVoiceNote,
 } from "@/lib/review";
-import { applyMissedGuidance, saveCriterionComment } from "@/lib/feedbackRelease";
+import { applyMissedGuidance, releaseOne, saveCriterionComment } from "@/lib/feedbackRelease";
+import { Send } from "lucide-react";
 import CommentBankButton from "@/components/teacher/CommentBankButton";
 import VoiceNote from "@/components/teacher/VoiceNote";
 
@@ -162,6 +163,28 @@ export default function ReviewPage() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Check the current answer (if needed) and release this student's whole result.
+  const checkAndRelease = async () => {
+    if (!current || busy) return;
+    setBusy(true);
+    try {
+      if (dirty) {
+        const { final_score } = await overrideMark(current.mark_id, awarded.map((a) => ({ awarded: a })));
+        markLocal(current.mark_id, { status: "overridden", final_score });
+      } else if (!REVIEWED.includes(current.status)) {
+        await approveMark(current.mark_id);
+        markLocal(current.mark_id, { status: "approved", final_score: current.ai_score });
+      }
+      await releaseOne(current.submission_id);
+      backToTable();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to release results");
     } finally {
       setBusy(false);
     }
@@ -399,9 +422,22 @@ export default function ReviewPage() {
             <button onClick={() => void flagCurrent()} className={`ed-btn-ghost px-3 py-2 text-sm ${current.flagged ? "text-crimson" : ""}`}>
               <Flag size={14} /> {current.flagged ? "Flagged" : "Flag"}
             </button>
-            <button onClick={() => void approveCurrent()} disabled={busy} className="ed-btn-primary px-5 py-2.5">
-              <Check size={15} /> {dirty ? "Save & next" : "Checked & next"}
-            </button>
+            {index >= focusItems.length - 1 ? (
+              // On the last answer, one button checks it and releases the whole
+              // result straight to the student (marks, comments, voice notes, all).
+              <button
+                onClick={() => void checkAndRelease()}
+                disabled={busy}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white disabled:opacity-60"
+                style={{ background: "#0f9d6b" }}
+              >
+                <Send size={15} /> Check &amp; release to {focusName.split(" ")[0]}
+              </button>
+            ) : (
+              <button onClick={() => void approveCurrent()} disabled={busy} className="ed-btn-primary px-5 py-2.5">
+                <Check size={15} /> {dirty ? "Save & next" : "Checked & next"}
+              </button>
+            )}
           </div>
         </div>
       </div>
