@@ -17,6 +17,7 @@ import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 import WeakPointsBySubject from "@/components/student/WeakPointsBySubject";
+import StudyScene from "@/components/student/StudyScene";
 import { resolveName } from "@/lib/displayName";
 
 const ONBOARDING_DISMISS_KEY = "propel_onboarding_dismissed";
@@ -177,6 +178,7 @@ export default function StudentDashboard() {
             <p className="muted mt-16" style={{ fontSize: 18, maxWidth: 520, lineHeight: 1.5 }}>
               Keep your momentum — a focused paper today moves the needle. Your readiness and streak are on the right.
             </p>
+            <StudyScene />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="card card-pad" style={{ display: "flex", gap: 12, justifyContent: "space-around", alignItems: "center", padding: "18px 12px" }}>
