@@ -79,6 +79,19 @@ export default function StudentDashboard() {
   }, [getToken]);
   const weakSpots = useMemo(() => weakestTopics(attempts, 1).slice(0, 5), [attempts]);
   const momentum = useMemo(() => momentumScore(attempts), [attempts]);
+  // Snapchat-style streak: consecutive days with practice activity (today may be
+  // pending without breaking it).
+  const streak = useMemo(() => {
+    const days = new Set(attempts.map((a) => (a.at || "").slice(0, 10)).filter(Boolean));
+    let n = 0;
+    for (let i = 0; i < 400; i++) {
+      const key = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      if (days.has(key)) n += 1;
+      else if (i === 0) continue; // today not logged yet — don't break the streak
+      else break;
+    }
+    return n;
+  }, [attempts]);
   const dailyPlan = useMemo(() => buildDailyPlan(attempts), [attempts]);
   const prediction = useMemo(() => predictedGrade(attempts), [attempts]);
   const timeline = useMemo(() => readinessTimeline(attempts, EXAM_DATE), [attempts]);
@@ -157,18 +170,18 @@ export default function StudentDashboard() {
     <div className="pr">
       <div className="main stagger flex-col gap-24">
         {/* greeting + at-a-glance rings + datesheet */}
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)", alignItems: "start", gap: 20 }}>
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
-            <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
-            <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(0,1fr)", alignItems: "start", gap: 20 }}>
+          <div style={{ paddingTop: 8 }}>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>{today}</div>
+            <h1 style={{ fontSize: "clamp(38px,5.5vw,62px)", lineHeight: 1.02, letterSpacing: "-0.02em" }}>{greeting()},<br />{name} 👋</h1>
+            <p className="muted mt-16" style={{ fontSize: 18, maxWidth: 520, lineHeight: 1.5 }}>
               Keep your momentum — a focused paper today moves the needle. Your readiness and streak are on the right.
             </p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", gap: 12 }}>
-              <MiniGauge value={readiness} label={readinessLabel} caption="Readiness" tone="crimson" onClick={() => go("/student/past-papers")} />
-              <MiniGauge value={momentum.score} label={momentum.label} caption="Momentum" tone="amber" onClick={() => go("/student/paper-practice")} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 22, justifyContent: "center" }}>
+              <RingGauge value={readiness} label={readinessLabel} caption="Readiness" onClick={() => go("/student/past-papers")} />
+              <StreakBadge days={streak} label={momentum.label} onClick={() => go("/student/paper-practice")} />
             </div>
             <NewspaperDatesheet />
           </div>
@@ -576,18 +589,32 @@ export default function StudentDashboard() {
   );
 }
 
-/* ---- small circular gauge (readiness / momentum) ---- */
-function MiniGauge({ value, label, caption, tone, onClick }: { value: number; label: string; caption: string; tone: "crimson" | "amber"; onClick?: () => void }) {
-  const color = tone === "crimson" ? "var(--crimson)" : "var(--amber-deep)";
+/* ---- readiness: bare circular ring (no card) ---- */
+function RingGauge({ value, label, caption, onClick }: { value: number; label: string; caption: string; onClick?: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className="card card-hover"
-      style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 8px", cursor: onClick ? "pointer" : "default", border: "1px solid var(--line)", background: "var(--surface)" }}
-    >
-      <Ring value={value} size={72} stroke={8} color={color} track="var(--surface-2)" textColor="var(--ink)" />
+    <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: onClick ? "pointer" : "default", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <Ring value={value} size={104} stroke={10} color="var(--crimson)" track="var(--surface-2)" textColor="var(--ink)" />
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-faint)" }}>{caption}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.2, textAlign: "center" }}>{label}</div>
+    </button>
+  );
+}
+
+/* ---- streak: Snapchat-style fire circle tracking active practice days ---- */
+function StreakBadge({ days, label, onClick }: { days: number; label: string; onClick?: () => void }) {
+  const lit = days > 0;
+  return (
+    <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: onClick ? "pointer" : "default", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div style={{
+        width: 104, height: 104, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        border: `3px solid ${lit ? "var(--amber-deep)" : "var(--line-strong)"}`,
+        background: lit ? "linear-gradient(160deg, var(--amber-soft), var(--coral-soft))" : "var(--surface-2)",
+      }}>
+        <Icon name="flame" size={30} style={{ color: lit ? "var(--coral-bright)" : "var(--ink-faint)" }} fill={lit ? "var(--amber)" : "none"} />
+        <span style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: lit ? "var(--ink)" : "var(--ink-faint)", marginTop: 2 }}>{days}</span>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-faint)" }}>Streak</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.2, textAlign: "center" }}>{days === 1 ? "1 day" : `${days} days`} · {label}</div>
     </button>
   );
 }

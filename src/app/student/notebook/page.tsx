@@ -65,11 +65,11 @@ export default function NotebookPage() {
     window.addEventListener("propel:selected-subjects-change", read);
     return () => window.removeEventListener("propel:selected-subjects-change", read);
   }, []);
+  // Only the subjects the student has chosen appear in the filter. Fall back to
+  // whatever they have work in only if they've selected none.
   const subjects = useMemo(() => {
-    const attemptSubjects = Array.from(new Set((attempts ?? []).map((a) => a.subject).filter(Boolean)));
-    const merged = [...selectedSubjects];
-    for (const s of attemptSubjects) if (!merged.some((m) => m.toLowerCase() === s.toLowerCase())) merged.push(s);
-    return merged;
+    if (selectedSubjects.length) return selectedSubjects;
+    return Array.from(new Set((attempts ?? []).map((a) => a.subject).filter(Boolean)));
   }, [attempts, selectedSubjects]);
   const filtered = useMemo(
     () => (attempts ?? []).filter((a) => !subject || a.subject === subject),

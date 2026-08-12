@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarPlus, Newspaper, X } from "lucide-react";
 import { apiCall } from "@/lib/api";
 
@@ -38,6 +39,8 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
   const [data, setData] = useState<Datesheet | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let active = true;
@@ -106,8 +109,8 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
         )}
       </button>
 
-      {open && next && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/60 backdrop-blur-md p-4" onClick={() => setOpen(false)}>
+      {open && next && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/60 backdrop-blur-md p-4" onClick={() => setOpen(false)}>
           <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 rounded-[0.75rem] border-2 border-ink bg-paper shadow-2xl" style={{ fontFamily: "Georgia, serif" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between border-b-2 border-ink pb-2 mb-3">
               <div>
@@ -150,7 +153,8 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
               <CalendarPlus size={14} /> Add to calendar
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
