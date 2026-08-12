@@ -12,6 +12,8 @@ export interface UserProfile {
   email: string;
   selected_subjects?: string[];
   onboarding_complete?: boolean;
+  level?: string;
+  exam_session?: string;
 }
 
 const PROFILE_CACHE_PREFIX = "propel_profile_";

@@ -9,6 +9,7 @@ import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { SUBJECT_OPTIONS as SUBJECTS, subjectSlug } from "@/lib/studentSubjects";
 import { saveSelectedSubjects } from "@/lib/studentPersonalization";
+import { LevelSubject, loadLevelSubjects } from "@/lib/librarySubjects";
 const SESSIONS = ["Oct/Nov 2026", "May/June 2027", "Oct/Nov 2027", "Not sure yet"];
 const GRADES = ["A*", "A", "B", "C", "Just want to pass"];
 const STUDY = [
@@ -46,6 +47,8 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [requestSubject, setRequestSubject] = useState("");
   const [requestSent, setRequestSent] = useState(false);
+  const [levelSubjects, setLevelSubjects] = useState<LevelSubject[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [data, setData] = useState<Data>({
@@ -92,6 +95,17 @@ export default function OnboardingPage() {
       router.replace(profile.role === "teacher" ? "/teacher/dashboard" : profile.role === "admin" ? "/admin/dashboard" : "/student/dashboard");
     }
   }, [isLoaded, user, loading, profile, router]);
+
+  // Subjects the student can pick come from the real paper library for their level.
+  useEffect(() => {
+    if (role !== "student" || !data.level) { setLevelSubjects([]); return; }
+    let active = true;
+    setSubjectsLoading(true);
+    loadLevelSubjects(data.level)
+      .then((ls) => { if (active) setLevelSubjects(ls); })
+      .finally(() => { if (active) setSubjectsLoading(false); });
+    return () => { active = false; };
+  }, [role, data.level]);
 
   const set = (patch: Partial<Data>) => setData((d) => ({ ...d, ...patch }));
   const go = (n: number) => { setDir(n > step ? 1 : -1); setStep(n); };
@@ -250,18 +264,26 @@ export default function OnboardingPage() {
             )}
 
             {currentKey === "subjects" && (
-              <Step title="Which subjects are you taking?" subtitle="Pick all that apply — you can change these later.">
-                <div className="flex flex-wrap gap-2">
-                  {SUBJECTS.map((s) => {
-                    const on = data.subjects.includes(s);
-                    return (
-                      <button key={s} onClick={() => set({ subjects: on ? data.subjects.filter((x) => x !== s) : [...data.subjects, s] })}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium border transition-colors ${on ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}>
-                        {on && <Check size={13} className="inline mr-1 -mt-0.5" />}{s}
-                      </button>
-                    );
-                  })}
-                </div>
+              <Step title="Which subjects are you taking?" subtitle={`Only ${/both/i.test(data.level) ? "O & A Level" : data.level} subjects we have papers for. Pick all that apply.`}>
+                {subjectsLoading && levelSubjects.length === 0 ? (
+                  <p className="text-sm text-ink-faint">Loading subjects for {data.level || "your level"}…</p>
+                ) : levelSubjects.length === 0 ? (
+                  <p className="text-sm text-ink-faint">No subjects found for this level yet — request yours below.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {levelSubjects.map((s) => {
+                      const on = data.subjects.includes(s.name);
+                      const showTag = /both/i.test(data.level);
+                      return (
+                        <button key={`${s.name}`} onClick={() => set({ subjects: on ? data.subjects.filter((x) => x !== s.name) : [...data.subjects, s.name] })}
+                          className={`rounded-full px-3.5 py-2 text-sm font-medium border transition-colors ${on ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}>
+                          {on && <Check size={13} className="inline mr-1 -mt-0.5" />}{s.name}
+                          {showTag && <span className="ml-1.5 text-[0.65rem] font-bold text-ink-faint">{s.levels.join("·")} Level</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Request a subject that isn't listed yet. */}
                 <div className="mt-5 rounded-xl border border-line bg-surface-soft p-3.5">

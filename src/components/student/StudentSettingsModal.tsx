@@ -5,7 +5,8 @@ import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { BookOpen, Check, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { resolveName } from "@/lib/displayName";
-import { SUBJECT_OPTIONS, subjectSlug } from "@/lib/studentSubjects";
+import { subjectSlug } from "@/lib/studentSubjects";
+import { LevelSubject, loadLevelSubjects } from "@/lib/librarySubjects";
 import { hydrateSubjectsFromProfile, saveSelectedSubjectsForUser } from "@/lib/studentPersonalization";
 import DeleteAccountModal from "@/components/DeleteAccountModal";
 
@@ -27,8 +28,16 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [subjects, setSubjects] = useState<string[]>([]);
+  const [levelSubjects, setLevelSubjects] = useState<LevelSubject[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const levelChoice = profile?.level || "Both";
+  useEffect(() => {
+    let active = true;
+    loadLevelSubjects(levelChoice).then((ls) => { if (active) setLevelSubjects(ls); });
+    return () => { active = false; };
+  }, [levelChoice]);
 
   useEffect(() => {
     setTheme((window.localStorage.getItem(THEME_KEY) as "light" | "dark" | null) || "light");
@@ -131,16 +140,24 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
                   <div>
                     <label className="ed-label mb-2 block">Your subjects <span className="text-ink-faint">({subjects.length} selected)</span></label>
                     <div className="flex flex-wrap gap-2">
-                      {SUBJECT_OPTIONS.map((s) => {
-                        const on = subjects.includes(s);
+                      {levelSubjects.map((s) => {
+                        const on = subjects.includes(s.name);
+                        const showTag = /both/i.test(levelChoice);
                         return (
-                          <button key={s} onClick={() => toggleSubject(s)} className={`rounded-full px-3.5 py-2 text-sm font-medium border transition-colors ${on ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}>
-                            {on && <Check size={13} className="inline mr-1 -mt-0.5" />}{s}
+                          <button key={s.name} onClick={() => toggleSubject(s.name)} className={`rounded-full px-3.5 py-2 text-sm font-medium border transition-colors ${on ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}>
+                            {on && <Check size={13} className="inline mr-1 -mt-0.5" />}{s.name}
+                            {showTag && <span className="ml-1.5 text-[0.65rem] font-bold text-ink-faint">{s.levels.join("·")} Level</span>}
                           </button>
                         );
                       })}
+                      {/* Selected subjects not in the current level's library (e.g. legacy) — so they can be removed */}
+                      {subjects.filter((s) => !levelSubjects.some((ls) => ls.name.toLowerCase() === s.toLowerCase())).map((s) => (
+                        <button key={s} onClick={() => toggleSubject(s)} className="rounded-full px-3.5 py-2 text-sm font-medium border border-crimson bg-crimson-soft text-crimson-ink transition-colors">
+                          <Check size={13} className="inline mr-1 -mt-0.5" />{s}
+                        </button>
+                      ))}
                     </div>
-                    <p className="text-xs text-ink-faint mt-2">These drive your Practice, Papers and datesheet.</p>
+                    <p className="text-xs text-ink-faint mt-2">Only {/both/i.test(levelChoice) ? "O & A Level" : levelChoice} subjects we have papers for. These drive your Practice, Papers and datesheet.</p>
                   </div>
 
                   <div className="flex items-center gap-3">
