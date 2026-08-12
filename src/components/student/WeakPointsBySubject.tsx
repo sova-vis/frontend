@@ -84,13 +84,17 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
       {subjects.map((s) => {
         const topics = topicsFor(s);
         const weakCount = topics.filter((t) => { const a = accFor(s, t); return a !== null && a < 75; }).length;
+        // Overall subject mastery = mean across its topics (untouched counts as 0).
+        const vals = topics.map((t) => accFor(s, t) ?? 0);
+        const overall = vals.length ? Math.round(vals.reduce((x, y) => x + y, 0) / vals.length) : 0;
+        const overCol = overall >= 75 ? "var(--teal-deep)" : overall >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
         const isOpen = open === s;
         return (
           <div key={s} style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
             <button
               onClick={() => setOpen(isOpen ? null : s)}
               className="row-between"
-              style={{ width: "100%", padding: "11px 14px", background: isOpen ? "var(--surface-2)" : "transparent", border: "none", cursor: "pointer" }}
+              style={{ width: "100%", padding: "11px 14px 9px", background: isOpen ? "var(--surface-2)" : "transparent", border: "none", cursor: "pointer" }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Target size={15} style={{ color: "var(--coral)" }} />
@@ -102,6 +106,16 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
                 <ChevronDown size={15} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .2s", color: "var(--ink-faint)" }} />
               </span>
             </button>
+            {/* Overall subject bar — always visible */}
+            <div style={{ padding: "0 14px 11px", background: isOpen ? "var(--surface-2)" : "transparent" }}>
+              <div className="row-between" style={{ marginBottom: 3 }}>
+                <span className="faint" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>Overall mastery</span>
+                <span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: overCol }}>{overall}%</span>
+              </div>
+              <div style={{ height: 7, borderRadius: 4, background: "var(--surface)", overflow: "hidden" }}>
+                <div style={{ width: `${overall === 0 ? 0 : Math.max(3, overall)}%`, height: "100%", background: overCol, borderRadius: 4 }} />
+              </div>
+            </div>
             {isOpen && (
               <div style={{ padding: "2px 14px 12px" }}>
                 {topics.length === 0 ? (
@@ -109,16 +123,16 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
                 ) : (
                   <div className="flex-col" style={{ display: "flex", gap: 10 }}>
                     {topics.map((t) => {
-                      const a = accFor(s, t);
-                      const col = a === null ? "var(--ink-faint)" : a >= 75 ? "var(--teal-deep)" : a >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
+                      const val = accFor(s, t) ?? 0; // untouched topic → 0% mastery
+                      const col = val >= 75 ? "var(--teal-deep)" : val >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
                       return (
                         <div key={t} style={{ fontSize: 12.5 }}>
                           <div className="row-between" style={{ gap: 10, marginBottom: 3 }}>
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t}</span>
-                            <span className="tnum" style={{ color: col, fontWeight: 700, flex: "none" }}>{a === null ? "—" : `${a}%`}</span>
+                            <span className="tnum" style={{ color: col, fontWeight: 700, flex: "none" }}>{val}%</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 4, background: "var(--surface-2)", overflow: "hidden" }}>
-                            <div style={{ width: `${a === null ? 0 : Math.max(3, a)}%`, height: "100%", background: col, borderRadius: 4 }} />
+                            <div style={{ width: `${val === 0 ? 0 : Math.max(3, val)}%`, height: "100%", background: col, borderRadius: 4 }} />
                           </div>
                         </div>
                       );
