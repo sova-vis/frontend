@@ -44,6 +44,8 @@ export default function OnboardingPage() {
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [requestSubject, setRequestSubject] = useState("");
+  const [requestSent, setRequestSent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [data, setData] = useState<Data>({
@@ -259,6 +261,36 @@ export default function OnboardingPage() {
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Request a subject that isn't listed yet. */}
+                <div className="mt-5 rounded-xl border border-line bg-surface-soft p-3.5">
+                  {requestSent ? (
+                    <p className="text-sm text-mint-ink inline-flex items-center gap-1.5">
+                      <Check size={15} /> Request submitted — we&apos;ll look into adding it.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-ink-muted mb-2">Can&apos;t find your subject? Request it and we&apos;ll try to add it.</p>
+                      <div className="flex gap-2">
+                        <input
+                          value={requestSubject}
+                          onChange={(e) => setRequestSubject(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && requestSubject.trim()) { e.preventDefault(); setRequestSent(true); } }}
+                          placeholder="e.g. Environmental Management"
+                          className="ed-input px-3 py-2 text-sm flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { if (requestSubject.trim()) setRequestSent(true); }}
+                          disabled={!requestSubject.trim()}
+                          className="ed-btn-primary px-4 py-2 text-sm disabled:opacity-50"
+                        >
+                          Request
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </Step>
             )}

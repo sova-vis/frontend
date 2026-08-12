@@ -13,6 +13,7 @@ import { Icon } from "@/components/propel/Icon";
 import { SubjGlyph, EmptyState, ToastProvider, useToast } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+import { isExcludedSubject } from "@/lib/studentSubjects";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 
 // Normalise a subject/folder name for comparison: drop bracketed syllabus codes,
@@ -170,12 +171,14 @@ function PapersInner() {
   }, [getToken]);
 
   // Show only the subjects the student has chosen. Fall back to the full library
-  // if they've picked none, or none of theirs exist in the drive.
+  // if they've picked none, or none of theirs exist in the drive. Excluded
+  // subjects (e.g. Additional Mathematics) are dropped regardless.
   const filterToSelected = (folders: FolderItem[]) => {
-    const selected = loadSelectedSubjects().map((s) => s.name);
-    if (!selected.length) return folders;
-    const mine = folders.filter((f) => matchesSelected(f.name, selected));
-    return mine.length ? mine : folders;
+    const usable = folders.filter((f) => !isExcludedSubject(f.name));
+    const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s));
+    if (!selected.length) return usable;
+    const mine = usable.filter((f) => matchesSelected(f.name, selected));
+    return mine.length ? mine : usable;
   };
 
   // root subjects — reloads whenever the O/A Levels toggle changes

@@ -15,6 +15,7 @@ import {
 } from "@/lib/practiceProgress";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+import { isExcludedSubject } from "@/lib/studentSubjects";
 import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { apiCall, getApiUrl } from "@/lib/api";
@@ -949,8 +950,9 @@ function PracticeInner() {
     // Show only the subjects the student picked (whole-word match so "Mathematics"
     // never pulls in "Additional Mathematics"). Fall back to the full catalog if
     // they've chosen none, or none of theirs exist in the bank.
-    const filterToSelected = (list: SubjectMeta[]) => {
-      const selected = loadSelectedSubjects().map((s) => normName(s.name)).filter(Boolean);
+    const filterToSelected = (raw: SubjectMeta[]) => {
+      const list = raw.filter((s) => !isExcludedSubject(s.name)); // hide e.g. Additional Mathematics
+      const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s)).map(normName).filter(Boolean);
       if (!selected.length) return list;
       const mine = list.filter((s) => {
         const f = normName(s.name);
