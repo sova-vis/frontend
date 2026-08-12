@@ -119,7 +119,7 @@ export default function NotebookPage() {
               <div className="card-sub mt-6">Every topic in your subjects — expand a subject to see where you stand.</div>
             </div>
           </div>
-          <WeakPointsBySubject weak={allWeak.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
+          <WeakPointsBySubject only={subject || undefined} weak={allWeak.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
         </div>
 
         {attempts === null ? (

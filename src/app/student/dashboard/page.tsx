@@ -178,9 +178,10 @@ export default function StudentDashboard() {
               Keep your momentum — a focused paper today moves the needle. Your readiness and streak are on the right.
             </p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 22, justifyContent: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="card card-pad" style={{ display: "flex", gap: 12, justifyContent: "space-around", alignItems: "center", padding: "18px 12px" }}>
               <RingGauge value={readiness} label={readinessLabel} caption="Readiness" onClick={() => go("/student/past-papers")} />
+              <div style={{ width: 1, alignSelf: "stretch", background: "var(--line)" }} />
               <StreakBadge days={streak} label={momentum.label} onClick={() => go("/student/paper-practice")} />
             </div>
             <NewspaperDatesheet />

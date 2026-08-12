@@ -15,17 +15,24 @@ const normSubj = (s: string) => s.toLowerCase().replace(/\([^)]*\)/g, " ").repla
 // Weak points organised by the student's chosen subjects: each subject is a
 // dropdown that reveals its topics, with accuracy shown for topics they've been
 // marked on. Works for brand-new students (topics come from the paper library).
-export default function WeakPointsBySubject({ weak }: { weak: WeakItem[] }) {
+export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; only?: string }) {
   const [meta, setMeta] = useState<SubjMeta[] | null>(null);
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [allSubjects, setAllSubjects] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
-    const read = () => setSubjects(loadSelectedSubjects().map((s) => s.name));
+    const read = () => setAllSubjects(loadSelectedSubjects().map((s) => s.name));
     read();
     window.addEventListener("propel:selected-subjects-change", read);
     return () => window.removeEventListener("propel:selected-subjects-change", read);
   }, []);
+
+  // When a subject filter is active, show only that subject (auto-expanded).
+  const subjects = useMemo(
+    () => (only ? allSubjects.filter((s) => s.toLowerCase() === only.toLowerCase()) : allSubjects),
+    [allSubjects, only]
+  );
+  useEffect(() => { if (only && subjects.length === 1) setOpen(subjects[0]); }, [only, subjects]);
 
   useEffect(() => {
     const cached = cacheGet<SubjMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
