@@ -100,14 +100,19 @@ export default function WeakPointsBySubject({ weak }: { weak: WeakItem[] }) {
                 {topics.length === 0 ? (
                   <p className="faint" style={{ fontSize: 12.5 }}>Topics for this subject will appear once the library loads.</p>
                 ) : (
-                  <div className="flex-col" style={{ display: "flex", gap: 6 }}>
+                  <div className="flex-col" style={{ display: "flex", gap: 10 }}>
                     {topics.map((t) => {
                       const a = accFor(s, t);
                       const col = a === null ? "var(--ink-faint)" : a >= 75 ? "var(--teal-deep)" : a >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
                       return (
-                        <div key={t} className="row-between" style={{ gap: 10, fontSize: 12.5 }}>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t}</span>
-                          <span className="tnum" style={{ color: col, fontWeight: 700, flex: "none" }}>{a === null ? "—" : `${a}%`}</span>
+                        <div key={t} style={{ fontSize: 12.5 }}>
+                          <div className="row-between" style={{ gap: 10, marginBottom: 3 }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t}</span>
+                            <span className="tnum" style={{ color: col, fontWeight: 700, flex: "none" }}>{a === null ? "—" : `${a}%`}</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 4, background: "var(--surface-2)", overflow: "hidden" }}>
+                            <div style={{ width: `${a === null ? 0 : Math.max(3, a)}%`, height: "100%", background: col, borderRadius: 4 }} />
+                          </div>
                         </div>
                       );
                     })}

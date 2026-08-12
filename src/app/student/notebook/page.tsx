@@ -11,6 +11,8 @@ import {
   Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
 } from "@/lib/insights";
 import { TopicTrend, loadTopicTrends } from "@/lib/examTrends";
+import { loadSelectedSubjects } from "@/lib/studentPersonalization";
+import WeakPointsBySubject from "@/components/student/WeakPointsBySubject";
 
 const verdictTone: Record<Attempt["verdict"], { label: string; bg: string; fg: string }> = {
   correct: { label: "Correct", bg: "var(--teal-soft)", fg: "var(--teal-deep)" },
@@ -54,15 +56,27 @@ export default function NotebookPage() {
 
   const revisions = useMemo(() => dueRevisions(attempts ?? []).filter((r) => !subject || r.subject === subject).slice(0, 8), [attempts, subject]);
 
-  const subjects = useMemo(
-    () => Array.from(new Set((attempts ?? []).map((a) => a.subject).filter(Boolean))).sort(),
-    [attempts],
-  );
+  // Show the student's chosen subjects first (so every selected subject appears,
+  // even with no attempts yet), plus any extra subjects they have work in.
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  useEffect(() => {
+    const read = () => setSelectedSubjects(loadSelectedSubjects().map((s) => s.name));
+    read();
+    window.addEventListener("propel:selected-subjects-change", read);
+    return () => window.removeEventListener("propel:selected-subjects-change", read);
+  }, []);
+  const subjects = useMemo(() => {
+    const attemptSubjects = Array.from(new Set((attempts ?? []).map((a) => a.subject).filter(Boolean)));
+    const merged = [...selectedSubjects];
+    for (const s of attemptSubjects) if (!merged.some((m) => m.toLowerCase() === s.toLowerCase())) merged.push(s);
+    return merged;
+  }, [attempts, selectedSubjects]);
   const filtered = useMemo(
     () => (attempts ?? []).filter((a) => !subject || a.subject === subject),
     [attempts, subject],
   );
   const weak = useMemo(() => weakestTopics(filtered, 1).slice(0, 12), [filtered]);
+  const allWeak = useMemo(() => weakestTopics(attempts ?? [], 1), [attempts]);
   const mistakes = useMemo(() => mistakeList(filtered).slice(0, 60), [filtered]);
   const readiness = useMemo(() => topicReadiness(filtered), [filtered]);
 
@@ -91,6 +105,21 @@ export default function NotebookPage() {
               </select>
             </label>
           )}
+        </div>
+
+        {/* Topic mastery across every subject the student has chosen — always shown,
+            with per-topic progress bars, even before any work is graded. */}
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <div className="flex items-center gap-8">
+                <Icon name="layers" size={19} style={{ color: "var(--crimson)" }} />
+                <span className="card-title">Topic mastery by subject</span>
+              </div>
+              <div className="card-sub mt-6">Every topic in your subjects — expand a subject to see where you stand.</div>
+            </div>
+          </div>
+          <WeakPointsBySubject weak={allWeak.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
         </div>
 
         {attempts === null ? (

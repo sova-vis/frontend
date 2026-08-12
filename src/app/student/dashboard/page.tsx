@@ -91,12 +91,6 @@ export default function StudentDashboard() {
     : Math.min(100, stats.completedCount * 8);
   const readinessLabel = readiness >= 75 ? "On track" : readiness >= 45 ? "Building up" : "Getting started";
 
-  // completed-this-week (real momentum)
-  const weekAgo = Date.now() - 7 * 86_400_000;
-  const completedThisWeek = stats.papers.filter(
-    (p) => p.statuses.includes("completed" as never) && new Date(p.savedAt).getTime() >= weekAgo
-  ).length;
-
   // per-subject completed counts (real)
   const bySubject = new Map<string, number>();
   stats.papers.forEach((p) => {
@@ -162,13 +156,22 @@ export default function StudentDashboard() {
   return (
     <div className="pr">
       <div className="main stagger flex-col gap-24">
-        {/* greeting */}
-        <div>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
-          <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
-          <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
-            Keep your momentum — a focused paper today moves the needle. Your exam dates are on the right.
-          </p>
+        {/* greeting + at-a-glance rings + datesheet */}
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)", alignItems: "start", gap: 20 }}>
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>{today}</div>
+            <h1 style={{ fontSize: "clamp(28px,4vw,40px)" }}>{greeting()}, {name} 👋</h1>
+            <p className="muted mt-6" style={{ fontSize: 15.5, maxWidth: 460 }}>
+              Keep your momentum — a focused paper today moves the needle. Your readiness and streak are on the right.
+            </p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", gap: 12 }}>
+              <MiniGauge value={readiness} label={readinessLabel} caption="Readiness" tone="crimson" onClick={() => go("/student/past-papers")} />
+              <MiniGauge value={momentum.score} label={momentum.label} caption="Momentum" tone="amber" onClick={() => go("/student/paper-practice")} />
+            </div>
+            <NewspaperDatesheet />
+          </div>
         </div>
 
         {/* first-run onboarding flow — dismissible, auto-expires after a week */}
@@ -248,45 +251,6 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* HERO ROW */}
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "stretch" }}>
-          {/* LEFT: compact readiness + momentum */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* Exam readiness — compact "north-star" chip */}
-            <div className="card card-pad hero-crimson" style={{ display: "flex", gap: 14, alignItems: "center" }}>
-              <Ring value={readiness} size={76} label={`${readiness}%`} sub="ready" />
-              <div style={{ flex: 1, minWidth: 0, position: "relative", zIndex: 1 }}>
-                <div className="eyebrow" style={{ color: "rgba(255,255,255,.75)" }}>Exam readiness</div>
-                <div style={{ color: "#fff", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{readinessLabel}</div>
-                <div style={{ color: "rgba(255,255,255,.85)", fontSize: 12.5, marginTop: 3 }}>
-                  {stats.goalsTotal > 0 ? `${stats.goalsDone}/${stats.goalsTotal} goal papers` : `${stats.completedCount} solved`} · target 100%
-                </div>
-              </div>
-            </div>
-
-            {/* Momentum — soft consistency score that doesn't punish a missed day (Phase 2) */}
-            <div className="card card-pad hero-amber" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
-              <div className="flex items-center gap-10">
-                <Icon name="flame" size={30} fill="rgba(255,255,255,.25)" />
-                <div>
-                  <div className="big-num" style={{ fontSize: 30, color: "#fff" }}><CountUp value={momentum.score} />% momentum</div>
-                  <div style={{ color: "rgba(255,255,255,.82)", fontSize: 12.5 }}>{momentum.label} · {momentum.activeDays} active day{momentum.activeDays === 1 ? "" : "s"} · {completedThisWeek} paper{completedThisWeek === 1 ? "" : "s"} this week</div>
-                </div>
-              </div>
-              <div style={{ height: 7, borderRadius: 5, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
-                <div style={{ width: `${Math.max(3, momentum.score)}%`, height: "100%", background: "#fff", borderRadius: 5 }} />
-              </div>
-              <button className="btn btn-sm" style={{ background: "#fff", color: "var(--amber-deep)", alignSelf: "flex-start" }} onClick={() => go("/student/paper-practice")}>
-                Keep it going
-              </button>
-            </div>
-          </div>
-
-          {/* RIGHT: datesheet (your subjects) */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <NewspaperDatesheet />
-          </div>
-        </div>
 
         {/* STAT STRIP (real) */}
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
@@ -373,11 +337,11 @@ export default function StudentDashboard() {
                     <Icon name="target" size={19} style={{ color: "var(--coral)" }} />
                     <span className="card-title">Your weak spots</span>
                   </div>
-                  <div className="card-sub mt-6">Your toughest concepts, weakest first — ranked by accuracy.</div>
+                  <div className="card-sub mt-6">Topic mastery across your subjects — the lower the bar, the more to revise.</div>
                 </div>
-                {weakSpots.length > 0 && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => go("/student/notebook")}>Notebook <Icon name="chevron_right" size={15} /></button>
-                )}
+                <button className="btn btn-primary btn-sm" onClick={() => go("/student/notebook")}>
+                  Show detailed analytics <Icon name="chevron_right" size={15} />
+                </button>
               </div>
               <WeakPointsBySubject weak={weakSpots.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
             </div>
@@ -609,6 +573,22 @@ export default function StudentDashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ---- small circular gauge (readiness / momentum) ---- */
+function MiniGauge({ value, label, caption, tone, onClick }: { value: number; label: string; caption: string; tone: "crimson" | "amber"; onClick?: () => void }) {
+  const color = tone === "crimson" ? "var(--crimson)" : "var(--amber-deep)";
+  return (
+    <button
+      onClick={onClick}
+      className="card card-hover"
+      style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 8px", cursor: onClick ? "pointer" : "default", border: "1px solid var(--line)", background: "var(--surface)" }}
+    >
+      <Ring value={value} size={72} stroke={8} color={color} track="var(--surface-2)" textColor="var(--ink)" />
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-faint)" }}>{caption}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.2, textAlign: "center" }}>{label}</div>
+    </button>
   );
 }
 
