@@ -100,6 +100,7 @@ export interface StatusBoardRow {
   extension_until: string | null;
   total_score: number | null;
   total_marks: number | null;
+  released?: boolean;
 }
 
 export interface StatusBoard {

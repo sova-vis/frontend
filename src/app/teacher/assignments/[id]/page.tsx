@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, ClipboardCheck, Copy, Rocket, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import SubmissionBoard from "@/components/teacher/SubmissionBoard";
-import ReleasePanel from "@/components/teacher/ReleasePanel";
 import {
   Assignment,
   VISIBILITY_LABELS,
@@ -180,8 +179,6 @@ export default function AssignmentDetailPage() {
             <p className="text-ink-muted">Publish this assignment to start tracking submissions.</p>
           </section>
         )}
-
-        {(a.status === "published" || a.status === "closed") && <ReleasePanel assignmentId={a.id} />}
 
         {(a.status === "published" || a.status === "closed") && a.can_grade !== false && (
           <button

@@ -11,26 +11,34 @@ import {
   getStatusBoard,
   reopenSubmission,
 } from "@/lib/submissions";
-import { draftOverallFeedback, saveOverallFeedback } from "@/lib/feedbackRelease";
+import { draftOverallFeedback, releaseAll, saveOverallFeedback } from "@/lib/feedbackRelease";
 import CommentBankButton from "@/components/teacher/CommentBankButton";
+import { cacheGet, cacheSet } from "@/lib/sessionCache";
+import { Send } from "lucide-react";
+
+type ReviewFilter = "all" | "pending" | "reviewed";
 
 // Submission status board (spec §7.1) with deadline extension (§7.3) and
 // reopen (§7.4).
 export default function SubmissionBoard({ assignmentId }: { assignmentId: string }) {
   const router = useRouter();
-  const [board, setBoard] = useState<StatusBoard | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Seed from cache for an instant paint on revisit, then revalidate.
+  const [board, setBoard] = useState<StatusBoard | null>(() => cacheGet<StatusBoard>(`board:${assignmentId}`, 5 * 60 * 1000));
+  const [loading, setLoading] = useState(() => !cacheGet<StatusBoard>(`board:${assignmentId}`, 5 * 60 * 1000));
   const [error, setError] = useState("");
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendValue, setExtendValue] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<{ submissionId: string; name: string } | null>(null);
+  const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [releasing, setReleasing] = useState(false);
 
   const load = async () => {
     try {
-      setLoading(true);
-      setBoard(await getStatusBoard(assignmentId));
+      const b = await getStatusBoard(assignmentId);
+      setBoard(b);
+      cacheSet(`board:${assignmentId}`, b);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load submissions");
+      if (!board) setError(err instanceof Error ? err.message : "Failed to load submissions");
     } finally {
       setLoading(false);
     }
@@ -64,18 +72,61 @@ export default function SubmissionBoard({ assignmentId }: { assignmentId: string
     }
   };
 
+  // Review everyone in one click: AI-marked answers are approved and every
+  // submission is released to the student with full feedback + reasoning.
+  const releaseEveryone = async () => {
+    if (!window.confirm("Review & release all submissions? Every submitted student gets their marks, comments and reasoning now.")) return;
+    setReleasing(true);
+    try {
+      await releaseAll(assignmentId, "all");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to release");
+    } finally {
+      setReleasing(false);
+    }
+  };
+
   if (loading) return <div className="h-40 rounded-[1.25rem] bg-surface-soft animate-pulse" />;
   if (!board) return <p className="text-sm text-crimson">{error || "No data"}</p>;
 
   const order = ["submitted", "late", "in_progress", "returned", "not_started", "missed"];
+  const isSubmitted = (r: (typeof board.rows)[number]) => ["submitted", "late", "returned"].includes(r.status);
+  const rows = board.rows.filter((r) =>
+    filter === "reviewed" ? r.released : filter === "pending" ? isSubmitted(r) && !r.released : true
+  );
+  const pendingCount = board.rows.filter((r) => isSubmitted(r) && !r.released).length;
+  const reviewedCount = board.rows.filter((r) => r.released).length;
 
   return (
     <section className="ed-card p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h2 className="font-display text-lg font-semibold">Submissions</h2>
-        <button onClick={() => setExtendOpen((v) => !v)} className="ed-btn-ghost px-3 py-2 text-sm">
-          <CalendarPlus size={14} /> Extend deadline
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setExtendOpen((v) => !v)} className="ed-btn-ghost px-3 py-2 text-sm">
+            <CalendarPlus size={14} /> Extend deadline
+          </button>
+          <button onClick={() => void releaseEveryone()} disabled={releasing || pendingCount === 0} className="ed-btn-primary px-3 py-2 text-sm">
+            <Send size={14} /> {releasing ? "Releasing…" : "Review & release all"}
+          </button>
+        </div>
+      </div>
+
+      {/* Review filters */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {([
+          { key: "all", label: `All (${board.rows.length})` },
+          { key: "pending", label: `Awaiting review (${pendingCount})` },
+          { key: "reviewed", label: `Reviewed & sent (${reviewedCount})` },
+        ] as { key: ReviewFilter; label: string }[]).map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filter === f.key ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {extendOpen && (
@@ -112,17 +163,25 @@ export default function SubmissionBoard({ assignmentId }: { assignmentId: string
             <tr className="text-left text-ink-faint border-b border-line">
               <th className="px-3 py-2.5 font-semibold">Student</th>
               <th className="px-3 py-2.5 font-semibold">Status</th>
+              <th className="px-3 py-2.5 font-semibold">Review</th>
               <th className="px-3 py-2.5 font-semibold">Submitted</th>
               <th className="px-3 py-2.5 font-semibold">Score</th>
               <th className="px-3 py-2.5 font-semibold"></th>
             </tr>
           </thead>
           <tbody>
-            {board.rows.map((r) => (
+            {rows.map((r) => (
               <tr key={r.student_clerk_id} className="border-b border-line/60">
                 <td className="px-3 py-2.5 font-medium text-ink">{r.full_name || r.email || "Student"}</td>
                 <td className="px-3 py-2.5">
                   <span className={`text-[0.65rem] ${STATUS_STYLE[r.status]}`}>{STATUS_LABELS[r.status]}</span>
+                </td>
+                <td className="px-3 py-2.5">
+                  {r.released
+                    ? <span className="ed-pill-mint text-[0.65rem]">Reviewed & sent</span>
+                    : isSubmitted(r)
+                      ? <span className="ed-pill-gold text-[0.65rem]">Awaiting review</span>
+                      : <span className="text-ink-faint text-[0.65rem]">—</span>}
                 </td>
                 <td className="px-3 py-2.5 text-ink-faint">
                   {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
