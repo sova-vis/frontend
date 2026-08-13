@@ -312,7 +312,23 @@ export default function ReviewPage() {
           {/* Student answer */}
           <div className="ed-card p-4">
             <p className="ed-label mb-2">Student answer</p>
-            {current.question.text && <p className="text-xs text-ink-faint mb-3 whitespace-pre-wrap">{current.question.text}</p>}
+            {current.question.text && <p className="text-xs text-ink-faint mb-2 whitespace-pre-wrap">{current.question.text}</p>}
+            {/* Full question figures + structured parts so the marker sees exactly what the student saw. */}
+            {current.question.images && current.question.images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {current.question.images.map((im, k) => im.src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={k} src={im.src} alt={im.alt || "Figure"} className="max-h-40 rounded-lg border border-line object-contain bg-white" />
+                ) : null)}
+              </div>
+            )}
+            {current.question.parts && current.question.parts.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {current.question.parts.map((p, k) => (
+                  <div key={k} className="text-xs text-ink-muted"><b className="text-ink">{p.label}</b> {p.body}{p.marks != null ? ` [${p.marks}]` : ""}</div>
+                ))}
+              </div>
+            )}
             {current.answer.ocr_status === "failed" && <p className="ed-pill-crimson text-[0.65rem] mb-2">OCR failed — original image required</p>}
             {current.question.type === "mcq" ? (
               <p className="text-sm text-ink">Selected: <span className="font-mono font-bold">{current.answer.selected_option || "—"}</span></p>

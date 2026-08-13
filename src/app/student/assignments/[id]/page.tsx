@@ -338,6 +338,21 @@ function QuestionCard({
             </div>
           )}
 
+          {/* Structured sub-parts (a, b, c…) so the student sees the whole question. */}
+          {q.parts && q.parts.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {q.parts.map((p, k) => (
+                <div key={k} className="rounded-lg border border-line p-2.5">
+                  <div className="flex items-baseline gap-2 text-sm">
+                    {p.label && <span className="font-bold text-ink">{p.label}</span>}
+                    {p.marks != null && <span className="text-xs text-ink-faint">[{p.marks}]</span>}
+                  </div>
+                  {p.body && <p className="text-sm text-ink whitespace-pre-wrap mt-0.5">{p.body}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
           {q.type === "mcq" ? (
             <div className="mt-3 space-y-2">
               {q.options.map((o) => (

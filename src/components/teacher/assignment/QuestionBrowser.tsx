@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import {
   BankQuestion,
   PaperOption,
@@ -14,6 +14,7 @@ import {
   getWholePaper,
 } from "@/lib/questionBank";
 import { CustomQuestion, customToPicked, listCustomQuestions } from "@/lib/customQuestions";
+import QuestionFull, { FullQuestion } from "@/components/teacher/QuestionFull";
 
 type BrowseMode = "paper" | "topic" | "custom";
 type QType = "mcq" | "structured";
@@ -153,6 +154,34 @@ function Row({
   );
 }
 
+// Bank question with an expandable full view (text, figures, options + correct
+// answer, structured parts, mark scheme) — the exact same question as Practice.
+function BankRow({ q, inCart, onAdd, onRemove }: { q: BankQuestion; inCart: boolean; onAdd: () => void; onRemove: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`ed-card-soft p-3 ${inCart ? "ring-1 ring-crimson/30" : ""}`}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap text-xs text-ink-faint">
+            <span className="font-mono">Q{q.questionNumber}</span>
+            {q.topic && <span className="ed-pill-mint text-[0.6rem]">{q.topic}</span>}
+            <span>{q.marks ?? "?"} marks</span>
+            {q.year && <span>· {q.year} {q.session} {q.paper}{q.variant}</span>}
+          </div>
+          <p className={`text-sm text-ink mt-1 ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>{q.questionText || "(no text)"}</p>
+          <button onClick={() => setOpen((o) => !o)} className="text-xs text-crimson font-semibold mt-1 inline-flex items-center gap-1">
+            {open ? "Hide" : "View full question"} <ChevronDown size={12} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
+          </button>
+        </div>
+        <button onClick={inCart ? onRemove : onAdd} className={`shrink-0 rounded-full p-2 ${inCart ? "bg-crimson-soft text-crimson-ink" : "ed-btn-ghost"}`} aria-label={inCart ? "Remove" : "Add"}>
+          {inCart ? <Check size={15} /> : <Plus size={15} />}
+        </button>
+      </div>
+      {open && <div className="mt-3 pt-3 border-t border-line"><QuestionFull q={q as unknown as FullQuestion} showAnswers /></div>}
+    </div>
+  );
+}
+
 function PaperBrowse({
   subject,
   type,
@@ -246,12 +275,9 @@ function PaperBrowse({
           </div>
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
             {questions.map((q) => (
-              <Row
+              <BankRow
                 key={q.uid}
-                number={`Q${q.questionNumber}`}
-                topic={q.topic}
-                marks={q.marks}
-                text={q.questionText}
+                q={q}
                 inCart={cartKeys.has(q.uid)}
                 onAdd={() => onAdd(bankToPicked(q))}
                 onRemove={() => onRemove(q.uid)}
@@ -327,12 +353,9 @@ function TopicBrowse({
           </p>
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
             {questions.map((q) => (
-              <Row
+              <BankRow
                 key={q.uid}
-                number={`Q${q.questionNumber}`}
-                topic={q.topic}
-                marks={q.marks}
-                text={q.questionText}
+                q={q}
                 inCart={cartKeys.has(q.uid)}
                 onAdd={() => onAdd(bankToPicked(q))}
                 onRemove={() => onRemove(q.uid)}

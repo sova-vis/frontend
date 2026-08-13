@@ -17,7 +17,7 @@ export interface QueueItem {
   assignment_question_id: string;
   student_clerk_id: string;
   student_name: string;
-  question: { number: string | number; topic: string | null; marks: number | null; text: string; type: "mcq" | "theory" };
+  question: { number: string | number; topic: string | null; marks: number | null; text: string; type: "mcq" | "theory"; images?: { src: string; alt?: string; caption?: string | null }[]; parts?: { label: string; body: string; marks: number | null }[] };
   answer: { text: string | null; selected_option: string | null; ocr_text: string | null; ocr_status: string; images: unknown[] };
   ai_criteria: ReviewCriterion[];
   final_criteria: ReviewCriterion[] | null;
