@@ -42,7 +42,7 @@ export default function DeleteAccountModal({ onClose }: { onClose: () => void })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
       <div className="ed-card w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-xl font-semibold text-crimson">Delete account</h2>
