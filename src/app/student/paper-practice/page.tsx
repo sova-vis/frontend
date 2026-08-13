@@ -953,7 +953,7 @@ function PracticeInner() {
     const filterToSelected = (raw: SubjectMeta[]) => {
       const list = raw.filter((s) => !isExcludedSubject(s.name)); // hide e.g. Additional Mathematics
       const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s)).map(normName).filter(Boolean);
-      if (!selected.length) return list;
+      if (!selected.length) return []; // nothing selected → prompt to pick subjects
       const mine = list.filter((s) => {
         const f = normName(s.name);
         return selected.some((n) => f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
@@ -1705,6 +1705,14 @@ function PracticeInner() {
             <div className="flex items-center justify-center gap-8" style={{ minHeight: 120, color: "var(--ink-faint)", display: "flex" }}>
               <Icon name="refresh" size={16} className="spin" /> Loading practice library…
             </div>
+          ) : subjects.length === 0 ? (
+            <EmptyState
+              icon="book"
+              title="Select your subjects first"
+              body="Pick your subjects in Settings → Manage subjects to practise them here."
+              cta="Manage subjects"
+              onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))}
+            />
           ) : (
             <div className="flex-col gap-16">
               <div className="flex gap-12 wrap items-end">

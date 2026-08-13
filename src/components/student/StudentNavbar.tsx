@@ -38,7 +38,19 @@ export default function StudentNavbar() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("personal");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<"account" | "profile" | "appearance">("account");
   const [transition, setTransition] = useState<Mode | null>(null);
+
+  // Other pages can open Settings to a section (e.g. "Manage subjects").
+  useEffect(() => {
+    const open = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setSettingsSection(detail === "profile" || detail === "appearance" ? detail : "account");
+      setSettingsOpen(true);
+    };
+    window.addEventListener("propel:open-settings", open);
+    return () => window.removeEventListener("propel:open-settings", open);
+  }, []);
 
   // Mode is sticky: the two dashboards set it; shared tools (Notebook/Planner/
   // Ask AI) keep whatever was last active, so classroom tabs stay in classroom.
@@ -77,7 +89,7 @@ export default function StudentNavbar() {
             </Link>
             <div className="flex items-center gap-2 lg:hidden">
               <ModeToggle mode={mode} onSwitch={switchMode} />
-              <SettingsButton onClick={() => setSettingsOpen(true)} />
+              <SettingsButton onClick={() => { setSettingsSection("account"); setSettingsOpen(true); }} />
             </div>
           </div>
 
@@ -102,12 +114,12 @@ export default function StudentNavbar() {
           {/* Right: Personal/Classroom + single settings icon */}
           <div className="hidden items-center gap-2 lg:flex">
             <ModeToggle mode={mode} onSwitch={switchMode} />
-            <SettingsButton onClick={() => setSettingsOpen(true)} />
+            <SettingsButton onClick={() => { setSettingsSection("account"); setSettingsOpen(true); }} />
           </div>
         </div>
       </nav>
 
-      {settingsOpen && <StudentSettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <StudentSettingsModal initialSection={settingsSection} onClose={() => setSettingsOpen(false)} />}
 
       <AnimatePresence>
         {transition && (

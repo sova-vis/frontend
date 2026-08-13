@@ -17,13 +17,13 @@ type Section = "account" | "profile" | "appearance";
 
 // Central settings modal: account, profile (name + subjects), appearance (theme),
 // logout, and the danger zone. Everything here works live.
-export default function StudentSettingsModal({ onClose }: { onClose: () => void }) {
+export default function StudentSettingsModal({ onClose, initialSection = "account" }: { onClose: () => void; initialSection?: Section }) {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { profile } = useClerkAuth();
   const { signOut } = useClerk();
   const { level, setLevel } = usePaperLevel();
-  const [section, setSection] = useState<Section>("account");
+  const [section, setSection] = useState<Section>(initialSection);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [showDelete, setShowDelete] = useState(false);
 

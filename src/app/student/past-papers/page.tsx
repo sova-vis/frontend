@@ -176,10 +176,17 @@ function PapersInner() {
   const filterToSelected = (folders: FolderItem[]) => {
     const usable = folders.filter((f) => !isExcludedSubject(f.name));
     const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s));
-    if (!selected.length) return usable;
+    if (!selected.length) return []; // nothing selected → show the "pick subjects" prompt
     const mine = usable.filter((f) => matchesSelected(f.name, selected));
     return mine.length ? mine : usable;
   };
+  const [noSelectedSubjects, setNoSelectedSubjects] = useState(false);
+  useEffect(() => {
+    const check = () => setNoSelectedSubjects(loadSelectedSubjects().length === 0);
+    check();
+    window.addEventListener("propel:selected-subjects-change", check);
+    return () => window.removeEventListener("propel:selected-subjects-change", check);
+  }, []);
 
   // root subjects — reloads whenever the O/A Levels toggle changes
   useEffect(() => {
@@ -327,7 +334,9 @@ function PapersInner() {
           {totalTracked > 0 && <span className="badge crimson" style={{ alignSelf: "center" }}><Icon name="bookmark" size={13} /> {totalTracked} tracked</span>}
         </div>
 
-        {loadingRoot ? (
+        {noSelectedSubjects ? (
+          <div className="card"><EmptyState icon="book" title="Select your subjects first" body="Pick your subjects in Settings → Manage subjects to see your papers here." cta="Manage subjects" onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))} /></div>
+        ) : loadingRoot ? (
           <LoadingCard label="Loading library…" />
         ) : rootError ? (
           <div className="card"><EmptyState icon="alert" title="Couldn't load papers" body={rootError} cta="Retry" onCta={() => location.reload()} /></div>
