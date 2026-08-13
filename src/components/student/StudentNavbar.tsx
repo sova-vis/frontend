@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutGrid, School, Settings } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import LevelToggle from "@/components/student/LevelToggle";
 import StudentSettingsModal from "@/components/student/StudentSettingsModal";
 
 // Classroom is its own workspace — a reduced nav (no Practice / Papers).
@@ -53,7 +52,7 @@ export default function StudentNavbar() {
   }, [pathname]);
 
   const navItems = mode === "classroom" ? CLASSROOM_NAV : PERSONAL_NAV;
-  const showLevelToggle = mode === "personal" && isActivePath(pathname, "/student/past-papers");
+  // The O/A-level switch now lives in Settings (per-level saved subjects).
 
   const switchMode = (target: Mode) => {
     if (target === mode) return;
@@ -98,12 +97,10 @@ export default function StudentNavbar() {
                 );
               })}
             </div>
-            {showLevelToggle && <LevelToggle className="lg:hidden" />}
           </div>
 
           {/* Right: Personal/Classroom + single settings icon */}
           <div className="hidden items-center gap-2 lg:flex">
-            {showLevelToggle && <LevelToggle />}
             <ModeToggle mode={mode} onSwitch={switchMode} />
             <SettingsButton onClick={() => setSettingsOpen(true)} />
           </div>

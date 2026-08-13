@@ -10,8 +10,19 @@ export interface StudentSubject {
 
 type GetTokenFn = () => Promise<string | null>;
 
-const STORAGE_KEY = "propel_selected_subjects";
+// Selected subjects are stored PER LEVEL, so O-Level and A-Level selections (and
+// therefore all their progress views) are kept independently and survive a switch.
+const LEVEL_KEY = "propel_paper_level";
+const LEGACY_KEY = "propel_selected_subjects";
 const PROFILE_CACHE_PREFIX = "propel_profile_";
+
+function activeLevel(): "olevel" | "alevel" {
+  if (typeof window === "undefined") return "olevel";
+  return window.localStorage.getItem(LEVEL_KEY) === "alevel" ? "alevel" : "olevel";
+}
+function subjectsKey(level = activeLevel()): string {
+  return `propel_selected_subjects_${level}`;
+}
 
 function normalizeSubject(input: unknown): StudentSubject | null {
   if (!input || typeof input !== "object") return null;
@@ -38,9 +49,14 @@ export function sanitizeSubjects(items: StudentSubject[]): StudentSubject[] {
 
 export function loadSelectedSubjects(): StudentSubject[] {
   if (typeof window === "undefined") return [];
-
+  const key = subjectsKey();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    let raw = window.localStorage.getItem(key);
+    // One-time migration: fold the old single list into the current level.
+    if (raw == null) {
+      const legacy = window.localStorage.getItem(LEGACY_KEY);
+      if (legacy != null) { window.localStorage.setItem(key, legacy); window.localStorage.removeItem(LEGACY_KEY); raw = legacy; }
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -53,7 +69,7 @@ export function loadSelectedSubjects(): StudentSubject[] {
 export function saveSelectedSubjects(items: StudentSubject[]): StudentSubject[] {
   const sanitized = sanitizeSubjects(items);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+    window.localStorage.setItem(subjectsKey(), JSON.stringify(sanitized));
     window.dispatchEvent(new CustomEvent("propel:selected-subjects-change", { detail: sanitized }));
   }
   return sanitized;
@@ -64,14 +80,11 @@ export function selectedSubjectNames(items: StudentSubject[]): string[] {
 }
 
 export function hydrateSubjectsFromProfile(profile: UserProfile | null): StudentSubject[] {
-  if (!profile?.selected_subjects?.length) return loadSelectedSubjects();
   const existing = loadSelectedSubjects();
-  const byName = new Map(existing.map((subject) => [subject.name.toLowerCase(), subject]));
-  const hydrated = profile.selected_subjects.map((name) => {
-    const current = byName.get(name.toLowerCase());
-    return current ?? { id: name, name };
-  });
-  return saveSelectedSubjects(hydrated);
+  // Per-level local selections win; only seed the current level from the profile
+  // when there's nothing stored for it yet (fresh device / first load).
+  if (existing.length || !profile?.selected_subjects?.length) return existing;
+  return saveSelectedSubjects(profile.selected_subjects.map((name) => ({ id: name, name })));
 }
 
 export async function saveSelectedSubjectsForUser(

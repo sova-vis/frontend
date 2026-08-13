@@ -47,6 +47,10 @@ export function PaperLevelProvider({ children }: { children: React.ReactNode }) 
     setLevelState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
+      // Selected subjects are per-level — tell every consumer to reload for the
+      // newly-active level (dashboard, practice, papers, datesheet, planner…).
+      window.dispatchEvent(new CustomEvent("propel:selected-subjects-change"));
+      window.dispatchEvent(new CustomEvent("propel:level-change", { detail: next }));
     } catch {}
   }, []);
 

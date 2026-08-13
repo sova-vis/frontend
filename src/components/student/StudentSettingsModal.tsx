@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
-import { BookOpen, Check, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, Check, GraduationCap, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { usePaperLevel } from "@/lib/paperLevel";
 import { resolveName } from "@/lib/displayName";
 import { subjectSlug } from "@/lib/studentSubjects";
 import { LevelSubject, loadLevelSubjects } from "@/lib/librarySubjects";
-import { hydrateSubjectsFromProfile, saveSelectedSubjectsForUser } from "@/lib/studentPersonalization";
+import { loadSelectedSubjects, saveSelectedSubjectsForUser } from "@/lib/studentPersonalization";
 import DeleteAccountModal from "@/components/DeleteAccountModal";
 
 const THEME_KEY = "propel_theme";
@@ -20,6 +22,7 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
   const { getToken } = useAuth();
   const { profile } = useClerkAuth();
   const { signOut } = useClerk();
+  const { level, setLevel } = usePaperLevel();
   const [section, setSection] = useState<Section>("account");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [showDelete, setShowDelete] = useState(false);
@@ -31,11 +34,15 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
   const [levelSubjects, setLevelSubjects] = useState<LevelSubject[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [switching, setSwitching] = useState<"olevel" | "alevel" | null>(null);
 
-  const levelChoice = profile?.level || "Both";
+  // Subjects offered = the paper library for the currently-active level.
+  const levelChoice = level === "alevel" ? "A Level" : "O Level";
   useEffect(() => {
     let active = true;
     loadLevelSubjects(levelChoice).then((ls) => { if (active) setLevelSubjects(ls); });
+    // Selected subjects are per level — reload this level's saved selection.
+    setSubjects(loadSelectedSubjects().map((s) => s.name));
     return () => { active = false; };
   }, [levelChoice]);
 
@@ -44,8 +51,15 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
   }, []);
   useEffect(() => {
     if (user) { setFirstName(user.firstName || ""); setLastName(user.lastName || ""); }
-    setSubjects(hydrateSubjectsFromProfile(profile).map((s) => s.name));
-  }, [user, profile]);
+  }, [user]);
+
+  // Switch O ⇄ A with a brief animation; each level keeps its own subjects.
+  const switchLevel = (next: "olevel" | "alevel") => {
+    if (next === level) return;
+    setSwitching(next);
+    window.setTimeout(() => { setLevel(next); }, 350);
+    window.setTimeout(() => setSwitching(null), 850);
+  };
 
   const setThemeAndApply = (t: "light" | "dark") => {
     setTheme(t);
@@ -131,22 +145,53 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
               )}
 
               {section === "profile" && (
-                <div className="space-y-5">
+                <div className="space-y-5 relative">
+                  {/* Level switch animation overlay */}
+                  <AnimatePresence>
+                    {switching && (
+                      <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+                        className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-paper/90 backdrop-blur-sm"
+                      >
+                        <motion.div initial={{ scale: 0.8, y: 8 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 240, damping: 18 }} className="text-center">
+                          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><GraduationCap size={32} /></div>
+                          <p className="font-display text-lg font-semibold mt-3">Switching to {switching === "alevel" ? "A Level" : "O Level"}</p>
+                          <motion.div className="h-1 rounded-full bg-crimson mt-3 mx-auto" initial={{ width: 0 }} animate={{ width: 90 }} transition={{ duration: 0.6 }} />
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div><label className="ed-label">First name</label><input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="ed-input mt-1 px-3 py-2.5 text-sm" /></div>
                     <div><label className="ed-label">Last name</label><input value={lastName} onChange={(e) => setLastName(e.target.value)} className="ed-input mt-1 px-3 py-2.5 text-sm" /></div>
                   </div>
 
+                  {/* Level switch — O and A each keep their own subjects & progress */}
                   <div>
-                    <label className="ed-label mb-2 block">Your subjects <span className="text-ink-faint">({subjects.length} selected)</span></label>
+                    <label className="ed-label mb-2 block">Your level</label>
+                    <div className="inline-flex rounded-xl border border-line p-1 bg-surface-soft">
+                      {(["olevel", "alevel"] as const).map((lv) => (
+                        <button
+                          key={lv}
+                          onClick={() => switchLevel(lv)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${level === lv ? "bg-crimson text-white shadow-sm" : "text-ink-muted hover:text-ink"}`}
+                        >
+                          {lv === "olevel" ? "O Level" : "A Level"}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-ink-faint mt-1.5">Switching keeps each level&apos;s subjects & progress saved separately.</p>
+                  </div>
+
+                  <div>
+                    <label className="ed-label mb-2 block">Your {levelChoice} subjects <span className="text-ink-faint">({subjects.length} selected)</span></label>
                     <div className="flex flex-wrap gap-2">
                       {levelSubjects.map((s) => {
                         const on = subjects.includes(s.name);
-                        const showTag = /both/i.test(levelChoice);
                         return (
                           <button key={s.name} onClick={() => toggleSubject(s.name)} className={`rounded-full px-3.5 py-2 text-sm font-medium border transition-colors ${on ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"}`}>
                             {on && <Check size={13} className="inline mr-1 -mt-0.5" />}{s.name}
-                            {showTag && <span className="ml-1.5 text-[0.65rem] font-bold text-ink-faint">{s.levels.join("·")} Level</span>}
                           </button>
                         );
                       })}
@@ -157,7 +202,7 @@ export default function StudentSettingsModal({ onClose }: { onClose: () => void 
                         </button>
                       ))}
                     </div>
-                    <p className="text-xs text-ink-faint mt-2">Only {/both/i.test(levelChoice) ? "O & A Level" : levelChoice} subjects we have papers for. These drive your Practice, Papers and datesheet.</p>
+                    <p className="text-xs text-ink-faint mt-2">Only {levelChoice} subjects we have papers for. These drive your Practice, Papers and datesheet.</p>
                   </div>
 
                   <div className="flex items-center gap-3">
