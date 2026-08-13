@@ -7,8 +7,10 @@ import {
   Archive,
   ArchiveRestore,
   Check,
+  ClipboardList,
   Copy,
   Link2,
+  Plus,
   RefreshCw,
   QrCode,
   Trash2,
@@ -21,6 +23,7 @@ import { Reveal } from "@/components/ui/Motion";
 import { subjectStyle } from "@/components/propel/subjects";
 import { syllabusLabel } from "@/lib/syllabus";
 import AddStudentsModal from "@/components/teacher/AddStudentsModal";
+import { Assignment, listAssignments } from "@/lib/assignments";
 import {
   CoTeacher,
   Enrollment,
@@ -39,7 +42,7 @@ import {
   setJoinEnabled,
 } from "@/lib/teacherClasses";
 
-type Tab = "roster" | "requests" | "share" | "coteach";
+type Tab = "assignments" | "roster" | "requests" | "share" | "coteach";
 
 export default function ClassDetailPage() {
   const params = useParams<{ id: string }>();
@@ -49,22 +52,25 @@ export default function ClassDetailPage() {
   const [klass, setKlass] = useState<TeacherClass | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [coTeachers, setCoTeachers] = useState<CoTeacher[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("roster");
+  const [tab, setTab] = useState<Tab>("assignments");
   const [showAddStudents, setShowAddStudents] = useState(false);
 
   const load = async () => {
     try {
       setLoading(true);
-      const [k, e, ct] = await Promise.all([
+      const [k, e, ct, as] = await Promise.all([
         getClass(classId),
         listEnrollments(classId),
         listCoTeachers(classId),
+        listAssignments(classId).catch(() => [] as Assignment[]),
       ]);
       setKlass(k);
       setEnrollments(e);
       setCoTeachers(ct);
+      setAssignments(as);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load class");
     } finally {
@@ -161,6 +167,7 @@ export default function ClassDetailPage() {
 
   const style = subjectStyle(klass.subject);
   const tabs: { key: Tab; label: string; badge?: number }[] = [
+    { key: "assignments", label: "Assignments", badge: assignments.length },
     { key: "roster", label: "Roster", badge: active.length },
     { key: "requests", label: "Requests", badge: pending.length },
     { key: "share", label: "Share & join" },
@@ -254,6 +261,14 @@ export default function ClassDetailPage() {
           ))}
         </div>
 
+        {tab === "assignments" && (
+          <AssignmentsTab
+            assignments={assignments}
+            studentCount={active.length}
+            onAssign={() => router.push(`/teacher/assignments/new?class_id=${classId}`)}
+            onOpen={(id) => router.push(`/teacher/assignments/${id}`)}
+          />
+        )}
         {tab === "roster" && (
           <RosterTab classId={classId} active={active} onAdd={() => setShowAddStudents(true)} onRemove={handleRemoveStudent} />
         )}
@@ -286,6 +301,45 @@ function Stat({ label, value }: { label: string; value: number | string }) {
     <div className="ed-card-soft p-4">
       <p className="ed-label">{label}</p>
       <p className="font-display text-2xl font-semibold mt-1">{value}</p>
+    </div>
+  );
+}
+
+function AssignmentsTab({ assignments, studentCount, onAssign, onOpen }: { assignments: Assignment[]; studentCount: number; onAssign: () => void; onOpen: (id: string) => void }) {
+  const statusLabel: Record<string, string> = { draft: "Draft", scheduled: "Scheduled", published: "Assigned", closed: "Closed" };
+  const statusStyle: Record<string, string> = { draft: "bg-surface-soft text-ink-muted", scheduled: "ed-pill-gold", published: "ed-pill-mint", closed: "ed-pill-clay" };
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted">{assignments.length} assignment{assignments.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"}</p>
+        <button onClick={onAssign} className="ed-btn-primary px-4 py-2.5"><Plus size={15} /> Assign new</button>
+      </div>
+      {assignments.length === 0 ? (
+        <div className="ed-card p-10 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><ClipboardList size={26} /></div>
+          <p className="mt-4 text-ink-muted">No assignments yet. Assign a paper, topic or your own questions to this class.</p>
+          <button onClick={onAssign} className="ed-btn-primary mt-4 px-4 py-2.5 mx-auto"><Plus size={15} /> Assign new</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {assignments.map((a) => (
+            <button key={a.id} onClick={() => onOpen(a.id)} className="ed-card p-4 w-full text-left flex items-center gap-3 hover:shadow-sm">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-soft text-ink-soft"><ClipboardList size={18} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink truncate">{a.title}</p>
+                <p className="text-xs text-ink-faint truncate">
+                  {a.question_count ?? 0} question{a.question_count === 1 ? "" : "s"} · {a.total_marks} marks
+                  {a.deadline_at ? ` · due ${new Date(a.deadline_at).toLocaleDateString()}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {a.pending_reviews ? <span className="ed-pill-crimson text-[0.65rem]">{a.pending_reviews} to review</span> : null}
+                <span className={`text-[0.65rem] px-2 py-0.5 rounded-full ${statusStyle[a.status] ?? "bg-surface-soft text-ink-muted"}`}>{statusLabel[a.status] ?? a.status}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

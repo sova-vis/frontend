@@ -258,7 +258,7 @@ function SetupChecklist({ hasStudents }: { hasStudents: boolean }) {
   const steps = [
     { done: false, label: "Create your first class", href: "/teacher/classes", cta: "Create class" },
     { done: hasStudents, label: "Invite your students", href: "/teacher/classes", cta: "Invite" },
-    { done: false, label: "Set your first assignment", href: "/teacher/assignments", cta: "Assign" },
+    { done: false, label: "Set your first assignment", href: "/teacher/classes", cta: "Assign" },
   ];
   return (
     <Reveal>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, ClipboardList, Home, LogOut, Settings, Users } from "lucide-react";
+import { BarChart3, Home, LogOut, Settings, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import NotificationsBell from "@/components/teacher/NotificationsBell";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -16,10 +16,10 @@ interface NavItem {
 
 // Information architecture — five top-level destinations (spec §5). Grading
 // review lives inside Assignments as a lifecycle stage, not its own nav item.
+// Assignments now live inside each class, so there's no top-level nav item.
 const NAV: NavItem[] = [
   { href: "/teacher/dashboard", label: "Home", icon: Home },
   { href: "/teacher/classes", label: "Classes", icon: Users },
-  { href: "/teacher/assignments", label: "Assignments", icon: ClipboardList },
   { href: "/teacher/insights", label: "Insights", icon: BarChart3 },
   { href: "/teacher/settings", label: "Settings", icon: Settings },
 ];
@@ -109,7 +109,7 @@ export default function TeacherShell({ children }: { children: React.ReactNode }
       <main className="md:pl-60 pb-24 md:pb-0">{children}</main>
 
       {/* ---- Mobile bottom nav (action queue usable at 375px — §2.7) ---- */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-line bg-paper/95 backdrop-blur">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 grid grid-cols-4 border-t border-line bg-paper/95 backdrop-blur">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
