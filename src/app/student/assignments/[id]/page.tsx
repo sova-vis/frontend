@@ -320,7 +320,7 @@ function QuestionCard({
       <div className="flex items-start gap-3">
         <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-paper text-xs font-bold shrink-0">{index}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-ink whitespace-pre-wrap">{q.question_text}</p>
+          {q.question_text?.trim() && <p className="text-ink whitespace-pre-wrap">{q.question_text}</p>}
           <p className="text-xs text-ink-faint mt-1">{q.marks} marks</p>
 
           {/* Question figures/diagrams that came with the assigned question. */}
