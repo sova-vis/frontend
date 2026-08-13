@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { BookOpen, CheckCircle2, Clock, GraduationCap, Plus, School, Target } from "lucide-react";
+import { ChevronRight, Clock, GraduationCap, Plus, School, Target } from "lucide-react";
 import {
   AvailableAssignment,
   Classroom,
@@ -59,8 +59,6 @@ export default function StudentClassroomPage() {
   };
 
   const firstName = resolveName({ full_name: profile?.full_name, firstName: user?.firstName, username: user?.username, email: user?.primaryEmailAddress?.emailAddress, fallback: "there" }).split(" ")[0];
-  const teacherName = (classId: string) => classrooms.find((c) => c.class_id === classId)?.teacher_name || "Teacher";
-
   const isTodo = (a: AvailableAssignment) => !a.released && ["not_started", "in_progress", "returned"].includes(a.submission_status);
   const isSubmitted = (a: AvailableAssignment) => !a.released && ["submitted", "late"].includes(a.submission_status);
   const isReviewed = (a: AvailableAssignment) => a.released;
@@ -90,52 +88,47 @@ export default function StudentClassroomPage() {
                   <p className="mt-1 text-ink-muted">Enter the code your teacher gave you (in the panel on the right).</p>
                 </div>
               ) : (
-                <div className="space-y-5">
-                  {/* One card per class, with that class's to-dos inside it. */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {/* Each class is a clickable card that opens its own page. */}
                   {activeClasses.map((c) => {
                     const ct = assignments.filter((a) => a.class_id === c.class_id);
-                    const cTodo = ct.filter(isTodo);
-                    const cSub = ct.filter(isSubmitted);
-                    const cRev = ct.filter(isReviewed);
-                    const open = (id: string) => router.push(`/student/assignments/${id}`);
+                    const cTodo = ct.filter(isTodo).length;
+                    const cSub = ct.filter(isSubmitted).length;
+                    const cRev = ct.filter(isReviewed).length;
                     return (
-                      <section key={c.class_id} className="ed-card p-6">
-                        <div className="flex items-center gap-3 mb-4">
+                      <button
+                        key={c.class_id}
+                        onClick={() => router.push(`/student/classroom/${c.class_id}`)}
+                        className="ed-card p-5 text-left hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-3">
                           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-crimson-soft text-crimson-ink"><School size={20} /></span>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <h2 className="font-display text-lg font-semibold truncate">{c.class_name}</h2>
                             <p className="text-xs text-ink-faint truncate">{c.teacher_name}{c.subject ? ` · ${c.subject}` : ""}</p>
                           </div>
-                          <div className="ml-auto flex flex-wrap gap-1.5">
-                            {cTodo.length > 0 && <span className="ed-pill-crimson text-[0.6rem]">{cTodo.length} to do</span>}
-                            {cSub.length > 0 && <span className="ed-pill-gold text-[0.6rem]">{cSub.length} in review</span>}
-                            {cRev.length > 0 && <span className="ed-pill-mint text-[0.6rem]">{cRev.length} done</span>}
-                          </div>
+                          <ChevronRight size={18} className="text-ink-faint shrink-0" />
                         </div>
-                        {ct.length === 0 ? (
-                          <p className="text-sm text-ink-faint">No assignments yet — your teacher will post work here.</p>
-                        ) : (
-                          <div className="space-y-5">
-                            <TaskGroup title="To do" icon={BookOpen} items={cTodo} teacherName={teacherName} onOpen={open} cta="Start" empty="You're all caught up. 🎉" />
-                            {cSub.length > 0 && <TaskGroup title="Submitted · awaiting review" icon={Clock} items={cSub} teacherName={teacherName} onOpen={open} cta="View" empty="" muted />}
-                            {cRev.length > 0 && <TaskGroup title="Reviewed" icon={CheckCircle2} items={cRev} teacherName={teacherName} onOpen={open} cta="See feedback" empty="" mint />}
-                          </div>
-                        )}
-                      </section>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {cTodo > 0 ? <span className="ed-pill-crimson text-[0.6rem]">{cTodo} to do</span> : <span className="ed-pill-mint text-[0.6rem]">All done</span>}
+                          {cSub > 0 && <span className="ed-pill-gold text-[0.6rem]">{cSub} in review</span>}
+                          {cRev > 0 && <span className="ed-pill-mint text-[0.6rem]">{cRev} reviewed</span>}
+                        </div>
+                      </button>
                     );
                   })}
 
                   {/* Classes still awaiting teacher approval. */}
                   {pendingClasses.map((c) => (
-                    <section key={c.class_id} className="ed-card p-5 opacity-80">
+                    <div key={c.class_id} className="ed-card p-5 opacity-80">
                       <div className="flex items-center gap-3">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-soft text-gold-ink"><Clock size={18} /></span>
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gold-soft text-gold-ink"><Clock size={20} /></span>
                         <div className="min-w-0">
-                          <h2 className="font-display font-semibold truncate">{c.class_name}</h2>
+                          <h2 className="font-display text-lg font-semibold truncate">{c.class_name}</h2>
                           <p className="text-xs text-ink-faint truncate">{c.teacher_name} · waiting for approval</p>
                         </div>
                       </div>
-                    </section>
+                    </div>
                   ))}
                 </div>
               )}
@@ -203,39 +196,6 @@ export default function StudentClassroomPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function TaskGroup({
-  title, icon: Icon, items, teacherName, onOpen, cta, empty, muted, mint,
-}: {
-  title: string; icon: typeof BookOpen; items: AvailableAssignment[]; teacherName: (classId: string) => string;
-  onOpen: (id: string) => void; cta: string; empty: string; muted?: boolean; mint?: boolean;
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={15} className={mint ? "text-mint-ink" : muted ? "text-ink-faint" : "text-crimson"} />
-        <h3 className="font-semibold text-ink text-sm">{title}</h3>
-        <span className="text-xs text-ink-faint">{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-sm text-ink-faint">{empty}</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((a) => (
-            <div key={a.id} className="ed-card-soft p-3 flex items-center gap-3">
-              <GraduationCap size={16} className="text-ink-faint shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-ink truncate">{a.title}</p>
-                <p className="text-xs text-ink-faint truncate">{teacherName(a.class_id)} · {a.class_name}{a.deadline_at ? ` · due ${new Date(a.deadline_at).toLocaleDateString()}` : ""}</p>
-              </div>
-              <button onClick={() => onOpen(a.id)} className={`px-3 py-1.5 text-xs font-semibold rounded-full shrink-0 ${mint ? "bg-mint-soft text-mint-ink" : "ed-btn-primary"}`}>{cta}</button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

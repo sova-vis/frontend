@@ -100,6 +100,10 @@ export async function archiveClass(id: string, archived: boolean): Promise<Teach
   return json(await apiCall(`/classes/${id}/${archived ? "archive" : "restore"}`, { method: "POST" }));
 }
 
+export async function deleteClass(id: string): Promise<{ ok: boolean }> {
+  return json(await apiCall(`/classes/${id}/delete`, { method: "POST" }));
+}
+
 export async function regenerateJoinCode(id: string): Promise<TeacherClass> {
   return json(await apiCall(`/classes/${id}/join-code/regenerate`, { method: "POST" }));
 }

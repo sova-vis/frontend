@@ -11,6 +11,8 @@ import {
   Link2,
   RefreshCw,
   QrCode,
+  Trash2,
+  UserMinus,
   UserPlus,
   Users,
   X,
@@ -26,12 +28,14 @@ import {
   addCoTeacher,
   archiveClass,
   decideEnrollments,
+  deleteClass,
   getClass,
   joinLink,
   listCoTeachers,
   listEnrollments,
   regenerateJoinCode,
   removeCoTeacher,
+  removeStudent,
   setJoinEnabled,
 } from "@/lib/teacherClasses";
 
@@ -115,6 +119,26 @@ export default function ClassDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${klass?.name}" permanently? All its assignments, submissions and enrolments are removed. This cannot be undone.`)) return;
+    try {
+      await deleteClass(classId);
+      router.push("/teacher/classes");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete class");
+    }
+  };
+
+  const handleRemoveStudent = async (studentClerkId: string, name: string) => {
+    if (!window.confirm(`Remove ${name} from this class? Their marks are kept, but they lose access.`)) return;
+    try {
+      await removeStudent(classId, studentClerkId);
+      setEnrollments((prev) => prev.filter((e) => e.student_clerk_id !== studentClerkId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove student");
+    }
+  };
+
   if (loading) {
     return (
       <div className="px-4 md:px-8 py-8 max-w-5xl mx-auto space-y-4">
@@ -168,10 +192,15 @@ export default function ClassDetailPage() {
               <div className="flex items-center gap-2">
                 {klass.archived && <span className="ed-pill-clay">Archived</span>}
                 {klass.is_owner && (
-                  <button onClick={() => void handleArchive()} className="ed-btn-ghost px-3 py-2 text-sm">
-                    {klass.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                    {klass.archived ? "Restore" : "Archive"}
-                  </button>
+                  <>
+                    <button onClick={() => void handleArchive()} className="ed-btn-ghost px-3 py-2 text-sm">
+                      {klass.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                      {klass.archived ? "Restore" : "Archive"}
+                    </button>
+                    <button onClick={() => void handleDelete()} className="inline-flex items-center gap-1.5 rounded-xl border border-crimson/40 text-crimson px-3 py-2 text-sm font-semibold hover:bg-crimson-soft">
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -226,7 +255,7 @@ export default function ClassDetailPage() {
         </div>
 
         {tab === "roster" && (
-          <RosterTab classId={classId} active={active} onAdd={() => setShowAddStudents(true)} />
+          <RosterTab classId={classId} active={active} onAdd={() => setShowAddStudents(true)} onRemove={handleRemoveStudent} />
         )}
         {tab === "requests" && <RequestsTab pending={pending} onDecide={handleDecision} />}
         {tab === "share" && <ShareTab klass={klass} onChange={setKlass} />}
@@ -261,7 +290,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function RosterTab({ classId, active, onAdd }: { classId: string; active: Enrollment[]; onAdd: () => void }) {
+function RosterTab({ classId, active, onAdd, onRemove }: { classId: string; active: Enrollment[]; onAdd: () => void; onRemove: (studentClerkId: string, name: string) => void }) {
   const [search, setSearch] = useState("");
   const rows = active.filter((e) =>
     (e.full_name || e.email || "").toLowerCase().includes(search.toLowerCase())
@@ -302,7 +331,7 @@ function RosterTab({ classId, active, onAdd }: { classId: string; active: Enroll
               <th className="px-4 py-3 font-semibold">Last active</th>
               <th className="px-4 py-3 font-semibold">Completed</th>
               <th className="px-4 py-3 font-semibold">Average</th>
-              <th className="px-4 py-3 font-semibold">Flag</th>
+              <th className="px-4 py-3 font-semibold text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -326,7 +355,14 @@ function RosterTab({ classId, active, onAdd }: { classId: string; active: Enroll
                 <td className="px-4 py-3 text-ink-faint">—</td>
                 <td className="px-4 py-3 text-ink-faint">—</td>
                 <td className="px-4 py-3 text-ink-faint">—</td>
-                <td className="px-4 py-3 text-ink-faint">—</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.student_clerk_id, e.full_name || e.email || "this student"); }}
+                    className="inline-flex items-center gap-1 rounded-lg border border-crimson/30 text-crimson px-2.5 py-1.5 text-xs font-semibold hover:bg-crimson-soft"
+                  >
+                    <UserMinus size={13} /> Remove
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

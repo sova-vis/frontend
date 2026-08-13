@@ -43,6 +43,10 @@ export async function getMyClassrooms(): Promise<Classroom[]> {
   return json(await apiCall("/classes/student/mine"));
 }
 
+export async function leaveClass(classId: string): Promise<{ ok: boolean }> {
+  return json(await apiCall(`/classes/${classId}/leave`, { method: "POST" }));
+}
+
 export async function joinClassByCode(code: string): Promise<{ status: string; class_id: string; class_name?: string; already?: boolean }> {
   return json(
     await apiCall("/classes/join", {
