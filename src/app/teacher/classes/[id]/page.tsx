@@ -23,7 +23,7 @@ import { Reveal } from "@/components/ui/Motion";
 import { subjectStyle } from "@/components/propel/subjects";
 import { syllabusLabel } from "@/lib/syllabus";
 import AddStudentsModal from "@/components/teacher/AddStudentsModal";
-import { Assignment, listAssignments } from "@/lib/assignments";
+import { Assignment, deleteAssignment, listAssignments } from "@/lib/assignments";
 import {
   CoTeacher,
   Enrollment,
@@ -132,6 +132,16 @@ export default function ClassDetailPage() {
       router.push("/teacher/classes");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete class");
+    }
+  };
+
+  const handleDeleteAssignment = async (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? All its submissions and marks are removed. This cannot be undone.`)) return;
+    try {
+      await deleteAssignment(id);
+      setAssignments((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete assignment");
     }
   };
 
@@ -267,6 +277,7 @@ export default function ClassDetailPage() {
             studentCount={active.length}
             onAssign={() => router.push(`/teacher/assignments/new?class_id=${classId}`)}
             onOpen={(id) => router.push(`/teacher/assignments/${id}`)}
+            onDelete={handleDeleteAssignment}
           />
         )}
         {tab === "roster" && (
@@ -305,7 +316,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function AssignmentsTab({ assignments, studentCount, onAssign, onOpen }: { assignments: Assignment[]; studentCount: number; onAssign: () => void; onOpen: (id: string) => void }) {
+function AssignmentsTab({ assignments, studentCount, onAssign, onOpen, onDelete }: { assignments: Assignment[]; studentCount: number; onAssign: () => void; onOpen: (id: string) => void; onDelete: (id: string, title: string) => void }) {
   const statusLabel: Record<string, string> = { draft: "Draft", scheduled: "Scheduled", published: "Assigned", closed: "Closed" };
   const statusStyle: Record<string, string> = { draft: "bg-surface-soft text-ink-muted", scheduled: "ed-pill-gold", published: "ed-pill-mint", closed: "ed-pill-clay" };
   return (
@@ -335,6 +346,16 @@ function AssignmentsTab({ assignments, studentCount, onAssign, onOpen }: { assig
               <div className="flex items-center gap-2 shrink-0">
                 {a.pending_reviews ? <span className="ed-pill-crimson text-[0.65rem]">{a.pending_reviews} to review</span> : null}
                 <span className={`text-[0.65rem] px-2 py-0.5 rounded-full ${statusStyle[a.status] ?? "bg-surface-soft text-ink-muted"}`}>{statusLabel[a.status] ?? a.status}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(ev) => { ev.stopPropagation(); onDelete(a.id, a.title); }}
+                  onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); onDelete(a.id, a.title); } }}
+                  className="grid place-items-center h-8 w-8 rounded-lg text-ink-faint hover:text-crimson hover:bg-crimson-soft cursor-pointer"
+                  aria-label="Delete assignment"
+                >
+                  <Trash2 size={15} />
+                </span>
               </div>
             </button>
           ))}
