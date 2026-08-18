@@ -89,6 +89,10 @@ type AvailablePaper = {
 };
 
 const preferredSubjects = ["Physics", "Chemistry", "Mathematics"];
+
+// Active paper level — practice content is served per level so O and A never mix.
+const paperLevelParam = () =>
+  typeof window !== "undefined" && window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel";
 const TOPIC_PAGE = 24;
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -970,16 +974,18 @@ function PracticeInner() {
       if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
       return a.name.localeCompare(b.name);
     }));
-    const cached = cacheGet<SubjectMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
+    const lvl = paperLevelParam();
+    const cacheKey = `pp:practice:subjects:${lvl}`;
+    const cached = cacheGet<SubjectMeta[]>(cacheKey, 30 * 60 * 1000);
     if (cached && cached.length) { setSubjects(prepare(cached)); setLoadingMeta(false); }
     (async () => {
       if (!cached) { setLoadingMeta(true); setError(""); }
       try {
-        const response = await fetch("/api/paper-practice");
+        const response = await fetch(`/api/paper-practice?level=${lvl}`);
         if (!response.ok) throw new Error("Could not load practice metadata.");
         const data = (await response.json()) as { subjects: SubjectMeta[] };
         if (!mounted) return;
-        cacheSet("pp:practice:subjects", data.subjects ?? []);
+        cacheSet(cacheKey, data.subjects ?? []);
         setSubjects(prepare(data.subjects ?? []));
       } catch (loadError) {
         if (mounted && !cached) setError(loadError instanceof Error ? loadError.message : "Could not load practice metadata.");
@@ -1061,7 +1067,7 @@ function PracticeInner() {
       clearQuestions();
       setTopicTotal(0);
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: "0" });
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: "0", level: paperLevelParam() });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load topic questions.");
         const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
@@ -1079,7 +1085,7 @@ function PracticeInner() {
     setLoadingMore(true);
     setError("");
     try {
-      const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: String(questions.length) });
+      const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: String(questions.length), level: paperLevelParam() });
       const response = await fetch(`/api/paper-practice?${params.toString()}`);
       if (!response.ok) throw new Error("Could not load more questions.");
       const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
@@ -1114,7 +1120,7 @@ function PracticeInner() {
     let mounted = true;
     (async () => {
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, year: selectedYear, papers: "1" });
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, year: selectedYear, papers: "1", level: paperLevelParam() });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         const data = response.ok ? ((await response.json()) as { papers: AvailablePaper[] }) : { papers: [] };
         if (mounted) setPapers(data.papers ?? []);
@@ -1136,7 +1142,7 @@ function PracticeInner() {
       setError("");
       clearQuestions();
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, year: paper.year, session: paper.session, paper: paper.paper, variant: paper.variant });
+        const params = new URLSearchParams({ subject: selectedSubject, year: paper.year, session: paper.session, paper: paper.paper, variant: paper.variant, level: paperLevelParam() });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load the paper.");
         const data = (await response.json()) as { questions: PracticeQuestion[] };

@@ -151,7 +151,7 @@ function sortYearDesc<T extends { year: string }>(items: T[]) {
 // ---------------------------------------------------------------------------
 // Metadata: aggregate counts per subject -> per type -> years/variants/topics.
 // ---------------------------------------------------------------------------
-async function fetchMetaRows(supabase: SupabaseClient) {
+async function fetchMetaRows(supabase: SupabaseClient, level: string) {
   const rows: Array<{ subject: string; type: QuestionType; exam_year: number; variant: string | null; topic: string | null }> = [];
   let from = 0;
   const pageSize = 1000;
@@ -160,6 +160,7 @@ async function fetchMetaRows(supabase: SupabaseClient) {
     const { data, error } = await supabase
       .from("questions")
       .select("subject,type,exam_year,variant,topic")
+      .eq("level", level)
       // order by a UNIQUE column so range pagination never overlaps/skips rows
       .order("question_id", { ascending: true })
       .range(from, from + pageSize - 1);
@@ -233,12 +234,13 @@ function buildSubjectMeta(rows: Awaited<ReturnType<typeof fetchMetaRows>>) {
 // ---------------------------------------------------------------------------
 const META_TTL_MS = 5 * 60 * 1000;
 const META_CACHE_HEADERS = { "Cache-Control": "private, max-age=120, stale-while-revalidate=600" };
-let metaCache: { at: number; subjects: ReturnType<typeof buildSubjectMeta> } | null = null;
+const metaCacheByLevel = new Map<string, { at: number; subjects: ReturnType<typeof buildSubjectMeta> }>();
 
-async function getSubjectsMeta(supabase: SupabaseClient) {
-  if (metaCache && Date.now() - metaCache.at < META_TTL_MS) return metaCache.subjects;
-  const subjects = buildSubjectMeta(await fetchMetaRows(supabase));
-  metaCache = { at: Date.now(), subjects };
+async function getSubjectsMeta(supabase: SupabaseClient, level: string) {
+  const cached = metaCacheByLevel.get(level);
+  if (cached && Date.now() - cached.at < META_TTL_MS) return cached.subjects;
+  const subjects = buildSubjectMeta(await fetchMetaRows(supabase, level));
+  metaCacheByLevel.set(level, { at: Date.now(), subjects });
   return subjects;
 }
 
@@ -376,10 +378,12 @@ async function fetchQuestions(
   year: number,
   variant: string | null,
   topic: string | null,
+  level: string,
 ) {
   let query = supabase
     .from("questions")
     .select(QUESTION_COLUMNS)
+    .eq("level", level)
     .ilike("subject", subject)
     .eq("type", type)
     .eq("exam_year", year)
@@ -414,10 +418,12 @@ async function fetchTopicQuestions(
   topic: string,
   limit: number,
   offset: number,
+  level: string,
 ) {
   let scan = supabase
     .from("questions")
     .select("id,dedup_group,question_id,exam_year,question_number")
+    .eq("level", level)
     .ilike("subject", subject)
     .eq("type", type)
     .order("exam_year", { ascending: false })
@@ -537,6 +543,9 @@ export async function GET(request: Request) {
   const wantPapers = searchParams.get("papers") === "1";
   const mode = searchParams.get("mode");
   const validYear = yearParam && /^\d{4}$/.test(yearParam) ? Number.parseInt(yearParam, 10) : null;
+  // Which level's bank to serve (keeps O-Level and A-Level separate). Defaults
+  // to olevel so existing/untagged callers see the O-Level content.
+  const level = searchParams.get("level") === "alevel" ? "alevel" : "olevel";
 
   let lastError: unknown = null;
 
@@ -556,7 +565,7 @@ export async function GET(request: Request) {
         if (mode === "topic" && typeParam && topic) {
           const limit = Math.min(Math.max(Number.parseInt(searchParams.get("limit") || "24", 10) || 24, 1), 60);
           const offset = Math.max(Number.parseInt(searchParams.get("offset") || "0", 10) || 0, 0);
-          const { questions, total } = await fetchTopicQuestions(supabase, rawSubject, typeParam, topic, limit, offset);
+          const { questions, total } = await fetchTopicQuestions(supabase, rawSubject, typeParam, topic, limit, offset, level);
           return NextResponse.json({ subject: rawSubject, type: typeParam, topic, questions, total, offset, limit, mode: "topic" });
         }
 
@@ -584,13 +593,13 @@ export async function GET(request: Request) {
 
         // Year + type browse (still available; the two-mode UI uses topic/paper).
         if (typeParam && validYear) {
-          const questions = await fetchQuestions(supabase, rawSubject, typeParam, validYear, variant, topic);
+          const questions = await fetchQuestions(supabase, rawSubject, typeParam, validYear, variant, topic, level);
           return NextResponse.json({ subject: rawSubject, type: typeParam, year: yearParam, questions, total: questions.length });
         }
       }
 
-      // ---- Metadata requests: aggregate the whole bank (subjects list / dropdowns).
-      const subjects = await getSubjectsMeta(supabase);
+      // ---- Metadata requests: aggregate the bank for this level (subjects list).
+      const subjects = await getSubjectsMeta(supabase, level);
       if (!rawSubject) {
         return NextResponse.json({ subjects }, { headers: META_CACHE_HEADERS });
       }
