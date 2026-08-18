@@ -177,8 +177,9 @@ function PapersInner() {
     const usable = folders.filter((f) => !isExcludedSubject(f.name));
     const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s));
     if (!selected.length) return []; // nothing selected → show the "pick subjects" prompt
-    const mine = usable.filter((f) => matchesSelected(f.name, selected));
-    return mine.length ? mine : usable;
+    // Only the selected subjects for this level — never the whole library, so O
+    // and A stay fully separate.
+    return usable.filter((f) => matchesSelected(f.name, selected));
   };
   const [noSelectedSubjects, setNoSelectedSubjects] = useState(false);
   useEffect(() => {
@@ -341,7 +342,7 @@ function PapersInner() {
         ) : rootError ? (
           <div className="card"><EmptyState icon="alert" title="Couldn't load papers" body={rootError} cta="Retry" onCta={() => location.reload()} /></div>
         ) : subjects.length === 0 ? (
-          <div className="card"><EmptyState icon="book" title="No subjects available yet" body="The paper library is empty or still syncing." /></div>
+          <div className="card"><EmptyState icon="book" title={`No ${LEVEL_LABEL[level]} papers for your subjects yet`} body="We don't have papers for your selected subjects at this level yet — try switching level in Settings." /></div>
         ) : (
           <div className="papers-layout">
             {/* subject rail */}

@@ -937,8 +937,10 @@ function PracticeInner() {
   const [showScheme, setShowScheme] = useState(false);
 
   const [subjTick, setSubjTick] = useState(0); // bumped when the student edits their subjects
+  const [selectedCount, setSelectedCount] = useState(0);
   useEffect(() => {
-    const onChange = () => setSubjTick((t) => t + 1);
+    const onChange = () => { setSubjTick((t) => t + 1); setSelectedCount(loadSelectedSubjects().length); };
+    onChange();
     window.addEventListener("propel:selected-subjects-change", onChange);
     return () => window.removeEventListener("propel:selected-subjects-change", onChange);
   }, []);
@@ -954,11 +956,13 @@ function PracticeInner() {
       const list = raw.filter((s) => !isExcludedSubject(s.name)); // hide e.g. Additional Mathematics
       const selected = loadSelectedSubjects().map((s) => s.name).filter((s) => !isExcludedSubject(s)).map(normName).filter(Boolean);
       if (!selected.length) return []; // nothing selected → prompt to pick subjects
-      const mine = list.filter((s) => {
+      // Only the student's selected subjects that actually exist in the practice
+      // bank. NEVER fall back to the full list — that leaked O-level subjects into
+      // an A-level session (which has no practice content yet).
+      return list.filter((s) => {
         const f = normName(s.name);
         return selected.some((n) => f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
       });
-      return mine.length ? mine : list;
     };
     const prepare = (list: SubjectMeta[]) => filterToSelected([...list].sort((a, b) => {
       const ai = preferredSubjects.indexOf(a.name);
@@ -1706,13 +1710,21 @@ function PracticeInner() {
               <Icon name="refresh" size={16} className="spin" /> Loading practice library…
             </div>
           ) : subjects.length === 0 ? (
-            <EmptyState
-              icon="book"
-              title="Select your subjects first"
-              body="Pick your subjects in Settings → Manage subjects to practise them here."
-              cta="Manage subjects"
-              onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))}
-            />
+            selectedCount === 0 ? (
+              <EmptyState
+                icon="book"
+                title="Select your subjects first"
+                body="Pick your subjects in Settings → Manage subjects to practise them here."
+                cta="Manage subjects"
+                onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))}
+              />
+            ) : (
+              <EmptyState
+                icon="book"
+                title="No practice for these subjects yet"
+                body="We don't have practice questions for your selected subjects at this level yet — try your Past Papers, or switch level in Settings."
+              />
+            )
           ) : (
             <div className="flex-col gap-16">
               <div className="flex gap-12 wrap items-end">
