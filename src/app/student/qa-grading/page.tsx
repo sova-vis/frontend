@@ -47,14 +47,14 @@ const SAMPLE_FORM: FormState = {
 function statusPillClass(status?: string): string {
   if (status === "accepted") return "bg-mint-soft text-mint-ink border-mint/20";
   if (status === "review_required") return "bg-gold-soft text-gold-ink border-gold/20";
-  if (status === "failed") return "bg-crimson-soft text-crimson-ink border-crimson/20";
+  if (status === "failed") return "bg-clay-soft text-clay-ink border-clay/20";
   return "bg-surface-soft text-ink-muted border-line";
 }
 
 function gradePillClass(grade?: string): string {
   if (grade === "fully_correct") return "bg-mint-soft text-mint-ink";
   if (grade === "partially_correct") return "bg-gold-soft text-gold-ink";
-  if (grade === "weak") return "bg-crimson-soft text-crimson-ink";
+  if (grade === "weak") return "bg-clay-soft text-clay-ink";
   return "bg-surface-soft text-ink-muted";
 }
 

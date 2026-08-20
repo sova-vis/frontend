@@ -3,13 +3,15 @@
 import { Layers, ChevronRight, Zap } from "lucide-react";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
+// Single brand accent — colour is never used for variety (brand book). If a real
+// dimension (e.g. mastery) is wired in later, map the bar to that instead.
 const topics = [
     { id: 1, name: "Algebra", count: 120, difficulty: "Medium", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
-    { id: 2, name: "Geometry", count: 85, difficulty: "Hard", bar: "bg-clay", iconBg: "bg-clay-soft", iconText: "text-clay-ink" },
-    { id: 3, name: "Calculus", count: 200, difficulty: "Hard", bar: "bg-crimson-deep", iconBg: "bg-crimson-soft", iconText: "text-crimson-ink" },
-    { id: 4, name: "Statistics", count: 150, difficulty: "Easy", bar: "bg-mint", iconBg: "bg-mint-soft", iconText: "text-mint-ink" },
-    { id: 5, name: "Kinematics", count: 90, difficulty: "Medium", bar: "bg-clay", iconBg: "bg-clay-soft", iconText: "text-clay-ink" },
-    { id: 6, name: "Electricity", count: 110, difficulty: "Hard", bar: "bg-gold", iconBg: "bg-gold-soft", iconText: "text-gold-ink" },
+    { id: 2, name: "Geometry", count: 85, difficulty: "Hard", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
+    { id: 3, name: "Calculus", count: 200, difficulty: "Hard", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
+    { id: 4, name: "Statistics", count: 150, difficulty: "Easy", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
+    { id: 5, name: "Kinematics", count: 90, difficulty: "Medium", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
+    { id: 6, name: "Electricity", count: 110, difficulty: "Hard", bar: "bg-crimson", iconBg: "bg-crimson-soft", iconText: "text-crimson" },
 ];
 
 export default function TopicalsPage() {

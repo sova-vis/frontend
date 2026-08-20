@@ -169,6 +169,7 @@
   .ed-pill-mint { @apply ed-pill bg-mint-soft text-mint-ink; }
   .ed-pill-gold { @apply ed-pill bg-gold-soft text-gold-ink; }
   .ed-pill-clay { @apply ed-pill bg-clay-soft text-clay-ink; }
+  .ed-pill-neutral { @apply ed-pill bg-surface-soft text-ink-muted; }
 
   /* Form controls */
   .ed-input {

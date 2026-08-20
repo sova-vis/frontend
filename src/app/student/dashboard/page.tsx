@@ -164,7 +164,7 @@ export default function StudentDashboard() {
     { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
     { key: "prog", label: "In progress", value: stats.inProgressCount, icon: "clock", tone: "amber" },
     { key: "marks", label: "Bookmarked", value: stats.bookmarkedCount, icon: "bookmark", tone: "teal" },
-    { key: "goals", label: "Goals set", value: stats.goalsTotal, icon: "target", tone: "purple" },
+    { key: "goals", label: "Goals set", value: stats.goalsTotal, icon: "target", tone: "crimson" },
   ];
 
   return (
@@ -248,7 +248,7 @@ export default function StudentDashboard() {
             </div>
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
               {dailyPlan.items.map((item, i) => {
-                const tone = item.kind === "practice" ? "crimson" : item.kind === "revise" ? "purple" : "coral";
+                const tone = item.kind === "practice" ? "crimson" : item.kind === "revise" ? "amber" : "coral";
                 return (
                   <button key={i} onClick={() => go(item.href)} className="flex items-center gap-10"
                     style={{ textAlign: "left", padding: "12px 14px", borderRadius: 12, background: "var(--surface)", border: "1px solid var(--line)", cursor: "pointer" }}>
@@ -567,7 +567,7 @@ export default function StudentDashboard() {
           {stats.activity.length > 0 ? (
             <div className="flex-col" style={{ gap: 2 }}>
               {stats.activity.map(({ paper, status, at }) => {
-                const tone = status === "completed" ? "teal" : status === "in_progress" ? "amber" : status === "goal" ? "purple" : "crimson";
+                const tone = status === "completed" ? "teal" : status === "in_progress" ? "amber" : status === "goal" ? "crimson" : "crimson";
                 const icon = status === "completed" ? "check_circle" : status === "in_progress" ? "clock" : status === "goal" ? "target" : "bookmark";
                 const label = status === "completed" ? "Completed" : status === "in_progress" ? "Working on" : status === "goal" ? "Set as goal" : "Bookmarked";
                 return (

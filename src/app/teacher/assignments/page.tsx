@@ -9,7 +9,7 @@ import { Assignment, listAssignments } from "@/lib/assignments";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
 
 const STATUS_STYLE: Record<string, string> = {
-  draft: "ed-pill-clay",
+  draft: "ed-pill-neutral",
   scheduled: "ed-pill-gold",
   published: "ed-pill-mint",
   closed: "bg-surface-soft text-ink-muted",

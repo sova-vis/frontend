@@ -70,7 +70,7 @@ export default function StudentClassroomPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div>
           <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight">
-            Hi, <span className="italic text-crimson">{firstName}</span> 🎓
+            Hi, <span className="italic text-crimson">{firstName}</span>
           </h1>
           <p className="text-ink-muted mt-1">Your classroom — assignments from your teachers, all in one place.</p>
         </div>
@@ -136,7 +136,7 @@ export default function StudentClassroomPage() {
               {/* Weak spots */}
               <section className="ed-card p-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <Target size={17} className="text-crimson" />
+                  <Target size={17} className="text-clay-ink" />
                   <h2 className="font-display text-lg font-semibold">Weak spots</h2>
                 </div>
                 {weak.length === 0 ? (
@@ -152,7 +152,7 @@ export default function StudentClassroomPage() {
                         {t.mistakes.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5">
                             {t.mistakes.map((m, i) => (
-                              <li key={i} className="text-xs text-ink-muted flex gap-1.5"><span className="text-crimson">✗</span><span>{m}</span></li>
+                              <li key={i} className="text-xs text-ink-muted flex gap-1.5"><span className="text-clay-ink">✗</span><span>{m}</span></li>
                             ))}
                           </ul>
                         )}

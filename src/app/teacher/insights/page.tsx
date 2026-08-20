@@ -100,9 +100,10 @@ export default function InsightsPage() {
 
 function shade(pct: number | null): string {
   if (pct === null) return "transparent";
-  // Single-hue sequential (crimson), opacity by mastery.
+  // Single-hue sequential teal — mastery is "earned/improving" (brand meaning),
+  // so darker teal = stronger. Token-based so it adapts in dark mode.
   const alpha = 0.12 + (pct / 100) * 0.78;
-  return `rgba(168, 18, 60, ${alpha.toFixed(2)})`;
+  return `rgb(var(--mint) / ${alpha.toFixed(2)})`;
 }
 
 function HeatmapPanel({ heatmap }: { heatmap: Heatmap | null }) {
@@ -163,7 +164,7 @@ function DifficultyPanel({ difficulty }: { difficulty: Difficulty | null }) {
               {q.number ? `Q${q.number} ` : ""}{q.topic}
             </span>
             <div className="flex-1 h-5 rounded bg-surface-soft overflow-hidden">
-              <div className="h-full rounded" style={{ width: `${q.pct}%`, backgroundColor: q.pct < 50 ? "#A8123C" : q.pct < 75 ? "#D9852A" : "#16876B" }} />
+              <div className="h-full rounded" style={{ width: `${q.pct}%`, backgroundColor: q.pct < 50 ? "rgb(var(--clay))" : q.pct < 75 ? "rgb(var(--gold))" : "rgb(var(--mint))" }} />
             </div>
             <span className="w-10 text-right text-xs font-semibold text-ink">{q.pct}%</span>
           </div>
@@ -223,7 +224,7 @@ function StudentPanel({ classId, students }: { classId: string; students: Enroll
             ) : (
               <>
                 <svg viewBox="0 0 280 60" className="w-full h-16">
-                  <polyline points={spark} fill="none" stroke="#A8123C" strokeWidth="2" />
+                  <polyline points={spark} fill="none" stroke="rgb(var(--mint))" strokeWidth="2" />
                 </svg>
                 <div className="mt-2 space-y-1">
                   {pts.slice(-5).reverse().map((p, i) => (

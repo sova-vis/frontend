@@ -242,7 +242,7 @@ export default function PlannerPage() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {s.subject}{s.weak && <span className="badge crimson" style={{ fontSize: 10, marginLeft: 6 }}>weak</span>}
+                              {s.subject}{s.weak && <span className="badge coral" style={{ fontSize: 10, marginLeft: 6 }}>weak</span>}
                             </div>
                             <div className="faint" style={{ fontSize: 11.5 }}>
                               {s.topic ? s.topic : "Practice"} · {s.minutes} min{s.daysToExam != null ? ` · exam in ${s.daysToExam}d` : ""}

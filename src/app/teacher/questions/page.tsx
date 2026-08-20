@@ -96,7 +96,7 @@ export default function CustomQuestionsPage() {
                       <span className="ed-pill-mint text-[0.6rem]">{q.subject}</span>
                       {q.topic && <span className="ed-pill-gold text-[0.6rem]">{q.topic}</span>}
                       <span>{q.marks} marks · {q.criteria.length} criteria</span>
-                      {!q.is_owner && <span className="ed-pill-clay text-[0.6rem]">Shared</span>}
+                      {!q.is_owner && <span className="ed-pill-neutral text-[0.6rem]">Shared</span>}
                     </div>
                     <p className="text-sm text-ink mt-1.5">{q.question_text}</p>
                   </div>

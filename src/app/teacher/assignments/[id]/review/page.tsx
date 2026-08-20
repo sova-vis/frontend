@@ -304,7 +304,7 @@ export default function ReviewPage() {
             Q{String(current.question.number)} · {current.question.marks} marks{current.question.topic ? ` · ${current.question.topic}` : ""}
           </p>
           {current.ai_score === null && current.question.type !== "mcq" && (
-            <span className="ed-pill-clay text-[0.65rem]">Needs marking</span>
+            <span className="ed-pill-gold text-[0.65rem]">Needs marking</span>
           )}
         </div>
 
@@ -376,7 +376,12 @@ export default function ReviewPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-ink">{c.criterion_text || `Criterion ${i + 1}`}</p>
                       <p className="text-xs text-ink-faint mt-0.5">{c.marks_available} mark{c.marks_available === 1 ? "" : "s"}</p>
-                      {c.reasoning && <p className="text-xs text-ink-muted mt-1 italic">{c.reasoning}</p>}
+                      {c.reasoning && (
+                        <p className="text-xs text-ink-muted mt-1">
+                          <span className="font-mono text-[0.6rem] font-medium uppercase tracking-[.13em] text-purple-ink">AI</span>{" "}
+                          {c.reasoning}
+                        </p>
+                      )}
                       <div className="mt-2 flex items-center gap-1.5">
                         <input
                           value={comments[i] ?? ""}
@@ -444,8 +449,7 @@ export default function ReviewPage() {
               <button
                 onClick={() => void checkAndRelease()}
                 disabled={busy}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white disabled:opacity-60"
-                style={{ background: "#0f9d6b" }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-mint disabled:opacity-60"
               >
                 <Send size={15} /> Check &amp; release to {focusName.split(" ")[0]}
               </button>

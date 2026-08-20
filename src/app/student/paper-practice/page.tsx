@@ -2155,7 +2155,7 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
           <span className="chip-tag badge neutral" style={{ flex: "none" }}>Q{q.questionNumber}</span>
           <span style={{ padding: "2px 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, color: tone.fg, background: tone.bg, whiteSpace: "nowrap" }}>{tone.label}</span>
           {q.gradingSource !== "deterministic" && (
-            <span title={q.schemeUsed ? "Marked against this paper's official marking scheme" : "No scheme on file — marked by Grok as an examiner"}
+            <span title={q.schemeUsed ? "Marked against this paper's official marking scheme" : "No scheme on file — marked by AI as an examiner"}
               style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
                 color: q.schemeUsed ? "var(--teal-deep)" : "var(--ink-soft)", background: q.schemeUsed ? "var(--teal-soft)" : "var(--surface-2)" }}>
               {q.schemeUsed ? "✓ Mark scheme" : "Examiner judgement"}

@@ -109,7 +109,7 @@ function TeachersTab() {
             <tr key={t.clerk_id} className="border-b border-line/60">
               <td className="px-4 py-3">
                 <span className="text-ink">{t.full_name || t.email}</span>
-                {t.deactivated && <span className="ed-pill-clay text-[0.6rem] ml-2">Deactivated</span>}
+                {t.deactivated && <span className="ed-pill-neutral text-[0.6rem] ml-2">Deactivated</span>}
               </td>
               <td className="px-4 py-3 text-ink-muted">{t.classes}</td>
               <td className="px-4 py-3 text-ink-muted">{t.assignments}</td>

@@ -69,7 +69,7 @@ export default function StudentClassPage() {
               <div className="ed-card p-8 text-center text-ink-muted">Waiting for your teacher to approve you — assignments will appear once you&apos;re in.</div>
             ) : (
               <div className="space-y-6">
-                <Group title="To do" icon={BookOpen} items={todo} onOpen={open} cta="Start" empty="You're all caught up. 🎉" />
+                <Group title="To do" icon={BookOpen} items={todo} onOpen={open} cta="Start" empty="You're all caught up." />
                 {submitted.length > 0 && <Group title="Submitted · awaiting review" icon={Clock} items={submitted} onOpen={open} cta="View" muted />}
                 {reviewed.length > 0 && <Group title="Reviewed" icon={CheckCircle2} items={reviewed} onOpen={open} cta="See feedback" mint />}
               </div>

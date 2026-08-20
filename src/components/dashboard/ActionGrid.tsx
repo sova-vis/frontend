@@ -16,7 +16,7 @@ const actions = [
     },
     {
         title: "Ask AI",
-        description: "Get instant exam-style answers from our AI tutor.",
+        description: "Ask any exam-style question and get an examiner-style answer.",
         icon: MessageCircle,
         href: "/student/ask",
         highlight: true,
@@ -38,7 +38,7 @@ export default function ActionGrid() {
                     href={action.href}
                     className={`group flex items-start gap-4 p-5 rounded-[1.25rem] border transition-all hover:shadow-card-hover hover:-translate-y-0.5 ${
                         action.highlight
-                            ? "bg-crimson border-crimson/20 text-white shadow-crimson"
+                            ? "bg-purple border-purple/20 text-white"
                             : "ed-card text-ink hover:border-line"
                     }`}
                 >

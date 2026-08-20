@@ -82,12 +82,12 @@ export default function ClassroomNotebookPage() {
                   <div key={t.topic} className="ed-card-soft p-4">
                     <div className="flex items-center justify-between">
                       <p className="font-semibold text-ink">{t.topic}</p>
-                      <span className="ed-pill-crimson text-[0.6rem]">{t.missed} mistake{t.missed === 1 ? "" : "s"} · {t.accuracy}% accuracy</span>
+                      <span className="ed-pill-clay text-[0.6rem]">{t.missed} mistake{t.missed === 1 ? "" : "s"} · {t.accuracy}% accuracy</span>
                     </div>
                     {t.mistakes.length > 0 && (
                       <ul className="mt-2 space-y-1">
                         {t.mistakes.map((m, i) => (
-                          <li key={i} className="text-sm text-ink-muted flex gap-2"><span className="text-crimson mt-0.5">✗</span><span>{m}</span></li>
+                          <li key={i} className="text-sm text-ink-muted flex gap-2"><span className="text-clay-ink mt-0.5">✗</span><span>{m}</span></li>
                         ))}
                       </ul>
                     )}

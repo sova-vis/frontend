@@ -129,7 +129,7 @@ export default function ClassesPage() {
                           <p className="text-xs text-ink-faint truncate">{syllabusLabel(c.syllabus_code)}</p>
                         </div>
                       </div>
-                      {c.archived && <span className="ed-pill-clay text-[0.65rem] shrink-0">Archived</span>}
+                      {c.archived && <span className="ed-pill-neutral text-[0.65rem] shrink-0">Archived</span>}
                     </div>
 
                     <div className="mt-4 flex items-center gap-2 flex-wrap">

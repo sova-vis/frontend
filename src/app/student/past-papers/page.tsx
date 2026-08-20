@@ -316,7 +316,7 @@ function PapersInner() {
   const statusBadge = (p: Paper) => {
     if (hasStatus(p.primary.id, "completed")) return <span className="badge teal"><Icon name="check_circle" size={13} /> Completed</span>;
     if (hasStatus(p.primary.id, "in_progress")) return <span className="badge amber"><Icon name="clock" size={13} /> In progress</span>;
-    if (hasStatus(p.primary.id, "goal")) return <span className="badge purple"><Icon name="target" size={13} /> Goal</span>;
+    if (hasStatus(p.primary.id, "goal")) return <span className="badge crimson"><Icon name="target" size={13} /> Goal</span>;
     return <span className="badge neutral">Not started</span>;
   };
 
@@ -534,8 +534,8 @@ function PaperCard({ p, subj, viewType, bookmarked, onToggle, statusBadge, hasSt
       <div className="flex gap-6">
         {([["goal", "target"], ["in_progress", "clock"], ["completed", "check_circle"]] as [PaperStatus, string][]).map(([s, ic]) => {
           const on = hasStatus(s);
-          const tone = s === "goal" ? "var(--purple)" : s === "in_progress" ? "var(--amber-deep)" : "var(--teal-deep)";
-          const bg = s === "goal" ? "var(--purple-soft)" : s === "in_progress" ? "var(--amber-soft)" : "var(--teal-soft)";
+          const tone = s === "goal" ? "var(--crimson)" : s === "in_progress" ? "var(--amber-deep)" : "var(--teal-deep)";
+          const bg = s === "goal" ? "var(--crimson-soft)" : s === "in_progress" ? "var(--amber-soft)" : "var(--teal-soft)";
           return (
             <button key={s} className="icon-btn" title={s.replace("_", " ")} onClick={() => onToggle(s)}
               style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", color: on ? tone : "var(--ink-faint)", background: on ? bg : "var(--surface)" }}>

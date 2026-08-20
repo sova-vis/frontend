@@ -272,7 +272,7 @@ function ResultsView({ result }: { result: StudentResult }) {
               {q.criteria.map((c, ci) => (
                 <div key={ci} className="text-xs">
                   <div className="flex items-start gap-2">
-                    <span className={c.awarded ? "text-mint-ink" : "text-crimson"}>{c.awarded ? "✓" : "✗"}</span>
+                    <span className={c.awarded ? "text-mint-ink" : "text-clay-ink"}>{c.awarded ? "✓" : "✗"}</span>
                     <span className="flex-1 text-ink-muted">
                       {c.criterion_text || (c.awarded ? "Criterion met" : "Criterion not met")}
                       <span className="text-ink-faint"> ({c.marks_awarded}/{c.marks_available})</span>

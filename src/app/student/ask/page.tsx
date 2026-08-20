@@ -52,7 +52,7 @@ function renderInline(text: string, keyPrefix = ""): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={`${keyPrefix}${i}`} style={{ fontSize: "1.08em", color: "#2563EB" }}>{part.slice(2, -2)}</strong>;
+      return <strong key={`${keyPrefix}${i}`} style={{ fontSize: "1.08em", color: "var(--crimson)" }}>{part.slice(2, -2)}</strong>;
     }
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {

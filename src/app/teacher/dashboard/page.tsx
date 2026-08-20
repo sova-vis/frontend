@@ -145,7 +145,7 @@ export default function TeacherHome() {
                                     <Link
                                       key={t.topic}
                                       href={`/teacher/assignments/new?class_id=${p.class_id}`}
-                                      className="ed-pill-crimson text-[0.6rem] hover:opacity-80"
+                                      className="ed-pill-clay text-[0.6rem] hover:opacity-80"
                                       title="Assign practice on this topic"
                                     >
                                       {t.topic} {t.mastery}%

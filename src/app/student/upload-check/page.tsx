@@ -94,7 +94,7 @@ export default function UploadCheckPage() {
             <div className="eyebrow" style={{ marginBottom: 12 }}>Mark my work</div>
             <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Upload &amp; get marked</h1>
             <p className="muted mt-6" style={{ maxWidth: 560 }}>
-              Upload photos or a PDF of any solved paper. Grok reads your answers, marks them, writes notes on your
+              Upload photos or a PDF of any solved paper. Our AI reads your answers, marks them, writes notes on your
               pages, and gives you a full report — no need to match a specific past paper.
             </p>
           </div>

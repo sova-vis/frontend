@@ -212,7 +212,7 @@ export default function NotebookPage() {
                 <div className="card-head">
                   <div>
                     <div className="flex items-center gap-8">
-                      <Icon name="rotate" size={18} style={{ color: "var(--purple)" }} />
+                      <Icon name="rotate" size={18} style={{ color: "var(--crimson)" }} />
                       <span className="card-title">Revision due</span>
                     </div>
                     <div className="card-sub mt-6">Topics you mastered before — revisit them before they fade.</div>

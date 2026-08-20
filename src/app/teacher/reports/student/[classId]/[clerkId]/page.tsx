@@ -84,7 +84,10 @@ export default function StudentReportPage() {
                   <div key={t.topic} className="flex items-center gap-3">
                     <span className="w-40 text-sm truncate">{t.topic}</span>
                     <div className="flex-1 h-4 rounded bg-surface-soft overflow-hidden">
-                      <div className="h-full rounded bg-crimson" style={{ width: `${t.mastery}%` }} />
+                      <div
+                        className={`h-full rounded ${t.mastery < 50 ? "bg-clay" : t.mastery < 75 ? "bg-gold" : "bg-mint"}`}
+                        style={{ width: `${t.mastery}%` }}
+                      />
                     </div>
                     <span className="w-10 text-right text-xs font-semibold">{t.mastery}%</span>
                   </div>

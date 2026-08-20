@@ -207,7 +207,7 @@ export default function ClassDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {klass.archived && <span className="ed-pill-clay">Archived</span>}
+                {klass.archived && <span className="ed-pill-neutral">Archived</span>}
                 {klass.is_owner && (
                   <>
                     <button onClick={() => void handleArchive()} className="ed-btn-ghost px-3 py-2 text-sm">
@@ -318,7 +318,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 function AssignmentsTab({ assignments, studentCount, onAssign, onOpen, onDelete }: { assignments: Assignment[]; studentCount: number; onAssign: () => void; onOpen: (id: string) => void; onDelete: (id: string, title: string) => void }) {
   const statusLabel: Record<string, string> = { draft: "Draft", scheduled: "Scheduled", published: "Assigned", closed: "Closed" };
-  const statusStyle: Record<string, string> = { draft: "bg-surface-soft text-ink-muted", scheduled: "ed-pill-gold", published: "ed-pill-mint", closed: "ed-pill-clay" };
+  const statusStyle: Record<string, string> = { draft: "bg-surface-soft text-ink-muted", scheduled: "ed-pill-gold", published: "ed-pill-mint", closed: "ed-pill-neutral" };
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -547,7 +547,7 @@ function ShareTab({ klass, onChange }: { klass: TeacherClass; onChange: (k: Teac
         <div>
           <p className="ed-label mb-2">Join code</p>
           <div className="flex items-center gap-2">
-            <span className="font-display text-3xl font-bold tracking-[0.3em] text-ink">
+            <span className="font-mono text-3xl font-medium tracking-[0.3em] text-ink">
               {klass.join_enabled ? klass.join_code : "——————"}
             </span>
             {klass.join_enabled && klass.join_code && (
