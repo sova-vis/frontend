@@ -63,8 +63,19 @@ export default function StudentDashboard() {
   const [practice, setPractice] = useState<PracticeProgress[]>(() => loadPracticeProgressLocal());
   useEffect(() => {
     let cancelled = false;
-    loadPracticeProgressList(() => getToken()).then((items) => { if (!cancelled) setPractice(items); });
-    return () => { cancelled = true; };
+    const load = () => {
+      loadPracticeProgressList(getToken).then((items) => { if (!cancelled) setPractice(items); });
+    };
+    load();
+    const onChange = () => {
+      setPractice(loadPracticeProgressLocal());
+      load();
+    };
+    window.addEventListener("propel:practice-change", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("propel:practice-change", onChange);
+    };
   }, [getToken]);
   const practiceInProgress = practice.filter((p) => p.status === "in_progress");
   const practiceResume = practiceInProgress[0] ?? null; // list arrives newest-first
@@ -75,8 +86,19 @@ export default function StudentDashboard() {
   const [attempts, setAttempts] = useState<Attempt[]>(() => loadAttemptsLocal());
   useEffect(() => {
     let cancelled = false;
-    loadAttempts(() => getToken()).then((items) => { if (!cancelled) setAttempts(items); });
-    return () => { cancelled = true; };
+    const load = () => {
+      loadAttempts(getToken).then((items) => { if (!cancelled) setAttempts(items); });
+    };
+    load();
+    const onChange = () => {
+      setAttempts(loadAttemptsLocal());
+      load();
+    };
+    window.addEventListener("propel:attempts-change", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("propel:attempts-change", onChange);
+    };
   }, [getToken]);
   const weakSpots = useMemo(() => weakestTopics(attempts, 1).slice(0, 5), [attempts]);
   const momentum = useMemo(() => momentumScore(attempts), [attempts]);

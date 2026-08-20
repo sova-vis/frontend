@@ -21,6 +21,7 @@ import {
 import { apiCall, getApiUrl } from "@/lib/api";
 import {
   loadTrackedPapersForUser,
+  loadTrackedPapers,
   PaperStatus,
   saveTrackedPapersForUser,
   toggleTrackedStatus,
@@ -102,9 +103,12 @@ export default function GoalsPage() {
     };
 
     void load();
+    const onChange = () => setTrackedPapers(loadTrackedPapers());
+    window.addEventListener("propel:tracking-change", onChange);
 
     return () => {
       active = false;
+      window.removeEventListener("propel:tracking-change", onChange);
     };
   }, [getToken]);
 

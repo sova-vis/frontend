@@ -8,7 +8,7 @@ import { subjectStyle } from "@/components/propel/subjects";
 import Link from "next/link";
 import { timeAgo } from "@/lib/useStudentStats";
 import {
-  Attempt, PatternResult, loadAttempts, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
+  Attempt, PatternResult, loadAttempts, loadAttemptsLocal, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
 } from "@/lib/insights";
 import { TopicTrend, loadTopicTrends } from "@/lib/examTrends";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
@@ -37,10 +37,21 @@ export default function NotebookPage() {
 
   useEffect(() => {
     let active = true;
-    loadAttempts(() => getToken()).then((items) => { if (active) setAttempts(items); });
-    loadPatterns(() => getToken()).then((p) => { if (active) setPatterns(p); });
+    const load = () => {
+      loadAttempts(getToken).then((items) => { if (active) setAttempts(items); });
+    };
+    load();
+    loadPatterns(getToken).then((p) => { if (active) setPatterns(p); });
     loadTopicTrends().then((t) => { if (active) setTrends(t); });
-    return () => { active = false; };
+    const onChange = () => {
+      setAttempts(loadAttemptsLocal());
+      load();
+    };
+    window.addEventListener("propel:attempts-change", onChange);
+    return () => {
+      active = false;
+      window.removeEventListener("propel:attempts-change", onChange);
+    };
   }, [getToken]);
 
   const trendList = useMemo(
@@ -50,7 +61,7 @@ export default function NotebookPage() {
 
   async function refreshPatterns() {
     setPatternsBusy(true);
-    try { const p = await loadPatterns(() => getToken(), true); if (p) setPatterns(p); }
+    try { const p = await loadPatterns(getToken, true); if (p) setPatterns(p); }
     finally { setPatternsBusy(false); }
   }
 

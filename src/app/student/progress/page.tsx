@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Target, TrendingUp } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
-import { loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
+import { loadTrackedPapers, loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
 export default function ProgressPage() {
@@ -20,9 +20,12 @@ export default function ProgressPage() {
         };
 
         void load();
+        const onChange = () => setTrackedPapers(loadTrackedPapers());
+        window.addEventListener("propel:tracking-change", onChange);
 
         return () => {
             active = false;
+            window.removeEventListener("propel:tracking-change", onChange);
         };
     }, [getToken]);
 

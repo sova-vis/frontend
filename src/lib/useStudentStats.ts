@@ -34,12 +34,18 @@ export function useStudentStats(): StudentStats {
 
   useEffect(() => {
     let cancelled = false;
-    loadTrackedPapersForUser(() => getToken())
+    loadTrackedPapersForUser(getToken)
       .then((items) => { if (!cancelled) setPapers(items); })
       .catch(() => { /* keep the local seed on failure */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [getToken, nonce]);
+
+  useEffect(() => {
+    const onChange = () => setPapers(loadTrackedPapers());
+    window.addEventListener("propel:tracking-change", onChange);
+    return () => window.removeEventListener("propel:tracking-change", onChange);
+  }, []);
 
   const has = (p: TrackedPaper, s: string) => p.statuses.includes(s as never);
   const completed = papers.filter((p) => has(p, "completed"));

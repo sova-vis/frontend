@@ -5,11 +5,10 @@
    and turns the returned report into a downloadable document.
    ============================================================ */
 
-import { PracticeProgress, PracticeReport, GradedQuestion, SolveMode, prettyPaperName } from "./practiceProgress";
+import { PracticeProgress, PracticeReport, GradedQuestion, SolveMode, prettyPaperName, rememberPracticeProgress } from "./practiceProgress";
+import { clerkFetch, resolveClerkToken, type GetTokenFn } from "./clerkToken";
 
 export type { PracticeReport, GradedQuestion };
-
-type GetTokenFn = () => Promise<string | null>;
 
 export interface GradeQuestionInput {
   id: string;
@@ -45,20 +44,24 @@ export async function gradePractice(
   request: GradeRequest,
   getToken?: GetTokenFn,
 ): Promise<{ report: PracticeReport; item: PracticeProgress }> {
-  const token = getToken ? await getToken() : null;
-  const response = await fetch(`${apiBase()}/practice-grading/grade`, {
+  const token = await resolveClerkToken(getToken);
+  const response = await clerkFetch(`${apiBase()}/practice-grading/grade`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(request),
-  });
+  }, getToken);
   if (!response.ok) {
+    // The API's message already names each file it could not read, so the
+    // student knows which upload to replace rather than just "grading failed".
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Grading failed. Please try again.");
   }
-  return (await response.json()) as { report: PracticeReport; item: PracticeProgress };
+  const data = (await response.json()) as { report: PracticeReport; item: PracticeProgress };
+  if (data.item) rememberPracticeProgress(data.item);
+  return data;
 }
 
 export async function gradeOneQuestion(
@@ -66,15 +69,15 @@ export async function gradeOneQuestion(
   question: GradeQuestionInput,
   getToken?: GetTokenFn,
 ): Promise<GradedQuestion> {
-  const token = getToken ? await getToken() : null;
-  const response = await fetch(`${apiBase()}/practice-grading/grade-one`, {
+  const token = await resolveClerkToken(getToken);
+  const response = await clerkFetch(`${apiBase()}/practice-grading/grade-one`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ subject, question }),
-  });
+  }, getToken);
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Grading failed. Please try again.");
@@ -90,22 +93,56 @@ export async function gradeOneImage(
   file: File,
   getToken?: GetTokenFn,
 ): Promise<GradedQuestion> {
-  const token = getToken ? await getToken() : null;
+  const token = await resolveClerkToken(getToken);
   const body = new FormData();
   body.append("subject", subject);
   body.append("question", JSON.stringify(question));
   body.append("file", file, file.name);
-  const response = await fetch(`${apiBase()}/practice-grading/grade-one-image`, {
+  const response = await clerkFetch(`${apiBase()}/practice-grading/grade-one-image`, {
     method: "POST",
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
-  });
+  }, getToken);
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Grading failed. Please try again.");
   }
   const data = (await response.json()) as { result: GradedQuestion };
   return data.result;
+}
+
+const slotKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Map a graded (usually handwritten) result onto the same answer-slot keys
+ * Solve here uses, so transcribed text appears in the original boxes.
+ */
+export function slotAnswersFromGraded(
+  question: { id: string; type: "mcq" | "structured"; parts?: { label: string }[] },
+  graded: GradedQuestion,
+): { mcq?: string; parts: Record<string, string> } {
+  const parts: Record<string, string> = {};
+  if (question.type === "mcq") {
+    const option = (graded.extractedOption || "").trim();
+    return { mcq: option || undefined, parts };
+  }
+  const extracted = graded.extractedParts ?? {};
+  const qParts = question.parts ?? [];
+  const byNorm = new Map(Object.entries(extracted).map(([label, text]) => [slotKey(label), text] as const));
+  let wrote = false;
+  qParts.forEach((part, index) => {
+    const text = (part.label && extracted[part.label]) || byNorm.get(slotKey(part.label || "")) || "";
+    if (text.trim()) {
+      parts[`${question.id}::${index}`] = text.trim();
+      wrote = true;
+    }
+  });
+  if (!wrote) {
+    const blob = (graded.extractedAnswer || "").trim()
+      || Object.entries(extracted).map(([label, text]) => `${label}: ${text}`).join("\n").trim();
+    if (blob) parts[`${question.id}::0`] = blob;
+  }
+  return { parts };
 }
 
 export function verdictColor(verdict: GradedQuestion["verdict"]): { fg: string; bg: string; label: string } {
@@ -159,16 +196,47 @@ export function downloadReport(
     }
     return `${missing.length ? `<div style="margin-top:6px;font-size:13px;color:#9a3b2a"><b>Improve:</b> ${missing.map(escapeHtml).join("; ")}</div>` : ""}${expected.length ? `<div style="margin-top:4px;font-size:13px;color:#3a3a3a"><b>Key points:</b> ${expected.map(escapeHtml).join("; ")}</div>` : ""}`;
   };
+  const readTag = (q: GradedQuestion) =>
+    q.extractionFlag === "low_confidence"
+      ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#9a6a00;background:#fbf1d9">Unclear handwriting</span>`
+      : "";
+  const readHtml = (q: GradedQuestion) =>
+    q.extractedAnswer && q.extractionFlag !== "unreadable"
+      ? `<div style="margin-top:6px;font-size:12.5px;color:#6b5f57"><b>Read from your page${q.extractionPages?.length ? ` (page ${q.extractionPages.join(", ")})` : ""}:</b> ${escapeHtml(q.extractedAnswer)}</div>`
+      : "";
+  const breakdownHtml = (q: GradedQuestion) =>
+    q.breakdown && q.breakdown.length
+      ? `<div style="margin-top:6px;font-size:12.5px">${q.breakdown.map((c) => `<span style="display:inline-block;margin:0 8px 4px 0"><b>${escapeHtml(c.category)}</b> ${c.earned}/${c.max}${c.max > c.earned ? ` <span style="color:#9a3b2a">−${c.max - c.earned} lost</span>` : ""}</span>`).join("")}</div>`
+      : "";
+  const partScoresHtml = (q: GradedQuestion) =>
+    q.partScores && q.partScores.length
+      ? `<div style="margin-top:6px;font-size:12.5px">${q.partScores.map((p) => `<div><b>${escapeHtml(p.label)}</b> ${p.earned} / ${p.max}</div>`).join("")}</div>`
+      : "";
+  const examinerHtml = (q: GradedQuestion) =>
+    q.examinerNote ? `<div style="margin-top:6px;font-size:12.5px;color:#6b5f57;font-style:italic">${escapeHtml(q.examinerNote)}</div>` : "";
   const rows = report.perQuestion.map((q) => `
     <tr>
       <td style="font-weight:600;white-space:nowrap">Q${escapeHtml(q.questionNumber)}</td>
-      <td style="font-weight:700;white-space:nowrap">${q.earned} / ${q.max}</td>
-      <td style="white-space:nowrap">${pill(q.verdict)}${schemeTag(q)}</td>
+      <td style="font-weight:700;white-space:nowrap">${q.marksWithheld ? `&mdash; / ${q.max}` : `${q.earned} / ${q.max}`}</td>
+      <td style="white-space:nowrap">${q.marksWithheld ? `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#b02a1a;background:#fbe6e2">${q.extractionFlag === "not_found" ? "Not found" : q.extractionFlag === "unreadable" ? "Couldn't read" : "Marking failed"}</span>` : `${pill(q.verdict)}${schemeTag(q)}${q.commandWord ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600;color:#5b3cc4;background:#efe8ff">${escapeHtml(q.commandWord)}</span>` : ""}`}${readTag(q)}</td>
       <td>
         <div>${escapeHtml(q.feedback)}</div>
         ${pointsHtml(q)}
+        ${breakdownHtml(q)}
+        ${partScoresHtml(q)}
+        ${readHtml(q)}
+        ${examinerHtml(q)}
       </td>
     </tr>`).join("");
+
+  const extraction = report.extraction;
+  const extractionHtml = extraction
+    ? `<div class="summary"><b>Read from your upload.</b> ${extraction.pageCount} page${extraction.pageCount === 1 ? "" : "s"} processed with ${escapeHtml(extraction.visionModel)} &middot;
+        ${extraction.readCount} read clearly, ${extraction.lowConfidenceCount} low confidence, ${extraction.unreadableCount} unreadable, ${extraction.blankCount} blank, ${extraction.notFoundCount} not found.
+        ${extraction.withheldMarks > 0 ? `<div style="margin-top:8px;color:#b02a1a"><b>${extraction.withheldMarks} marks were not assessed</b> because those answers could not be read; they are excluded from the score above rather than counted as wrong.</div>` : ""}
+        ${extraction.warnings.length ? `<ul>${extraction.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>` : ""}
+      </div>`
+    : "";
 
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -204,6 +272,7 @@ export function downloadReport(
   <div class="summary"><b>Examiner summary.</b> ${escapeHtml(report.summary)}
     ${report.improvements.length ? `<div style="margin-top:10px"><b>Focus next on:</b><ul>${report.improvements.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul></div>` : ""}
   </div>
+  ${extractionHtml}
   <table>
     <thead><tr><th>Q</th><th>Marks</th><th>Verdict</th><th>Feedback</th></tr></thead>
     <tbody>${rows}</tbody>

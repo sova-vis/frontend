@@ -3,6 +3,7 @@
 import { useAuth, useUser, useClerk } from "@clerk/nextjs";
 import { useEffect, useRef, useState } from "react";
 import { getApiUrl } from "./api";
+import { clerkFetch, resolveClerkToken } from "./clerkToken";
 
 export interface UserProfile {
   id: string;
@@ -52,18 +53,17 @@ function writeCachedProfile(clerkId: string, profile: UserProfile | null) {
 }
 
 async function fetchOrCreateProfile(
-  token: string,
+  getToken: ReturnType<typeof useAuth>["getToken"],
   seed: { email: string | null; full_name: string; role: string }
 ): Promise<UserProfile> {
   const apiUrl = getApiUrl();
+  const token = await resolveClerkToken(getToken);
+  if (!token) throw new Error("Unauthorized - No token");
 
-  const profileResponse = await fetch(`${apiUrl}/auth/profile`, {
+  const profileResponse = await clerkFetch(`${apiUrl}/auth/profile`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
     cache: "no-store",
-  });
+  }, getToken);
 
   if (profileResponse.ok) {
     return (await profileResponse.json()) as UserProfile;
@@ -77,14 +77,11 @@ async function fetchOrCreateProfile(
     throw new Error(payload.error || "Failed to fetch profile");
   }
 
-  const syncResponse = await fetch(`${apiUrl}/auth/sync-profile`, {
+  const syncResponse = await clerkFetch(`${apiUrl}/auth/sync-profile`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(seed),
-  });
+  }, getToken);
 
   if (!syncResponse.ok) {
     const payload = await syncResponse
@@ -144,10 +141,7 @@ export function useClerkAuth() {
       try {
         if (!inFlightProfileRequest) {
           inFlightProfileRequest = (async () => {
-            const token = await getToken();
-            if (!token) return null;
-
-            const loadedProfile = await fetchOrCreateProfile(token, {
+            const loadedProfile = await fetchOrCreateProfile(getToken, {
               email: user.primaryEmailAddress?.emailAddress || null,
               full_name:
                 `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",

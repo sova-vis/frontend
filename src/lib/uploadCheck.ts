@@ -50,7 +50,7 @@ export interface UploadCheckResult {
   annotatedUrl: string;
 }
 
-type GetTokenFn = () => Promise<string | null>;
+import { clerkFetch, resolveClerkToken, type GetTokenFn } from "./clerkToken";
 
 function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -63,17 +63,17 @@ export async function runUploadCheck(
   files: File[],
   getToken?: GetTokenFn,
 ): Promise<UploadCheckResult> {
-  const token = getToken ? await getToken() : null;
+  const token = await resolveClerkToken(getToken);
+  if (!token) throw new Error("Please sign in to mark this paper.");
   const body = new FormData();
   body.append("subject", subject);
   body.append("paperType", paperType);
   for (const file of files) body.append("files", file, file.name);
 
-  const response = await fetch(`${apiBase()}/upload-check`, {
+  const response = await clerkFetch(`${apiBase()}/upload-check`, {
     method: "POST",
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
-  });
+  }, getToken);
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Marking failed. Please try again.");
@@ -82,12 +82,10 @@ export async function runUploadCheck(
 }
 
 export async function loadUploadCheckHistory(getToken?: GetTokenFn): Promise<UploadCheckResult[]> {
-  const token = getToken ? await getToken() : null;
+  const token = await resolveClerkToken(getToken);
   if (!token) return [];
   try {
-    const response = await fetch(`${apiBase()}/upload-check/history`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await clerkFetch(`${apiBase()}/upload-check/history`, {}, getToken);
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: UploadCheckResult[] };
     return Array.isArray(payload.items) ? payload.items : [];

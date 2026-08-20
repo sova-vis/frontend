@@ -20,6 +20,7 @@ import {
     TrackedPaper,
     clearTrackedPaper,
     loadTrackedPapersForUser,
+    loadTrackedPapers,
     saveTrackedPapersForUser,
     toggleTrackedStatus,
 } from "@/lib/paperTracking";
@@ -84,9 +85,12 @@ export default function BookmarksPage() {
         };
 
         load();
+        const onChange = () => setTrackedPapers(loadTrackedPapers());
+        window.addEventListener("propel:tracking-change", onChange);
 
         return () => {
             active = false;
+            window.removeEventListener("propel:tracking-change", onChange);
         };
     }, [getToken]);
 

@@ -10,16 +10,19 @@ import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
   PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
+  ExtractionSummary,
   loadPracticeProgressList, loadPracticeProgressLocal, savePracticeProgress, deletePracticeProgress,
-  uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName,
+  uploadPracticeFile, removePracticeUpload, makePaperKey, prettyPaperName, reportAnswerStats,
 } from "@/lib/practiceProgress";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { isExcludedSubject } from "@/lib/studentSubjects";
 import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
-import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
+import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput, slotAnswersFromGraded } from "@/lib/practiceGrading";
+import { syncPracticePaperTracking } from "@/lib/paperTracking";
 import { apiCall, getApiUrl } from "@/lib/api";
 import { paperDurationSeconds, durationLabel, clockLabel } from "@/lib/paperDurations";
+import { isClerkTokenFresh } from "@/lib/clerkToken";
 
 type QuestionType = "mcq" | "structured";
 type PracticeMode = "topic" | "paper";
@@ -175,6 +178,27 @@ function writeTopicPractice(blob: TopicPracticeBlob): void {
   } catch {
     // quota or serialization failure — non-fatal; in-memory state still works
   }
+}
+
+/* ---- handwritten upload limits (mirror the API's own checks) ---- */
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 24;
+const ACCEPTED_UPLOAD_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+const UPLOAD_ACCEPT_ATTR = ".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf";
+
+/** Reject unsupported or oversized files up front, with a reason to show. */
+function validateUploadFile(file: File): string | null {
+  const extension = (file.name.split(".").pop() || "").toLowerCase();
+  const typeOk =
+    ACCEPTED_UPLOAD_TYPES.includes(file.type.toLowerCase()) ||
+    // some browsers report an empty type for files picked from cloud drives
+    (!file.type && ["jpg", "jpeg", "png", "pdf"].includes(extension));
+  if (!typeOk) return `${file.name} is not a JPG, PNG or PDF.`;
+  if (file.size === 0) return `${file.name} is empty.`;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit is 15 MB.`;
+  }
+  return null;
 }
 
 // A "header" part is a lead-in that introduces sub-parts (e.g. "(a)" whose text
@@ -519,10 +543,13 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
                   </p>
                   {part.marks !== null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
                 </div>
-                {!readOnly && (
+                {!readOnly ? (
                   <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
                     className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
-                )}
+                ) : (answers[partKey] ?? "").trim() ? (
+                  <p style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8,
+                    background: "var(--surface)", border: "1px solid var(--line)" }}>{answers[partKey]}</p>
+                ) : null}
                 {revealScheme && part.answer && (
                   <div style={{ marginTop: 8 }}><SchemeList text={part.answer} /></div>
                 )}
@@ -532,6 +559,9 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
         </div>
       ) : !readOnly ? (
         <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
+      ) : (answers[`${question.id}::0`] ?? "").trim() ? (
+        <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8,
+          background: "var(--surface)", border: "1px solid var(--line)" }}>{answers[`${question.id}::0`]}</p>
       ) : null}
 
       {revealScheme && question.markingScheme && <SchemeList text={question.markingScheme} label="Mark scheme" />}
@@ -847,13 +877,13 @@ function QuestionUploadBox({ busy, graded, onFile }: { busy: boolean; graded: bo
         border: `2px dashed ${dragging ? "var(--crimson)" : "var(--line-strong)"}`,
         background: dragging ? "var(--crimson-soft)" : "var(--surface)", transition: "all .15s" }}
     >
-      <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} disabled={busy}
+      <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT_ATTR} style={{ display: "none" }} disabled={busy}
         onChange={(e) => { pick(e.target.files); e.currentTarget.value = ""; }} />
       <div className="flex items-center gap-8" style={{ color: "var(--ink-soft)", fontSize: 13, fontWeight: 500 }}>
         <Icon name={busy ? "refresh" : graded ? "check_circle" : "upload"} size={16} className={busy ? "spin" : ""} style={{ color: "var(--crimson)" }} />
         {busy ? "Marking your answer…" : graded ? "Upload another photo to re-mark" : "Upload a photo of your answer"}
       </div>
-      <div className="faint" style={{ fontSize: 11, marginTop: 5 }}>JPG or PNG · maximum 15 MB</div>
+      <div className="faint" style={{ fontSize: 11, marginTop: 5 }}>JPG, PNG or PDF · maximum 15 MB</div>
     </div>
   );
 }
@@ -898,6 +928,7 @@ function PracticeInner() {
   const [paperStatus, setPaperStatus] = useState<PracticeStatus>("in_progress");
   const [uploads, setUploads] = useState<PracticeUpload[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; name: string } | null>(null);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string>("");
   const [timerRunning, setTimerRunning] = useState(false);
@@ -910,7 +941,10 @@ function PracticeInner() {
   const [grading, setGrading] = useState(false);
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [revealResults, setRevealResults] = useState(false);
   const [portalMounted, setPortalMounted] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const justGradedRef = useRef(false);
   const restoredKeyRef = useRef<string | null>(null);
   const interactedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1007,8 +1041,12 @@ function PracticeInner() {
     loadPracticeProgressList(getToken).then((items) => {
       if (mounted) setProgressMap(new Map(items.map((item) => [item.paperKey, item])));
     });
-    getToken().then((token) => { tokenRef.current = token; }).catch(() => {});
-    return () => { mounted = false; };
+    const refreshToken = () => {
+      void getToken({ skipCache: true }).then((token) => { if (token) tokenRef.current = token; }).catch(() => {});
+    };
+    refreshToken();
+    const tokenTimer = window.setInterval(refreshToken, 25_000);
+    return () => { mounted = false; window.clearInterval(tokenTimer); };
   }, [getToken]);
 
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
@@ -1034,6 +1072,7 @@ function PracticeInner() {
     setSavingState("idle");
     setReport(null);
     setReportOpen(false);
+    setRevealResults(false);
     setOneResults({});
     setOneGrading({});
     setOpenMap({});
@@ -1240,6 +1279,11 @@ function PracticeInner() {
         : Boolean(partAnswers[`${q.id}::0`]?.trim()),
   ).length;
   const hasScheme = displayQuestions.some((q) => q.markingScheme || q.parts.some((p) => p.answer) || q.images.some((i) => i.role === "answer"));
+  const reportStats = reportAnswerStats(report);
+  const headerAnswered = reportStats ? reportStats.answered : solveMode === "handwritten" ? "—" : answeredCount;
+  const headerScore = reportStats
+    ? `${reportStats.earned}/${reportStats.max}`
+    : questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—";
 
   const ready = practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
   const selectedPaper = papers.find((p) => p.key === selectedPaperKey) ?? null;
@@ -1285,20 +1329,21 @@ function PracticeInner() {
       status: overrides?.status ?? paperStatus,
       answers: { mcq: pruneAnswers(mcqAnswers), parts: pruneAnswers(partAnswers) },
       uploads, // informational — the server keeps its own copy authoritative
-      answeredCount: answeredUnits,
-      totalCount: totalUnits,
+      answeredCount: reportStats?.answered ?? answeredUnits,
+      totalCount: reportStats?.total ?? totalUnits,
       timerDurationSeconds: timerDuration,
       timerElapsedSeconds: timerElapsedRef.current,
       startedAt: startedAtRef.current ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }, [currentPaperKey, selectedPaper, selectedSubject, solveMode, paperStatus, mcqAnswers, partAnswers, uploads, answeredUnits, totalUnits, timerDuration]);
+  }, [currentPaperKey, selectedPaper, selectedSubject, solveMode, paperStatus, mcqAnswers, partAnswers, uploads, answeredUnits, totalUnits, timerDuration, reportStats]);
 
   const doSave = useCallback(async (overrides?: Partial<Pick<PracticeProgress, "status" | "solveMode">>) => {
     const doc = buildDoc(overrides);
     if (!doc) return;
+    const firstSave = !hasRowRef.current;
     setSavingState("saving");
-    getToken().then((token) => { tokenRef.current = token; }).catch(() => {});
+    getToken().then((token) => { if (token) tokenRef.current = token; }).catch(() => {});
     try {
       const saved = await savePracticeProgress(doc, getToken);
       startedAtRef.current = saved.startedAt;
@@ -1306,10 +1351,16 @@ function PracticeInner() {
       setUploads(saved.uploads ?? []);
       setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(saved.paperKey, saved); return next; });
       setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (firstSave && selectedPaper && selectedSubject && currentPaperKey) {
+        void syncPracticePaperTracking({
+          paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
+          session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
+        }, "in_progress", getToken);
+      }
     } catch {
       setSavingState("error");
     }
-  }, [buildDoc, getToken]);
+  }, [buildDoc, getToken, selectedPaper, selectedSubject, currentPaperKey]);
 
   // restore a saved session (or start a fresh one) once the paper's questions arrive
   useEffect(() => {
@@ -1321,9 +1372,30 @@ function PracticeInner() {
 
     const saved = progressMap.get(currentPaperKey);
     const fallbackDuration = paperDurationSeconds(selectedSubject, selectedPaper?.paper ?? "", selectedPaper?.isMcq ?? false);
+    setRevealResults(false);
     if (saved) {
-      setMcqAnswers(saved.answers?.mcq ?? {});
-      setPartAnswers(saved.answers?.parts ?? {});
+      let mcq = saved.answers?.mcq ?? {};
+      let parts = saved.answers?.parts ?? {};
+      // Older handwritten reports stored the transcription only on the graded
+      // questions. Fill the same Solve-here slots so the paper looks identical.
+      if (
+        saved.solveMode === "handwritten" && saved.report?.perQuestion?.length
+        && Object.keys(mcq).length === 0 && Object.keys(parts).length === 0
+      ) {
+        const hydratedMcq: Record<string, string> = {};
+        const hydratedParts: Record<string, string> = {};
+        for (const q of questions) {
+          const graded = saved.report.perQuestion.find((item) => item.id === q.id);
+          if (!graded) continue;
+          const slotted = slotAnswersFromGraded(q, graded);
+          if (slotted.mcq) hydratedMcq[q.id] = slotted.mcq;
+          Object.assign(hydratedParts, slotted.parts);
+        }
+        mcq = hydratedMcq;
+        parts = hydratedParts;
+      }
+      setMcqAnswers(mcq);
+      setPartAnswers(parts);
       setSolveMode(saved.solveMode);
       setPaperStatus(saved.status);
       setUploads(saved.uploads ?? []);
@@ -1377,21 +1449,21 @@ function PracticeInner() {
     return () => clearInterval(id);
   }, [timerRunning, currentPaperKey, doSave]);
 
-  // flush on tab close / hide so nothing typed is ever lost
+  // flush on tab hide / close so nothing typed is ever lost. Do not listen to
+  // window blur — DevTools and clicking away would 401-spam with a stale JWT.
   useEffect(() => {
     const flush = () => {
       if (!currentPaperKey || restoredKeyRef.current !== currentPaperKey) return;
       if (!interactedRef.current && !hasRowRef.current) return;
+      if (!isClerkTokenFresh(tokenRef.current, 0)) return;
       const doc = buildDoc();
       if (doc) void savePracticeProgress(doc, undefined, { keepalive: true, tokenOverride: tokenRef.current });
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush);
-    window.addEventListener("blur", flush);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", flush);
-      window.removeEventListener("blur", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [buildDoc, currentPaperKey]);
@@ -1407,7 +1479,15 @@ function PracticeInner() {
     interactedRef.current = true;
     const next: PracticeStatus = paperStatus === "completed" ? "in_progress" : "completed";
     setPaperStatus(next);
-    if (next === "completed") setTimerRunning(false); // stop the clock; un-completing leaves it paused
+    if (next === "completed") {
+      setTimerRunning(false);
+      if (currentPaperKey && selectedPaper && selectedSubject) {
+        void syncPracticePaperTracking({
+          paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
+          session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
+        }, "completed", getToken);
+      }
+    }
     void doSave({ status: next });
   }
 
@@ -1424,27 +1504,66 @@ function PracticeInner() {
     if (!next && hasRowRef.current) void doSave();
   }
 
+  /**
+   * Upload the picked files one at a time, reporting per-file progress. A file
+   * that fails is named and skipped rather than aborting the whole batch, so one
+   * bad photo doesn't discard the pages that were fine.
+   */
   async function handleFiles(list: FileList | null) {
     if (!list || !currentPaperKey) return;
-    const files = Array.from(list).slice(0, 6);
-    setUploadBusy(true);
+    const picked = Array.from(list);
     setError("");
+
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of picked) {
+      const problem = validateUploadFile(file);
+      if (problem) rejected.push(problem);
+      else accepted.push(file);
+    }
+    const room = MAX_UPLOAD_FILES - uploads.length;
+    if (accepted.length > room) {
+      rejected.push(
+        room <= 0
+          ? `You already have ${MAX_UPLOAD_FILES} files attached — remove one before adding more.`
+          : `Only ${room} more file${room === 1 ? "" : "s"} can be attached (limit ${MAX_UPLOAD_FILES}).`,
+      );
+      accepted.length = Math.max(0, room);
+    }
+    if (accepted.length === 0) {
+      setError(rejected.join(" ") || "Nothing to upload.");
+      return;
+    }
+
+    setUploadBusy(true);
+    const failures = [...rejected];
     try {
-      for (const file of files) {
-        if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name} is larger than 15 MB`);
-        const item = await uploadPracticeFile(currentPaperKey, file, getToken);
-        if (item) {
-          setUploads(item.uploads ?? []);
-          setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
-          hasRowRef.current = true;
-          startedAtRef.current = item.startedAt;
-          setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      for (let index = 0; index < accepted.length; index++) {
+        const file = accepted[index];
+        setUploadProgress({ current: index + 1, total: accepted.length, name: file.name });
+        try {
+          const item = await uploadPracticeFile(currentPaperKey, file, getToken);
+          if (item) {
+            setUploads(item.uploads ?? []);
+            setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
+            hasRowRef.current = true;
+            startedAtRef.current = item.startedAt;
+            setSavingState("saved"); setLastSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+            if (index === 0 && selectedPaper && selectedSubject && currentPaperKey) {
+              void syncPracticePaperTracking({
+                paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
+                session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
+              }, "in_progress", getToken);
+            }
+          }
+        } catch (uploadError) {
+          failures.push(`${file.name}: ${uploadError instanceof Error ? uploadError.message : "upload failed"}.`);
         }
       }
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
     } finally {
       setUploadBusy(false);
+      setUploadProgress(null);
+      if (failures.length > 0) setError(failures.join(" "));
     }
   }
 
@@ -1508,6 +1627,9 @@ function PracticeInner() {
       }
       setReport(null);
       setReportOpen(false);
+      setRevealResults(false);
+      setOpenMap({});
+      touchedIdsRef.current = new Set();
     }
   }
 
@@ -1545,7 +1667,13 @@ function PracticeInner() {
     };
   }, [mcqAnswers, partAnswers]);
 
-  const buildGradeQuestions = (): GradeQuestionInput[] => questions.map(toGradeInput);
+  const buildGradeQuestions = (): GradeQuestionInput[] => {
+    const mapped = questions.map(toGradeInput);
+    if (solveMode !== "handwritten") return mapped;
+    // Uploaded papers are marked from the transcription only — never mix in a
+    // leftover typed draft from an earlier Solve-here attempt on the same paper.
+    return mapped.map((q) => ({ ...q, studentOption: null, studentParts: {}, studentAnswer: null }));
+  };
 
   // D — collapse solved/marked questions when a paper is reopened. Derived from
   // the CURRENT answers every render (no snapshot/effect timing to get out of
@@ -1572,8 +1700,10 @@ function PracticeInner() {
   // Collapse (minimise) a question once it's marked or fully answered — in BOTH
   // paper and by-topic mode — unless it's been touched this session. resultById
   // holds paper-mode marks; oneResults holds by-topic marks.
-  const collapsedByDefault = (q: PracticeQuestion): boolean =>
-    !touchedIdsRef.current.has(q.id) && (Boolean(resultById[q.id]) || Boolean(oneResults[q.id]) || isQuestionFullyAnswered(q));
+  const collapsedByDefault = (q: PracticeQuestion): boolean => {
+    if (revealResults && (resultById[q.id] || oneResults[q.id])) return false;
+    return !touchedIdsRef.current.has(q.id) && (Boolean(resultById[q.id]) || Boolean(oneResults[q.id]) || isQuestionFullyAnswered(q));
+  };
   const isQuestionOpen = (q: PracticeQuestion): boolean => openMap[q.id] ?? !collapsedByDefault(q);
   const toggleQuestionOpen = (q: PracticeQuestion) =>
     setOpenMap((prev) => ({ ...prev, [q.id]: !(prev[q.id] ?? !collapsedByDefault(q)) }));
@@ -1600,13 +1730,17 @@ function PracticeInner() {
 
   async function gradeOneFromImage(q: PracticeQuestion, file: File) {
     if (!selectedSubject || oneGrading[q.id]) return;
-    if (file.size > 15 * 1024 * 1024) { setError(`${file.name} is larger than 15 MB`); return; }
+    const problem = validateUploadFile(file);
+    if (problem) { setError(problem); return; }
     setOneGrading((prev) => ({ ...prev, [q.id]: true }));
     setError("");
     try {
       const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken);
       markTouched(q.id); // keep it open right after marking; it collapses on reopen
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
+      const slotted = slotAnswersFromGraded(q, result);
+      if (slotted.mcq) setMcqAnswers((prev) => ({ ...prev, [q.id]: slotted.mcq as string }));
+      if (Object.keys(slotted.parts).length) setPartAnswers((prev) => ({ ...prev, ...slotted.parts }));
       void logAttempts([attemptFromGraded(q, result)], getToken);
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
@@ -1641,11 +1775,40 @@ function PracticeInner() {
         getToken,
       );
       setReport(graded);
-      setReportOpen(true);
+      justGradedRef.current = true;
+      setRevealResults(true);
+      setOpenMap(Object.fromEntries(graded.perQuestion.map((q) => [q.id, true])));
+      for (const q of graded.perQuestion) markTouched(q.id);
       setPaperStatus("completed");
       setTimerRunning(false);
-      // Phase 1 — log every graded question to the attempts backbone
+      if (solveMode === "handwritten") {
+        const serverMcq = item.answers?.mcq ?? {};
+        const serverParts = item.answers?.parts ?? {};
+        if (Object.keys(serverMcq).length || Object.keys(serverParts).length) {
+          setMcqAnswers(serverMcq);
+          setPartAnswers(serverParts);
+        } else {
+          const mcq: Record<string, string> = {};
+          const parts: Record<string, string> = {};
+          for (const q of questions) {
+            const result = graded.perQuestion.find((item) => item.id === q.id);
+            if (!result) continue;
+            const slotted = slotAnswersFromGraded(q, result);
+            if (slotted.mcq) mcq[q.id] = slotted.mcq;
+            Object.assign(parts, slotted.parts);
+          }
+          setMcqAnswers(mcq);
+          setPartAnswers(parts);
+        }
+      }
+      // Phase 1 — log every graded question to the attempts backbone (mastery, predicted grade, notebook)
       void logAttempts(attemptsFromReport(graded.perQuestion, questions), getToken);
+      if (selectedPaper) {
+        void syncPracticePaperTracking({
+          paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
+          session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
+        }, "completed", getToken);
+      }
       setUploads(item.uploads ?? []);
       hasRowRef.current = true;
       setProgressMap((prev) => { const next = new Map(prev ?? []); next.set(item.paperKey, item); return next; });
@@ -1655,6 +1818,12 @@ function PracticeInner() {
       setGrading(false);
     }
   }
+
+  useEffect(() => {
+    if (!justGradedRef.current || !report) return;
+    justGradedRef.current = false;
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [report]);
 
   const summary = practiceMode === "topic"
     ? `${selectedSubject} · ${questionType === "mcq" ? "MCQs" : "Paper questions"} · ${selectedTopic}`
@@ -1690,8 +1859,8 @@ function PracticeInner() {
               <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
                 {[
                   { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
-                  { label: "Answered", value: answeredCount },
-                  { label: "Score", value: questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—" },
+                  { label: "Answered", value: headerAnswered },
+                  { label: "Score", value: headerScore },
                 ].map((stat) => (
                   <div key={stat.label} style={{ padding: "8px 14px" }}>
                     <div className="eyebrow">{stat.label}</div>
@@ -1807,7 +1976,9 @@ function PracticeInner() {
                       ? topicTotal > 0 && <span className="faint">· {displayQuestions.length} of {topicTotal} unique across all years</span>
                       : displayQuestions.length > 0 && <span className="faint">· {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}</span>}
                     {/* live progress, counted by answerable sub-part (not whole question) */}
-                    {totalUnits > 0 && <span className="badge neutral" style={{ fontSize: 11.5 }}>{answeredUnits}/{totalUnits} answered</span>}
+                    {reportStats
+                      ? <span className="badge teal" style={{ fontSize: 11.5 }}>{reportStats.answered}/{reportStats.total} answered</span>
+                      : solveMode !== "handwritten" && totalUnits > 0 && <span className="badge neutral" style={{ fontSize: 11.5 }}>{answeredUnits}/{totalUnits} answered</span>}
                   </p>
                   <div className="flex gap-8 wrap items-center">
                     {practiceMode === "topic" && questionType === "structured" && (
@@ -1855,7 +2026,12 @@ function PracticeInner() {
               )}
             </div>
             <div className="flex items-center gap-12 wrap">
-              {solveMode === "digital" ? (
+              {reportStats ? (
+                <div className="flex items-center gap-8">
+                  <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{reportStats.answered}/{reportStats.total} answered</span>
+                  <div style={{ width: 72 }}><Bar value={reportStats.total ? Math.round((reportStats.answered / reportStats.total) * 100) : 0} tone="teal" height={6} /></div>
+                </div>
+              ) : solveMode === "digital" ? (
                 <div className="flex items-center gap-8">
                   <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{answeredUnits}/{totalUnits} answered</span>
                   <div style={{ width: 72 }}><Bar value={totalUnits ? Math.round((answeredUnits / totalUnits) * 100) : 0} tone="teal" height={6} /></div>
@@ -1881,8 +2057,8 @@ function PracticeInner() {
                   <Icon name="check_circle" size={16} />
                 </button>
               )}
-              <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || !hasAnyAnswer}
-                title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : "Mark this paper with AI"}>
+              <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || uploadBusy || !hasAnyAnswer}
+                title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : uploadBusy ? "Wait for the upload to finish" : "Mark this paper with AI"}>
                 {grading
                   ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
                   : <><Icon name="award" size={14} /> {report ? "Re-mark" : solveMode === "digital" && totalUnits > 0 ? `Submit for marking · ${answeredUnits}/${totalUnits}` : "Submit for marking"}</>}
@@ -1939,12 +2115,16 @@ function PracticeInner() {
                 </div>
               )}
             </div>
-          ) : practiceMode === "paper" && solveMode === "handwritten" ? (
-            /* handwritten: a clean upload-only workspace — no digital questions shown */
-            <HandwrittenStudio uploads={uploads} busy={uploadBusy}
-              onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
           ) : displayQuestions.length > 0 ? (
-            <>
+            <div ref={resultsRef} className="flex-col gap-16" style={{ display: "flex" }}>
+              {practiceMode === "paper" && solveMode === "handwritten" && (
+                <HandwrittenStudio uploads={uploads} busy={uploadBusy} progress={uploadProgress}
+                  questionCount={displayQuestions.length}
+                  onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
+              )}
+              {practiceMode === "paper" && solveMode === "handwritten" && report?.extraction && (
+                <ExtractionPanel extraction={report.extraction} />
+              )}
               {displayQuestions.map((question) => (
                 <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
                   mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
@@ -1968,7 +2148,7 @@ function PracticeInner() {
                   {loadingMore ? <><Icon name="refresh" size={16} className="spin" /> Loading…</> : `Load more (${questions.length} of ${topicTotal})`}
                 </button>
               )}
-            </>
+            </div>
           ) : (
             <div className="card">
               <EmptyState icon="search" title="No questions found" body="Try another topic, paper, or search term." />
@@ -2037,6 +2217,9 @@ function ReportModal({ report, meta, partsById, onClose }: {
             </div>
           </div>
 
+          {/* how the upload was read — only on handwritten attempts */}
+          {report.extraction && <ExtractionPanel extraction={report.extraction} />}
+
           {/* focus areas */}
           {report.improvements.length > 0 && (
             <div className="card card-pad" style={{ borderColor: "var(--amber-soft)" }}>
@@ -2072,6 +2255,99 @@ function ReportModal({ report, meta, partsById, onClose }: {
   );
 }
 
+/* ---- handwritten attempts: what we read, and what we couldn't ---- */
+function ExtractionPanel({ extraction }: { extraction: ExtractionSummary }) {
+  const problems = extraction.unreadableCount + extraction.notFoundCount;
+  const tone = extraction.paperMismatch || problems > 0
+    ? { border: "var(--coral-soft)", fg: "var(--coral-bright)", icon: "alert" as const }
+    : extraction.lowConfidenceCount > 0
+      ? { border: "var(--amber-soft)", fg: "var(--amber-deep)", icon: "alert" as const }
+      : { border: "var(--teal-soft)", fg: "var(--teal-deep)", icon: "check" as const };
+
+  const counts = [
+    { label: "Read clearly", value: extraction.readCount, fg: "var(--teal-deep)" },
+    { label: "Low confidence", value: extraction.lowConfidenceCount, fg: "var(--amber-deep)" },
+    { label: "Couldn't read", value: extraction.unreadableCount, fg: "var(--coral-bright)" },
+    { label: "Left blank", value: extraction.blankCount, fg: "var(--ink-faint)" },
+    { label: "Not on pages", value: extraction.notFoundCount, fg: "var(--ink-faint)" },
+  ].filter((entry) => entry.value > 0);
+
+  return (
+    <div className="card card-pad" style={{ borderColor: tone.border }}>
+      <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
+        <Icon name={tone.icon} size={16} style={{ color: tone.fg }} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>
+          Read from your upload · {extraction.pageCount} page{extraction.pageCount === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {counts.length > 0 && (
+        <div className="flex gap-8 wrap">
+          {counts.map((entry) => (
+            <span key={entry.label} style={{ padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+              color: entry.fg, background: "var(--surface-2)", whiteSpace: "nowrap" }}>
+              {entry.value} {entry.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {extraction.withheldMarks > 0 && (
+        <p style={{ fontSize: 13, lineHeight: 1.5, marginTop: 10, color: "var(--coral-bright)" }}>
+          <b>{extraction.withheldMarks} marks were not assessed</b> because those answers could not be read.
+          They are excluded from your score rather than counted as wrong — re-upload those pages more clearly to have them marked.
+        </p>
+      )}
+
+      {extraction.warnings.length > 0 && (
+        <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+          {extraction.warnings.map((warning, index) => (
+            <li key={index} style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-soft)" }}>{warning}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Per-question read-back so the student can check the marks against their script. */
+function ExtractionDetail({ q }: { q: GradedQuestion }) {
+  const flag = q.extractionFlag;
+  if (!flag || flag === "not_found") return null;
+
+  if (flag === "unreadable") {
+    return (
+      <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--coral-soft)" }}>
+        <Icon name="alert" size={14} style={{ color: "var(--coral-bright)", flex: "none", marginTop: 1 }} />
+        <span style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--coral-bright)" }}>
+          <b>Not marked —</b> we could not read this answer{q.extractionNote ? ` (${q.extractionNote})` : ""}. Its marks are excluded from your score.
+        </span>
+      </div>
+    );
+  }
+  if (flag === "blank") return null;
+  if (!q.extractedAnswer) return null;
+
+  const low = flag === "low_confidence";
+  const pct = q.extractionConfidence != null ? Math.round(q.extractionConfidence * 100) : null;
+  return (
+    <details style={{ marginTop: 8, borderRadius: 10, border: `1px solid ${low ? "var(--amber-soft)" : "var(--line)"}`,
+      background: low ? "var(--amber-soft)" : "var(--surface-2)", padding: "8px 11px" }}>
+      <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: low ? "var(--amber-deep)" : "var(--ink-soft)" }}>
+        {low ? "Check what we read — unclear handwriting" : "What we read from your page"}
+        {pct != null && <span style={{ fontWeight: 500 }}> · {pct}% confidence</span>}
+        {q.extractionPages?.length ? <span style={{ fontWeight: 500 }}> · page {q.extractionPages.join(", ")}</span> : null}
+      </summary>
+      <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{q.extractedAnswer}</p>
+      {low && (
+        <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.45, color: "var(--amber-deep)" }}>
+          This was marked on the reading above. If it does not match what you wrote, re-upload a clearer photo of this page.
+        </p>
+      )}
+    </details>
+  );
+}
+
 function MarkBreakdown({ items }: { items: MarkCategory[] }) {
   return (
     <div className="flex gap-8 wrap" style={{ marginTop: 8 }}>
@@ -2098,48 +2374,73 @@ function MarkBreakdown({ items }: { items: MarkCategory[] }) {
 type PartScore = { label: string; earned: number; max: number };
 const normPartLabel = (value: string) => (value || "").trim().toLowerCase().replace(/\s+/g, "");
 
-function AnswerRow({ part, score }: { part: PracticePart; score?: PartScore }) {
+function AnswerRow({ part, score, hideLabel }: { part: PracticePart; score?: PartScore; hideLabel?: boolean }) {
   const text = (part.answer || "").trim();
+  const label = hideLabel ? "" : (part.label || "Answer");
   return (
     <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--amber-deep)" }}>
-      <div className="flex items-baseline" style={{ justifyContent: "space-between", gap: 8 }}>
-        <span style={{ fontWeight: 700 }}>{part.label || "Answer"}</span>
-        {score && <span style={{ flex: "none", fontWeight: 700 }}>{score.earned} / {score.max}</span>}
-      </div>
-      <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{text}</p>
+      {(label || score) && (
+        <div className="flex items-baseline" style={{ justifyContent: "space-between", gap: 8 }}>
+          {label ? <span style={{ fontWeight: 700 }}>{label}</span> : <span />}
+          {score && <span style={{ flex: "none", fontWeight: 700 }}>{score.earned} / {score.max}</span>}
+        </div>
+      )}
+      {text && <p style={{ margin: label || score ? "2px 0 0" : 0, whiteSpace: "pre-wrap" }}>{text}</p>}
     </div>
   );
 }
 
-function ModelAnswers({ parts, partScores }: { parts: PracticePart[]; partScores?: PartScore[] }) {
-  const [open, setOpen] = useState(false);
-  const answered = useMemo(
-    () => parts.filter((p) => p.answer && p.answer.trim() && !isHeaderPart(parts, p.label)),
-    [parts],
-  );
+function ModelAnswers({ parts = [], partScores, fallbackPoints, fallbackScore }: {
+  parts?: PracticePart[];
+  partScores?: PartScore[];
+  /** examiner-generated model answer, used when the bank has no part answers */
+  fallbackPoints?: string[];
+  fallbackScore?: PartScore;
+}) {
+  const [open, setOpen] = useState(true);
   const scoreByLabel = useMemo(() => {
     const map = new Map<string, PartScore>();
     for (const s of partScores ?? []) map.set(normPartLabel(s.label), s);
     return map;
   }, [partScores]);
-  if (answered.length === 0) return null;
-  const single = answered.length === 1;
-  const show = single || open;
+  const fromBank = useMemo(
+    () => parts.filter((p) => {
+      if (isHeaderPart(parts, p.label)) return false;
+      return Boolean((p.answer || "").trim()) || scoreByLabel.has(normPartLabel(p.label));
+    }),
+    [parts, scoreByLabel],
+  );
+  const rows: PracticePart[] = fromBank.length
+    ? fromBank
+    : (fallbackPoints?.length
+      ? [{ label: "", body: "", marks: fallbackScore?.max ?? null, answer: fallbackPoints.join("\n") }]
+      : []);
+  if (rows.length === 0) return null;
+  const toggleLabel = open
+    ? "Hide"
+    : rows.length === 1
+      ? "Show answer"
+      : `Show answers · ${rows.length} parts`;
   return (
     <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: "9px 11px" }}>
-      <div className="row-between" style={{ gap: 8, alignItems: "center", cursor: single ? "default" : "pointer" }}
-        onClick={single ? undefined : () => setOpen((v) => !v)}>
+      <div className="row-between" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}
+        onClick={() => setOpen((v) => !v)}>
         <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>Answers</span>
-        {!single && (
-          <button onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} className="btn btn-ghost btn-sm"
-            style={{ padding: "2px 8px", fontSize: 11.5, color: "var(--amber-deep)", whiteSpace: "nowrap" }}>
-            <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {open ? "Hide" : `Show answers · ${answered.length} parts`}
-          </button>
-        )}
+        <button type="button" onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} className="btn btn-ghost btn-sm"
+          aria-expanded={open} style={{ padding: "2px 8px", fontSize: 11.5, color: "var(--amber-deep)", whiteSpace: "nowrap" }}>
+          <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {toggleLabel}
+        </button>
       </div>
-      {show && (
+      {open && (
         <div className="flex-col" style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          {answered.map((part, index) => <AnswerRow key={index} part={part} score={scoreByLabel.get(normPartLabel(part.label))} />)}
+          {rows.map((part, index) => (
+            <AnswerRow
+              key={index}
+              part={part}
+              hideLabel={!part.label}
+              score={scoreByLabel.get(normPartLabel(part.label)) || (fromBank.length === 0 ? fallbackScore : undefined)}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -2148,13 +2449,29 @@ function ModelAnswers({ parts, partScores }: { parts: PracticePart[]; partScores
 
 function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePart[] }) {
   const tone = verdictColor(q.verdict);
+  // A withheld question was never assessed, so showing "0 / 6" would read as a
+  // zero the student earned. Show the marks as unassessed instead.
+  const withheld = q.marksWithheld === true;
   return (
-    <div className="card card-pad" style={{ padding: 14 }}>
+    <div className="card card-pad" style={{ padding: 14, ...(withheld ? { borderColor: "var(--coral-soft)" } : {}) }}>
       <div className="row-between" style={{ gap: 10, alignItems: "flex-start" }}>
         <div className="flex items-center gap-8 wrap" style={{ minWidth: 0 }}>
           <span className="chip-tag badge neutral" style={{ flex: "none" }}>Q{q.questionNumber}</span>
-          <span style={{ padding: "2px 9px", borderRadius: 99, fontSize: 12, fontWeight: 600, color: tone.fg, background: tone.bg, whiteSpace: "nowrap" }}>{tone.label}</span>
-          {q.gradingSource !== "deterministic" && (
+          <span style={{ padding: "2px 9px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+            color: withheld ? "var(--coral-bright)" : tone.fg, background: withheld ? "var(--coral-soft)" : tone.bg, whiteSpace: "nowrap" }}>
+            {withheld ? (
+              q.extractionFlag === "not_found" ? "Not found"
+              : q.extractionFlag === "unreadable" ? "Couldn't read"
+              : "Marking failed"
+            ) : tone.label}
+          </span>
+          {q.extractionFlag === "low_confidence" && (
+            <span title="Read from unclear handwriting — check the transcription below"
+              style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", color: "var(--amber-deep)", background: "var(--amber-soft)" }}>
+              Unclear handwriting
+            </span>
+          )}
+          {!withheld && q.gradingSource !== "deterministic" && (
             <span title={q.schemeUsed ? "Marked against this paper's official marking scheme" : "No scheme on file — marked by AI as an examiner"}
               style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
                 color: q.schemeUsed ? "var(--teal-deep)" : "var(--ink-soft)", background: q.schemeUsed ? "var(--teal-soft)" : "var(--surface-2)" }}>
@@ -2167,13 +2484,22 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
             </span>
           )}
         </div>
-        <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", color: tone.fg }}>{q.earned} / {q.max}</span>
+        <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", color: withheld ? "var(--coral-bright)" : tone.fg }}>
+          {withheld ? `— / ${q.max}` : `${q.earned} / ${q.max}`}
+        </span>
       </div>
       <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
+      {/* handwritten attempts: the transcription this mark was based on */}
+      <ExtractionDetail q={q} />
       {/* Phase 1 — marks breakdown by assessment objective */}
       {q.breakdown && q.breakdown.length > 0 && <MarkBreakdown items={q.breakdown} />}
-      {/* Answers — full model answer per part with the marks awarded (dropdown) */}
-      {parts && parts.length > 0 && <ModelAnswers parts={parts} partScores={q.partScores} />}
+      {/* Answers — official scheme when on file, otherwise the examiner's model answer */}
+      <ModelAnswers
+        parts={parts}
+        partScores={q.partScores}
+        fallbackPoints={q.expectedPoints}
+        fallbackScore={{ label: "Answer", earned: q.earned, max: q.max }}
+      />
       {/* Phase 3 — command-word coach */}
       {q.commandWordNote && (
         <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--purple-soft)" }}>
@@ -2193,12 +2519,15 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
 }
 
 /* ---- handwritten workspace: upload-only, replaces the digital paper ---- */
-function HandwrittenStudio({ uploads, busy, onFiles, onRemove }: {
+function HandwrittenStudio({ uploads, busy, progress, questionCount, onFiles, onRemove }: {
   uploads: PracticeUpload[]; busy: boolean;
+  progress: { current: number; total: number; name: string } | null;
+  questionCount?: number;
   onFiles: (files: FileList | null) => void; onRemove: (path: string) => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
   return (
     <div className="flex-col gap-14" style={{ display: "flex", alignItems: "center" }}>
       {/* medium dotted upload rectangle */}
@@ -2212,24 +2541,43 @@ function HandwrittenStudio({ uploads, busy, onFiles, onRemove }: {
           border: `2px dashed ${dragging ? "var(--crimson)" : "var(--line-strong)"}`,
           background: dragging ? "var(--crimson-soft)" : "var(--surface)", transition: "all .15s" }}
       >
-        <input ref={inputRef} type="file" accept="image/*,application/pdf" multiple style={{ display: "none" }} disabled={busy}
+        <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT_ATTR} multiple style={{ display: "none" }} disabled={busy}
           onChange={(e) => { onFiles(e.target.files); e.currentTarget.value = ""; }} />
         <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--crimson-soft)", color: "var(--crimson)", display: "grid", placeItems: "center", marginBottom: 12 }}>
           <Icon name={busy ? "refresh" : "upload"} size={22} className={busy ? "spin" : ""} />
         </div>
         <div style={{ fontWeight: 600, fontSize: 15 }}>{busy ? "Uploading…" : "Upload handwritten answers"}</div>
-        <div className="faint" style={{ fontSize: 12.5, marginTop: 4 }}>
-          Drag &amp; drop or <span style={{ color: "var(--crimson)", fontWeight: 600 }}>browse</span>
-        </div>
-        <div className="faint" style={{ fontSize: 11.5, marginTop: 8 }}>JPG, PNG or PDF · maximum 15 MB per file</div>
+        {busy && progress ? (
+          <div style={{ width: "100%", maxWidth: 300, marginTop: 8 }}>
+            <div className="faint" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {progress.name} · {progress.current} of {progress.total}
+            </div>
+            <div className="bar" style={{ height: 5, marginTop: 6 }}><i style={{ width: `${pct}%`, background: "var(--crimson)" }} /></div>
+          </div>
+        ) : (
+          <>
+            <div className="faint" style={{ fontSize: 12.5, marginTop: 4 }}>
+              Drag &amp; drop or <span style={{ color: "var(--crimson)", fontWeight: 600 }}>browse</span>
+            </div>
+            <div className="faint" style={{ fontSize: 11.5, marginTop: 8 }}>JPG, PNG or multi-page PDF · maximum 15 MB per file</div>
+          </>
+        )}
       </div>
+
+      {/* reading these answers depends entirely on scan quality — say so up front */}
+      <p className="faint" style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 460, textAlign: "center", margin: 0 }}>
+        {questionCount ? `This paper has ${questionCount} question${questionCount === 1 ? "" : "s"}. ` : ""}
+        Write the question number next to each answer, and upload pages in order.
+        Flat, well-lit, in-focus pages read most accurately — anything we cannot
+        read is flagged rather than guessed at.
+      </p>
 
       {/* uploaded files — compact list */}
       {uploads.length > 0 && (
         <div className="flex-col" style={{ display: "flex", gap: 6, width: "100%", maxWidth: 460 }}>
           {uploads.map((file) => (
             <div key={file.path} className="flex items-center gap-10" style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
-              <Icon name="file_text" size={16} style={{ color: "var(--crimson)", flex: "none" }} />
+              <Icon name={file.type === "application/pdf" ? "file_text" : "camera"} size={16} style={{ color: "var(--crimson)", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
               <span className="faint" style={{ fontSize: 11.5, flex: "none" }}>{Math.max(1, Math.round(file.size / 1024))} KB</span>
               {file.url && (
@@ -2237,12 +2585,15 @@ function HandwrittenStudio({ uploads, busy, onFiles, onRemove }: {
                   <Icon name="eye" size={14} /> View
                 </a>
               )}
-              <button className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => onRemove(file.path)}
+              <button className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => onRemove(file.path)} disabled={busy}
                 style={{ width: 28, height: 28, flex: "none" }}>
                 <Icon name="x" size={14} />
               </button>
             </div>
           ))}
+          <div className="faint" style={{ fontSize: 11.5, textAlign: "right" }}>
+            {uploads.length} of {MAX_UPLOAD_FILES} files
+          </div>
         </div>
       )}
     </div>

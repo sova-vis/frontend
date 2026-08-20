@@ -7,6 +7,7 @@
    ============================================================ */
 
 import type { GradedQuestion } from "./practiceProgress";
+import { clerkFetch, resolveClerkToken, type GetTokenFn } from "./clerkToken";
 
 export type AttemptVerdict = "correct" | "partial" | "weak" | "unanswered" | "incorrect";
 
@@ -42,8 +43,6 @@ export interface QuestionMeta {
   marks?: number | null;
   correctOption?: string | null;
 }
-
-type GetTokenFn = () => Promise<string | null>;
 
 const STORAGE_KEY = "propel_attempts";
 
@@ -371,10 +370,10 @@ export async function loadPatterns(getToken?: GetTokenFn, refresh = false): Prom
   const headers = await authHeader(getToken);
   if (!headers) return null;
   try {
-    const res = await fetch(`${apiBase()}/insights/patterns${refresh ? "?refresh=1" : ""}`, {
+    const res = await clerkFetch(`${apiBase()}/insights/patterns${refresh ? "?refresh=1" : ""}`, {
       method: refresh ? "POST" : "GET",
       headers,
-    });
+    }, getToken);
     if (!res.ok) return null;
     return (await res.json()) as PatternResult;
   } catch { return null; }
@@ -397,25 +396,29 @@ function writeLocal(items: Attempt[]) {
 }
 
 async function authHeader(getToken?: GetTokenFn): Promise<Record<string, string> | null> {
-  if (!getToken) return null;
-  try { const t = await getToken(); return t ? { Authorization: `Bearer ${t}` } : null; } catch { return null; }
+  const t = await resolveClerkToken(getToken);
+  return t ? { Authorization: `Bearer ${t}` } : null;
 }
 
 /** Persist a batch of attempts (fire-and-forget friendly); updates local mirror. */
 export async function logAttempts(records: Attempt[], getToken?: GetTokenFn): Promise<void> {
   if (!records.length) return;
   writeLocal([...records, ...readLocal()]);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("propel:attempts-change"));
   const headers = await authHeader(getToken);
   if (!headers) return;
   try {
-    const res = await fetch(`${apiBase()}/insights/attempts`, {
+    const res = await clerkFetch(`${apiBase()}/insights/attempts`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ items: records }),
-    });
+    }, getToken);
     if (res.ok) {
       const payload = (await res.json()) as { items?: Attempt[] };
-      if (Array.isArray(payload.items)) writeLocal(payload.items);
+      if (Array.isArray(payload.items)) {
+        writeLocal(payload.items);
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("propel:attempts-change"));
+      }
     }
   } catch {}
 }
@@ -431,7 +434,7 @@ export async function loadAttempts(getToken?: GetTokenFn): Promise<Attempt[]> {
   const headers = await authHeader(getToken);
   if (!headers) return local;
   try {
-    const res = await fetch(`${apiBase()}/insights/attempts`, { headers });
+    const res = await clerkFetch(`${apiBase()}/insights/attempts`, { headers }, getToken);
     if (!res.ok) return local;
     const payload = (await res.json()) as { items?: Attempt[] };
     if (!Array.isArray(payload.items)) return local;

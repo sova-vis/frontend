@@ -11,7 +11,7 @@ export interface TrackedPaper {
   statuses: PaperStatus[];
 }
 
-type GetTokenFn = () => Promise<string | null>;
+import { clerkFetch, resolveClerkToken, type GetTokenFn } from "./clerkToken";
 
 const STORAGE_KEY = "propel_paper_states";
 const LEGACY_BOOKMARKS_KEY = "propel_bookmarks";
@@ -118,16 +118,13 @@ export async function loadTrackedPapersForUser(getToken?: GetTokenFn): Promise<T
   if (!getToken) return local;
 
   try {
-    const token = await getToken();
+    const token = await resolveClerkToken(getToken);
     if (!token) return local;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const response = await fetch(`${baseUrl}/tracking/papers`, {
+    const response = await clerkFetch(`${baseUrl}/tracking/papers`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    }, getToken);
 
     if (!response.ok) return local;
 
@@ -155,21 +152,19 @@ export async function saveTrackedPapersForUser(
   if (!getToken) return;
 
   try {
-    const token = await getToken();
+    const token = await resolveClerkToken(getToken);
     if (!token) return;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    await fetch(`${baseUrl}/tracking/papers`, {
+    await clerkFetch(`${baseUrl}/tracking/papers`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: sanitized }),
-    });
+    }, getToken);
   } catch {
     // Keep local state as fallback if remote persistence fails.
   }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("propel:tracking-change"));
 }
 
 export function toggleTrackedStatus(
@@ -219,4 +214,52 @@ export function toggleTrackedStatus(
 
 export function clearTrackedPaper(items: TrackedPaper[], id: string): TrackedPaper[] {
   return items.filter((item) => item.id !== id);
+}
+
+/**
+ * Add a status if it is not already present (does not toggle off). Completing a
+ * paper clears "in progress". Used when Practice grading should update the same
+ * tracking the Papers library uses — dashboard "Papers solved", goals, etc.
+ */
+export function applyTrackedStatus(
+  items: TrackedPaper[],
+  paper: Omit<TrackedPaper, "savedAt" | "statuses">,
+  status: PaperStatus,
+): TrackedPaper[] {
+  const next = [...items];
+  const targetIndex = next.findIndex((item) => item.id === paper.id);
+  const now = new Date().toISOString();
+
+  if (targetIndex === -1) {
+    next.unshift({ ...paper, savedAt: now, statuses: [status] });
+    return next;
+  }
+
+  const target = next[targetIndex];
+  const statusSet = new Set<PaperStatus>(target.statuses);
+  if (status === "in_progress" && statusSet.has("completed")) return next;
+  statusSet.add(status);
+  if (status === "completed") statusSet.delete("in_progress");
+
+  next[targetIndex] = { ...target, ...paper, savedAt: now, statuses: Array.from(statusSet) };
+  return next;
+}
+
+/** Record that a practice paper was started or marked, using the existing tracking store. */
+export async function syncPracticePaperTracking(
+  meta: { paperKey: string; subject: string; year: string; session: string; paper: string; variant: string },
+  status: Extract<PaperStatus, "in_progress" | "completed">,
+  getToken?: GetTokenFn,
+): Promise<void> {
+  const un = (value: string) => value.replace(/_/g, " ");
+  const name = [meta.subject, meta.year, un(meta.session), un(meta.paper), un(meta.variant).replace(/^Variant /, "V")]
+    .filter(Boolean)
+    .join(" · ");
+  const current = await loadTrackedPapersForUser(getToken);
+  const next = applyTrackedStatus(current, {
+    id: `practice:${meta.paperKey}`,
+    name,
+    type: meta.paper || "Paper",
+  }, status);
+  await saveTrackedPapersForUser(next, getToken);
 }

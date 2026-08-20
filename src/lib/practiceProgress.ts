@@ -6,6 +6,8 @@
    mirrored to localStorage as an offline fallback.
    ============================================================ */
 
+import { clerkFetch, resolveClerkToken, isClerkTokenFresh, type GetTokenFn } from "./clerkToken";
+
 export type SolveMode = "digital" | "handwritten";
 export type PracticeStatus = "in_progress" | "completed";
 
@@ -25,6 +27,16 @@ export interface MarkCategory {
   max: number;
 }
 
+/**
+ * How well a handwritten answer could be read off the uploaded page.
+ *   ok             — read cleanly, graded normally
+ *   low_confidence — read but uncertain; graded AND flagged for the student
+ *   unreadable     — illegible; NOT graded, marks withheld from the score
+ *   blank          — genuinely left unanswered
+ *   not_found      — question number never appeared on any uploaded page
+ */
+export type ExtractionFlag = "ok" | "low_confidence" | "unreadable" | "blank" | "not_found";
+
 export interface GradedQuestion {
   id: string;
   questionNumber: string;
@@ -35,6 +47,18 @@ export interface GradedQuestion {
   expectedPoints: string[];
   missingPoints: string[];
   gradingSource: "deterministic" | "grok" | "grok-vision";
+  /** ---- handwritten-upload provenance (absent on typed attempts) ---- */
+  /** what the vision pass read, so the student can check it against their script */
+  extractedAnswer?: string;
+  extractionConfidence?: number;
+  extractionFlag?: ExtractionFlag;
+  /** 1-based uploaded page numbers this answer was found on */
+  extractionPages?: number[];
+  extractionNote?: string;
+  /** true when marks were withheld because the answer could not be read */
+  marksWithheld?: boolean;
+  /** true when scoring failed (API/model error), distinct from unreadable handwriting */
+  gradingFailed?: boolean;
   /** true when a marking scheme was matched; false = examiner-judgement fallback */
   schemeUsed?: boolean;
   /** marks earned vs available per assessment objective (Knowledge/Explanation/Evaluation) */
@@ -45,6 +69,25 @@ export interface GradedQuestion {
   examinerNote?: string;
   /** per sub-part awarded marks (earned vs available), labelled to the scheme parts */
   partScores?: { label: string; earned: number; max: number }[];
+  /** transcribed sub-parts, same keys the typed "Solve here" flow uses */
+  extractedParts?: Record<string, string>;
+  /** transcribed MCQ option letter */
+  extractedOption?: string | null;
+}
+
+/** Summary of the read step, shown to the student on handwritten attempts. */
+export interface ExtractionSummary {
+  pageCount: number;
+  readCount: number;
+  lowConfidenceCount: number;
+  unreadableCount: number;
+  blankCount: number;
+  notFoundCount: number;
+  /** marks not awarded because the answer could not be read */
+  withheldMarks: number;
+  warnings: string[];
+  paperMismatch: boolean;
+  visionModel: string;
 }
 
 export interface PracticeReport {
@@ -59,6 +102,8 @@ export interface PracticeReport {
   solveMode: SolveMode;
   model: string;
   gradedAt: string;
+  /** present only for handwritten attempts */
+  extraction?: ExtractionSummary;
 }
 
 export interface PracticeProgress {
@@ -81,8 +126,6 @@ export interface PracticeProgress {
   startedAt: string;
   updatedAt: string;
 }
-
-type GetTokenFn = () => Promise<string | null>;
 
 const STORAGE_KEY = "propel_practice_progress";
 
@@ -113,6 +156,24 @@ export function prettyPaperName(p: Pick<PracticeProgress, "subject" | "year" | "
     .join(" · ");
 }
 
+/** A question counts as attempted once the student wrote something (or we tried to read it). */
+export function questionWasAttempted(q: GradedQuestion): boolean {
+  if (q.extractionFlag === "blank" || q.extractionFlag === "not_found") return false;
+  if (q.marksWithheld) return true;
+  if (q.verdict === "unanswered" && !q.extractedAnswer) return false;
+  return true;
+}
+
+export function reportAnswerStats(report: PracticeReport | null | undefined): { answered: number; total: number; earned: number; max: number } | null {
+  if (!report?.perQuestion?.length) return null;
+  return {
+    answered: report.perQuestion.filter(questionWasAttempted).length,
+    total: report.perQuestion.length,
+    earned: report.earned,
+    max: report.total,
+  };
+}
+
 export function progressPercent(p: PracticeProgress): number {
   if (p.status === "completed") return 100;
   if (p.solveMode === "handwritten") return p.uploads.length > 0 ? 60 : 5;
@@ -140,22 +201,33 @@ function writeLocal(map: Record<string, PracticeProgress>): void {
   } catch {}
 }
 
+let practiceNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+function notifyPracticeChange(): void {
+  if (typeof window === "undefined") return;
+  if (practiceNotifyTimer) clearTimeout(practiceNotifyTimer);
+  practiceNotifyTimer = setTimeout(() => {
+    practiceNotifyTimer = null;
+    window.dispatchEvent(new Event("propel:practice-change"));
+  }, 250);
+}
+
 function mirrorItem(item: PracticeProgress): void {
   const map = readLocal();
   map[item.paperKey] = item;
   writeLocal(map);
+  notifyPracticeChange();
+}
+
+/** Keep the local session mirror in sync after a grade (dashboard resume / marked papers). */
+export function rememberPracticeProgress(item: PracticeProgress): void {
+  mirrorItem(item);
 }
 
 /* ---------------- API calls ---------------- */
 
-async function authHeader(getToken?: GetTokenFn): Promise<Record<string, string> | null> {
-  if (!getToken) return null;
-  try {
-    const token = await getToken();
-    return token ? { Authorization: `Bearer ${token}` } : null;
-  } catch {
-    return null;
-  }
+async function authHeader(getToken?: GetTokenFn, force = false): Promise<Record<string, string> | null> {
+  const token = await resolveClerkToken(getToken, force ? { force: true } : undefined);
+  return token ? { Authorization: `Bearer ${token}` } : null;
 }
 
 /** Synchronous read of the local mirror, newest first — for instant first paint. */
@@ -170,7 +242,7 @@ export async function loadPracticeProgressList(getToken?: GetTokenFn): Promise<P
   if (!headers) return local;
 
   try {
-    const response = await fetch(`${apiBase()}/practice/progress`, { headers });
+    const response = await clerkFetch(`${apiBase()}/practice/progress`, { headers }, getToken);
     if (!response.ok) return local;
     const payload = (await response.json()) as { items?: PracticeProgress[] };
     if (!Array.isArray(payload.items)) return local;
@@ -192,17 +264,26 @@ export async function savePracticeProgress(
   mirrorItem(doc);
   const headers =
     options?.tokenOverride != null
-      ? { Authorization: `Bearer ${options.tokenOverride}` }
+      ? (isClerkTokenFresh(options.tokenOverride, 0)
+        ? { Authorization: `Bearer ${options.tokenOverride}` }
+        : null)
       : await authHeader(getToken);
   if (!headers) return doc;
 
-  try {
-    const response = await fetch(`${apiBase()}/practice/progress/${encodeURIComponent(doc.paperKey)}`, {
+  const put = (auth: Record<string, string>, keepalive?: boolean) =>
+    clerkFetch(`${apiBase()}/practice/progress/${encodeURIComponent(doc.paperKey)}`, {
       method: "PUT",
-      headers: { ...headers, "Content-Type": "application/json" },
+      headers: { ...auth, "Content-Type": "application/json" },
       body: JSON.stringify(doc),
-      keepalive: options?.keepalive,
-    });
+      keepalive,
+    }, getToken);
+
+  try {
+    let response = await put(headers, options?.keepalive);
+    if (response.status === 401 && !options?.keepalive) {
+      const retryHeaders = await authHeader(getToken, true);
+      if (retryHeaders) response = await put(retryHeaders);
+    }
     if (!response.ok) return doc;
     const payload = (await response.json()) as { item?: PracticeProgress };
     if (payload.item) {
@@ -217,11 +298,12 @@ export async function deletePracticeProgress(paperKey: string, getToken?: GetTok
   const map = readLocal();
   delete map[paperKey];
   writeLocal(map);
+  notifyPracticeChange();
 
   const headers = await authHeader(getToken);
   if (!headers) return;
   try {
-    await fetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}`, { method: "DELETE", headers });
+    await clerkFetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}`, { method: "DELETE", headers }, getToken);
   } catch {}
 }
 
@@ -231,15 +313,27 @@ export async function uploadPracticeFile(
   file: File,
   getToken?: GetTokenFn,
 ): Promise<PracticeProgress | null> {
-  const headers = await authHeader(getToken);
-  if (!headers) return null;
-  const body = new FormData();
-  body.append("file", file, file.name);
-  const response = await fetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}/uploads`, {
-    method: "POST",
-    headers,
-    body,
-  });
+  const send = async (force = false) => {
+    const token = await resolveClerkToken(getToken, force ? { force: true } : undefined);
+    if (!token) return { token: null, response: null as Response | null };
+    const body = new FormData();
+    body.append("file", file, file.name);
+    const response = await fetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}/uploads`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    });
+    return { token, response };
+  };
+
+  let result = await send(false);
+  if (!result.token) throw new Error("Please sign in to upload your paper.");
+  if (result.response.status === 401) {
+    const retry = await send(true);
+    if (retry.response) result = retry;
+  }
+  const response = result.response;
+  if (!response) throw new Error("Upload failed");
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Upload failed");
@@ -256,11 +350,11 @@ export async function removePracticeUpload(
 ): Promise<PracticeProgress | null> {
   const headers = await authHeader(getToken);
   if (!headers) return null;
-  const response = await fetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}/uploads`, {
+  const response = await clerkFetch(`${apiBase()}/practice/progress/${encodeURIComponent(paperKey)}/uploads`, {
     method: "DELETE",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
-  });
+  }, getToken);
   if (!response.ok) return null;
   const payload = (await response.json()) as { item?: PracticeProgress };
   if (payload.item) mirrorItem(payload.item);

@@ -40,11 +40,18 @@ export default function PlannerPage() {
   // Selected subjects + attempts
   useEffect(() => {
     const readSubjects = () => setSubjects(loadSelectedSubjects().map((s) => s.name));
+    const onAttempts = () => {
+      setAttempts(loadAttemptsLocal());
+      loadAttempts(getToken).then(setAttempts).catch(() => {});
+    };
     readSubjects();
-    setAttempts(loadAttemptsLocal());
-    loadAttempts(() => getToken()).then(setAttempts).catch(() => {});
+    onAttempts();
     window.addEventListener("propel:selected-subjects-change", readSubjects);
-    return () => window.removeEventListener("propel:selected-subjects-change", readSubjects);
+    window.addEventListener("propel:attempts-change", onAttempts);
+    return () => {
+      window.removeEventListener("propel:selected-subjects-change", readSubjects);
+      window.removeEventListener("propel:attempts-change", onAttempts);
+    };
   }, [getToken]);
 
   // Saved config

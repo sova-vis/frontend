@@ -46,7 +46,7 @@ export default function UploadCheckPage() {
         setSubjects((data.subjects ?? []).map((s) => s.name));
       } catch { setSubjects([]); }
     })();
-    loadUploadCheckHistory(() => getToken()).then(setHistory);
+    loadUploadCheckHistory(getToken).then(setHistory);
   }, [getToken]);
 
   // cycle the loading captions while marking

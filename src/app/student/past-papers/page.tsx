@@ -7,7 +7,7 @@ import { useAuth } from "@clerk/nextjs";
 import { apiCall, getApiUrl } from "@/lib/api";
 import { LEVEL_LABEL, PaperLevel, usePaperLevel } from "@/lib/paperLevel";
 import {
-  PaperStatus, TrackedPaper, loadTrackedPapersForUser, saveTrackedPapersForUser, toggleTrackedStatus,
+  PaperStatus, TrackedPaper, loadTrackedPapers, loadTrackedPapersForUser, saveTrackedPapersForUser, toggleTrackedStatus,
 } from "@/lib/paperTracking";
 import { Icon } from "@/components/propel/Icon";
 import { SubjGlyph, EmptyState, ToastProvider, useToast } from "@/components/propel/primitives";
@@ -167,7 +167,12 @@ function PapersInner() {
   useEffect(() => {
     let active = true;
     loadTrackedPapersForUser(getToken).then((items) => active && setTracked(items));
-    return () => { active = false; };
+    const onChange = () => setTracked(loadTrackedPapers());
+    window.addEventListener("propel:tracking-change", onChange);
+    return () => {
+      active = false;
+      window.removeEventListener("propel:tracking-change", onChange);
+    };
   }, [getToken]);
 
   // Show only the subjects the student has chosen. Fall back to the full library

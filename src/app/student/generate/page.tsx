@@ -10,7 +10,7 @@ import { clockLabel } from "@/lib/paperDurations";
 import { gradeOneQuestion, verdictColor, GradeQuestionInput } from "@/lib/practiceGrading";
 import { GradedQuestion } from "@/lib/practiceProgress";
 import { GenQuestion, GeneratedPaper, generatePaper } from "@/lib/paperGenerator";
-import { Attempt, loadAttempts, weakestTopics, attemptFromMcq, attemptFromGraded, logAttempts } from "@/lib/insights";
+import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, attemptFromMcq, attemptFromGraded, logAttempts } from "@/lib/insights";
 
 const TIME_OPTIONS = [30, 45, 60, 90];
 
@@ -36,7 +36,11 @@ export default function GeneratePage() {
   useEffect(() => {
     fetch("/api/paper-practice").then((r) => (r.ok ? r.json() : { subjects: [] }))
       .then((d) => setSubjects((d.subjects ?? []).map((s: { name: string }) => s.name))).catch(() => {});
-    loadAttempts(() => getToken()).then(setAttempts);
+    const load = () => { loadAttempts(getToken).then(setAttempts); };
+    load();
+    const onChange = () => { setAttempts(loadAttemptsLocal()); load(); };
+    window.addEventListener("propel:attempts-change", onChange);
+    return () => window.removeEventListener("propel:attempts-change", onChange);
   }, [getToken]);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);

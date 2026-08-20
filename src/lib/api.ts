@@ -1,6 +1,8 @@
 /**
  * Helper to get the API base URL from environment or fallback to localhost
  */
+import { resolveClerkToken } from "./clerkToken";
+
 export function getApiUrl(): string {
   if (typeof window !== "undefined") {
     // Client-side
@@ -23,16 +25,26 @@ export async function apiCall(
   const baseUrl = getApiUrl();
   const url = `${baseUrl}${endpoint}`;
   const headers = new Headers(options?.headers || {});
-  if (!headers.has("Authorization") && typeof window !== "undefined") {
+  const callerSetAuth = headers.has("Authorization");
+  if (!callerSetAuth && typeof window !== "undefined") {
     try {
-      const clerk = (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }).Clerk;
-      const token = clerk?.session ? await clerk.session.getToken() : null;
+      const token = await resolveClerkToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
     } catch {
       // no session yet — request goes out unauthenticated and the route decides
     }
   }
-  return fetch(url, { ...options, headers });
+  const first = await fetch(url, { ...options, headers });
+  if (first.status !== 401 || callerSetAuth || typeof window === "undefined") return first;
+
+  const retryHeaders = new Headers(options?.headers || {});
+  try {
+    const token = await resolveClerkToken(undefined, { force: true });
+    if (token) retryHeaders.set("Authorization", `Bearer ${token}`);
+  } catch {
+    return first;
+  }
+  return fetch(url, { ...options, headers: retryHeaders });
 }
 
 export interface QaGradingRequest {
