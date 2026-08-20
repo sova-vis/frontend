@@ -185,7 +185,7 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
           >
             {[
               ["12k+", "answers marked"],
-              ["50+", "past paper years"],
+              ["15+", "past paper years"],
               ["100%", "marks explained"],
             ].map(([n, l]) => (
               <div key={l} className="flex items-baseline gap-2">

@@ -208,8 +208,8 @@ function HomePageContent() {
 
   const stats = [
     { to: 12000, suffix: "+", label: "Answers marked" },
-    { to: 50, suffix: "+", label: "Paper years" },
-    { to: 16, suffix: "+", label: "Subjects covered" },
+    { to: 15, suffix: "+", label: "Paper years" },
+    { to: 20, suffix: "+", label: "Subjects covered" },
     { to: 100, suffix: "%", label: "Marks explained" },
   ];
 
@@ -457,12 +457,12 @@ function HomePageContent() {
                   </div>
                   <div className="mt-6 flex items-center gap-5 border-t border-line pt-5 text-sm">
                     <span className="flex items-baseline gap-1.5">
-                      <b className="font-display text-xl font-semibold text-ink">{subjectsByLevel[lvl.key].length}</b>
+                      <b className="font-display text-xl font-semibold text-ink">20+</b>
                       <span className="text-ink-faint">subjects</span>
                     </span>
                     <span className="flex items-baseline gap-1.5">
-                      <b className="font-display text-xl font-semibold text-ink">50+</b>
-                      <span className="text-ink-faint">paper years</span>
+                      <b className="font-display text-xl font-semibold text-ink">15+</b>
+                      <span className="text-ink-faint">years of past papers</span>
                     </span>
                   </div>
                 </motion.div>
