@@ -367,13 +367,13 @@ function HomePageContent() {
       />
 
       {/* Subject ribbon marquee */}
-      <section aria-hidden className="relative border-y border-line bg-paper py-5 overflow-hidden">
+      <section aria-hidden className="relative bg-paper py-5 overflow-hidden">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-paper to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-paper to-transparent" />
         <Marquee speed={42}>
           {subjects.map((s) => (
-            <span key={s} className="mx-2.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-muted">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-crimson" /> {s}
+            <span key={s} className="inline-flex items-center gap-5 px-2.5 text-base font-medium text-ink-muted">
+              {s} <span aria-hidden className="h-1 w-1 rounded-full bg-crimson/40" />
             </span>
           ))}
         </Marquee>
