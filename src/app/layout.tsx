@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import "../styles/propel-scoped.css";
@@ -9,8 +9,21 @@ const inter = Inter({ subsets: ["latin"], variable: '--font-inter' });
 const outfit = Outfit({ subsets: ["latin"], variable: '--font-outfit' });
 
 export const metadata: Metadata = {
-  title: "Propel | Master Your O-Levels",
-  description: "The premium learning platform for ambitious O-Level students. Expert tutors, topicals, and interactive past papers.",
+  title: "Propel | Master Your O & A Levels",
+  description: "The premium learning platform for ambitious O and A Level students. Expert tutors, topicals, AI answer grading, and interactive past papers.",
+};
+
+// Explicit, mobile-first viewport for every route. `viewport-fit=cover` lets
+// the app use the full screen on notched phones; scaling stays enabled for
+// accessibility (no maximum-scale lock).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF7F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#1C1714" },
+  ],
 };
 
 export default function RootLayout({

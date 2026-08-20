@@ -79,6 +79,7 @@ function HomePageContent() {
   const { profile, loading: profileLoading } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
+  const [level, setLevel] = useState<"O" | "A">("O");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
@@ -196,7 +197,13 @@ function HomePageContent() {
     { icon: TrendingUp, title: "Personalized path", desc: "Adaptive practice that targets your weak spots first for the fastest gains.", pill: "ed-pill-clay", iconWrap: "bg-clay-soft text-clay-ink" },
   ];
 
-  const subjects = ["Physics", "Chemistry", "Biology", "Mathematics", "Add Maths", "Computer Science", "Economics", "Business", "English", "Islamiyat", "Pakistan Studies", "Accounting"];
+  // Subjects shown per level — kept distinct so O and A tracks read as real,
+  // separate offerings (no "Add Maths" anywhere, per the current curriculum).
+  const subjectsByLevel: Record<"O" | "A", string[]> = {
+    O: ["Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Economics", "Business Studies", "Accounting", "English Language", "Islamiyat", "Pakistan Studies", "Statistics"],
+    A: ["Physics", "Chemistry", "Biology", "Mathematics", "Further Mathematics", "Computer Science", "Economics", "Business", "Accounting", "Psychology", "Sociology", "English Literature"],
+  };
+  const subjects = subjectsByLevel[level];
 
   const stats = [
     { to: 12000, suffix: "+", label: "Questions solved" },
@@ -245,6 +252,7 @@ function HomePageContent() {
           <div className="flex items-center gap-3 md:gap-8">
             <div className="hidden md:flex items-center gap-8 font-semibold text-ink-muted">
               <a href="#features" className="cursor-pointer hover:text-crimson transition-colors">Features</a>
+              <a href="#levels" className="cursor-pointer hover:text-crimson transition-colors">Levels</a>
               <a href="#how-it-works" className="cursor-pointer hover:text-crimson transition-colors">How It Works</a>
               <Link href="/past-papers" className="cursor-pointer hover:text-crimson transition-colors">Past Papers</Link>
             </div>
@@ -287,6 +295,7 @@ function HomePageContent() {
         <div className="fixed top-20 right-3 z-[60] w-64 rounded-2xl border border-line bg-surface/95 backdrop-blur-xl p-4 shadow-card md:hidden">
           <div className="space-y-4 text-sm font-semibold text-ink-muted">
             <a href="#features" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Features</a>
+            <a href="#levels" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Levels</a>
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
             <Link href="/past-papers" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Past Papers</Link>
             <button onClick={() => { openAuth("sign-in"); setIsMobileNavOpen(false); }} className="w-full text-left py-1">Log In</button>
@@ -350,6 +359,8 @@ function HomePageContent() {
       <FloatingHero
         user={user}
         profile={profile}
+        level={level}
+        onLevelChange={setLevel}
         onSignUp={() => openAuth("sign-up")}
         onExplore={() => {
           document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
@@ -377,7 +388,7 @@ function HomePageContent() {
             <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
               Everything you need to <span className="italic text-crimson">excel</span>
             </h2>
-            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Built around the way O Level students actually revise.</p>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Built around the way O and A Level students actually revise.</p>
           </Reveal>
 
           <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
@@ -397,6 +408,67 @@ function HomePageContent() {
               </StaggerItem>
             ))}
           </Stagger>
+        </div>
+      </section>
+
+      {/* Two levels, one platform */}
+      <section id="levels" className="relative py-20 md:py-28 px-5 md:px-12 bg-paper">
+        <div className="max-w-[1200px] mx-auto">
+          <Reveal className="text-center mb-12 md:mb-16">
+            <span className="ed-eyebrow justify-center">Built for both</span>
+            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
+              Two levels, <span className="italic text-crimson">one platform</span>
+            </h2>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">
+              Whether you&apos;re sitting O Levels or pushing through A Levels, Propel has the papers,
+              topicals, and readiness tracking mapped to your syllabus.
+            </p>
+          </Reveal>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {([
+              { key: "O" as const, tag: "IGCSE / O Level", title: "O Levels", blurb: "Foundations locked in — every core subject with full past-paper coverage and topical drills.", accent: "from-crimson to-crimson-deep" },
+              { key: "A" as const, tag: "AS & A Level", title: "A Levels", blurb: "Advanced depth — sciences, maths, and humanities with exam-standard marking and analysis.", accent: "from-[#1C1714] to-[#3A2F28]" },
+            ]).map((lvl) => {
+              const active = level === lvl.key;
+              return (
+                <motion.button
+                  key={lvl.key}
+                  onClick={() => setLevel(lvl.key)}
+                  whileHover={{ y: -6 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                  className={`ed-card group text-left p-7 md:p-8 transition-shadow ${active ? "ring-2 ring-crimson shadow-card-hover" : "hover:shadow-card-hover"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center rounded-full bg-gradient-to-r ${lvl.accent} px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.12em] text-white`}>
+                      {lvl.tag}
+                    </span>
+                    {active && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-crimson">
+                        <CheckCircle size={15} /> Viewing
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mt-5 font-display text-3xl font-semibold text-ink">{lvl.title}</h3>
+                  <p className="mt-2 text-[15px] text-ink-muted leading-relaxed">{lvl.blurb}</p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {subjectsByLevel[lvl.key].slice(0, 8).map((s) => (
+                      <span key={s} className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-ink-muted">
+                        {s}
+                      </span>
+                    ))}
+                    <span className="rounded-full bg-crimson-soft px-3 py-1 text-xs font-bold text-crimson-ink">
+                      +{Math.max(0, subjectsByLevel[lvl.key].length - 8)} more
+                    </span>
+                  </div>
+                  <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-crimson">
+                    Preview {lvl.title} in the hero
+                    <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -544,7 +616,7 @@ function HomePageContent() {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1 space-y-4">
               <BrandLogo size={38} labelClassName="text-2xl text-white" />
-              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">Empowering O Level students to achieve academic excellence through expert guidance and comprehensive resources.</p>
+              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">Empowering O and A Level students to achieve academic excellence through expert guidance and comprehensive resources.</p>
             </div>
 
             {/* Quick Links */}
