@@ -187,7 +187,8 @@ function CredentialSheet({
           <h1 className="font-display text-2xl font-semibold">{className} — student logins</h1>
         </div>
 
-        <table className="w-full text-sm border border-line rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm border border-line rounded-xl overflow-hidden">
           <thead>
             <tr className="bg-surface-soft text-left">
               <th className="px-4 py-2.5 font-semibold">Name</th>
@@ -205,6 +206,7 @@ function CredentialSheet({
             ))}
           </tbody>
         </table>
+        </div>
 
         <div className="flex flex-wrap gap-2 mt-5 print:hidden">
           <button onClick={() => window.print()} className="ed-btn-primary px-4 py-2.5">

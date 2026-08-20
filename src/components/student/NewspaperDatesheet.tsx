@@ -176,6 +176,7 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
               <p className="text-xs bg-gold-soft text-gold-ink rounded px-2 py-1.5 mb-3">Estimated from previous sessions — always confirm with your school.</p>
             )}
 
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody>
                 {view.papers.map((p, i) => {
@@ -214,6 +215,7 @@ export default function NewspaperDatesheet({ scope = "personal" }: { scope?: "pe
                 })}
               </tbody>
             </table>
+            </div>
 
             <button
               onClick={() => {

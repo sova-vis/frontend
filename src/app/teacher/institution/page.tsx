@@ -99,7 +99,8 @@ function TeachersTab() {
   useEffect(() => { void getTeachers().then(setRows).catch(() => {}); }, []);
   return (
     <div className="ed-card p-0 overflow-hidden">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[520px] text-sm">
         <thead><tr className="text-left text-ink-faint border-b border-line">
           <th className="px-4 py-3">Teacher</th><th className="px-4 py-3">Classes</th><th className="px-4 py-3">Assignments</th><th className="px-4 py-3"></th>
         </tr></thead>
@@ -122,6 +123,7 @@ function TeachersTab() {
           {rows.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-ink-faint">No teachers yet.</td></tr>}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
