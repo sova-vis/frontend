@@ -1,16 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import {
-  ArrowRight,
-  ClipboardCheck,
-  TrendingUp,
-  Flame,
-  FileText,
-  Check,
-  Sparkles,
-} from "lucide-react";
+import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { ArrowRight, Check, ClipboardCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { EASE } from "@/components/ui/Motion";
@@ -30,288 +22,263 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
   return "/student/dashboard";
 }
 
-/* Mini readiness ring — echoes the real dashboard */
-function MiniRing({ score = 64 }: { score?: number }) {
-  const radius = 40;
-  const circ = 2 * Math.PI * radius;
-  const offset = circ - (circ * score) / 100;
+/* -------------------------------------------------------------------------- */
+/* The "Unboxed" mark, animated: three chevrons rising and fading into place —
+   forward motion and marks accumulating. Angle & opacity steps stay fixed.    */
+const CHEVRONS = [
+  { points: "8,46 20,46 32,58 20,58", o: 0.35 },
+  { points: "16,30 30,30 44,44 30,44", o: 0.65 },
+  { points: "24,12 40,12 56,28 40,28", o: 1 },
+];
+function AnimatedMark({ size = 84, className = "text-crimson" }: { size?: number; className?: string }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="relative h-24 w-24 shrink-0">
-      <svg viewBox="0 0 100 100" className="-rotate-90">
-        <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="9" />
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Propel" className={className}>
+      {CHEVRONS.map((c, i) => (
+        <motion.polygon
+          key={i}
+          points={c.points}
+          initial={reduce ? { opacity: c.o } : { opacity: 0, y: 18 }}
+          animate={{ opacity: c.o, y: 0 }}
+          transition={{ duration: 0.55, ease: EASE, delay: reduce ? 0 : 0.1 + i * 0.16 }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/* Readiness ring — draws on view. */
+function ReadinessRing({ score = 64 }: { score?: number }) {
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  return (
+    <div className="relative h-20 w-20 shrink-0">
+      <svg viewBox="0 0 80 80" className="-rotate-90">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="rgb(var(--line))" strokeWidth="8" />
         <motion.circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="none"
-          stroke="#FBE9CF"
-          strokeWidth="9"
-          strokeLinecap="round"
+          cx="40" cy="40" r={r} fill="none" stroke="rgb(var(--crimson))" strokeWidth="8" strokeLinecap="round"
           strokeDasharray={circ}
           initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1.6, ease: EASE, delay: 0.6 }}
+          whileInView={{ strokeDashoffset: circ - (circ * score) / 100 }}
+          viewport={{ once: true }}
+          transition={{ duration: 1.4, ease: EASE, delay: 0.3 }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-        <b className="font-display text-2xl font-semibold leading-none">{score}%</b>
-        <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[.14em] text-white/70">Ready</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <b className="font-display text-xl font-semibold leading-none text-ink">{score}%</b>
       </div>
     </div>
   );
 }
 
-const trendPoints = "6,70 40,58 74,62 108,44 142,40 176,28 210,22";
+/* The mark-scheme breakdown — the brand's most ownable device. Colour + symbol
+   (never colour alone): teal earned, amber partial, coral lost. */
+const SCHEME_ROWS = [
+  { sym: "✓", code: "M1", text: "Balanced equation", tone: "text-mint", sub: "1 / 1" },
+  { sym: "±", code: "A1", text: "State symbols given", tone: "text-gold-ink", sub: "0 / 1" },
+  { sym: "✕", code: "B1", text: "Units on the rate", tone: "text-clay-ink", sub: "0 / 1" },
+];
+
+const WEAK_TOPICS = [
+  { t: "Kinematics", pct: 42 },
+  { t: "Moles & masses", pct: 58 },
+  { t: "Electrolysis", pct: 71 },
+];
 
 export default function FloatingHero({ user, profile, onSignUp, onExplore }: FloatingHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const yUp = useTransform(scrollYProgress, [0, 1], [0, -70]);
-  const yDown = useTransform(scrollYProgress, [0, 1], [0, 90]);
-  const fade = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+  const yUp = useTransform(scrollYProgress, [0, 1], [0, -60]);
+  const fade = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
 
   return (
-    <section
-      ref={ref}
-      className="relative w-full overflow-hidden bg-paper pt-32 pb-16 md:pt-44 md:pb-24"
-    >
+    <section ref={ref} className="relative w-full overflow-hidden bg-paper pt-28 pb-20 md:pt-36 md:pb-28">
       {/* Decorative backdrop */}
       <div className="absolute inset-0 ed-grid-bg opacity-60" />
-      <div className="absolute -top-24 -left-24 h-[30rem] w-[30rem] rounded-full bg-crimson/10 blur-[120px]" />
-      <div className="absolute top-10 right-0 h-[26rem] w-[26rem] rounded-full bg-gold/10 blur-[120px]" />
-      {/* Brand mark motif — the ascending Unboxed chevrons, oversized and faint */}
-      <PropelMark
-        size={560}
-        className="pointer-events-none absolute -right-28 -top-20 text-crimson/[0.05] dark:text-crimson/[0.08]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden opacity-[0.03] dark:opacity-[0.05]"
-      >
-        <span className="-rotate-6 whitespace-nowrap font-display text-[22vw] font-black leading-none text-ink">
-          O &amp; A LEVELS
-        </span>
+      <div className="absolute -top-24 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-crimson/10 blur-[130px]" />
+      <PropelMark size={620} className="pointer-events-none absolute left-1/2 top-[-6rem] -translate-x-1/2 text-crimson/[0.035] dark:text-crimson/[0.06]" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 flex justify-center overflow-hidden opacity-[0.03] dark:opacity-[0.05]">
+        <span className="whitespace-nowrap font-display text-[20vw] font-black leading-none text-ink">O &amp; A LEVELS</span>
       </div>
 
-      <div className="relative z-10 mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-5 md:px-8 lg:grid-cols-[1.05fr_1fr]">
-        {/* ---- Left: copy ---- */}
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: EASE }}
-            className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.14em] text-ink-muted backdrop-blur"
-          >
-            <Sparkles size={14} className="text-crimson" />
-            AI marking for Cambridge O &amp; A Level
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.05 }}
-            className="mt-5 font-display text-[2.7rem] font-semibold leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-7xl"
-          >
-            Propel your success in{" "}
-            <span className="relative inline-block text-crimson">
-              O &amp; A Levels
-              <svg
-                className="absolute -bottom-2 left-0 h-3 w-full text-gold md:h-4"
-                viewBox="0 0 200 20"
-                preserveAspectRatio="none"
-                fill="none"
-              >
-                <motion.path
-                  d="M2 12 Q 50 2, 100 11 T 198 9"
-                  stroke="currentColor"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 1, ease: EASE, delay: 0.7 }}
-                />
-              </svg>
-            </span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.15 }}
-            className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
-          >
-            Submit your answers and Propel marks them against the official Cambridge
-            scheme — then shows you exactly where every mark was won or lost.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.25 }}
-            className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center"
-          >
-            {user ? (
-              <Link href={dashboardHref(user, profile)}>
-                <Button size="lg" className="h-14 rounded-full px-8 text-base shadow-crimson">
-                  Go to dashboard <ArrowRight size={18} />
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Button
-                  onClick={onSignUp}
-                  size="lg"
-                  className="h-14 rounded-full px-8 text-base shadow-crimson"
-                >
-                  Get started free <ArrowRight size={18} />
-                </Button>
-                <Button
-                  onClick={onExplore}
-                  variant="ghost"
-                  size="lg"
-                  className="h-14 rounded-full border border-line bg-surface px-8 text-base"
-                >
-                  Explore platform
-                </Button>
-              </>
-            )}
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-3"
-          >
-            {[
-              ["12k+", "answers marked"],
-              ["15+", "past paper years"],
-              ["100%", "marks explained"],
-            ].map(([n, l]) => (
-              <div key={l} className="flex items-baseline gap-2">
-                <b className="font-display text-xl font-semibold text-ink">{n}</b>
-                <span className="text-sm text-ink-faint">{l}</span>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* ---- Right: animated dashboard showcase ---- */}
+      {/* -------- Centered hero -------- */}
+      <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-5 text-center">
         <motion.div
-          style={{ y: yUp, opacity: fade }}
-          className="relative mx-auto w-full max-w-[460px]"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE }}
         >
-          {/* Main readiness card */}
-          <motion.div
-            initial={{ opacity: 0, y: 40, rotate: -2 }}
-            animate={{ opacity: 1, y: 0, rotate: 0 }}
-            transition={{ duration: 0.8, ease: EASE, delay: 0.2 }}
-            className="relative overflow-hidden rounded-[1.5rem] bg-[#A8123C] p-6 text-white shadow-[0_30px_60px_-25px_rgba(168,18,60,0.6)]"
-          >
-            <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/[.07]" />
-            <div className="relative flex items-center gap-5">
-              <MiniRing score={64} />
-              <div>
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-white/70">
-                  <ClipboardCheck size={14} /> Exam readiness
-                </div>
-                <h3 className="mt-1.5 font-display text-2xl font-semibold">On track</h3>
-                <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
-                  <TrendingUp size={13} /> +8% this week
-                </span>
-              </div>
-            </div>
-            <div className="relative mt-5 grid grid-cols-3 gap-3 border-t border-white/15 pt-4">
-              {[
-                ["5", "strong"],
-                ["3", "need work"],
-                ["2", "at risk"],
-              ].map(([n, l]) => (
-                <div key={l}>
-                  <b className="font-display text-xl font-semibold">{n}</b>
-                  <p className="text-[11px] text-white/70">{l}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+          <AnimatedMark size={80} />
+        </motion.div>
 
-          {/* Floating streak card (top-left) */}
-          <motion.div
-            style={{ y: yDown }}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.55 }}
-            className="absolute -left-6 -top-8 hidden rounded-2xl border border-line bg-surface p-3.5 shadow-card sm:block"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold text-white">
-                <Flame size={18} />
-              </span>
-              <div>
-                <b className="font-display text-xl font-semibold leading-none text-gold-deep">12</b>
-                <p className="text-[10px] font-bold uppercase tracking-[.1em] text-gold-deep/70">
-                  day streak
-                </p>
-              </div>
-            </div>
-          </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: EASE, delay: 0.55 }}
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[.13em] text-ink-muted backdrop-blur"
+        >
+          <Sparkles size={13} className="text-crimson" />
+          AI marking for Cambridge O &amp; A Level
+        </motion.div>
 
-          {/* Floating trend card (bottom-right) */}
-          <motion.div
-            style={{ y: yDown }}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.7 }}
-            className="absolute -bottom-10 -right-4 w-52 rounded-2xl border border-line bg-surface p-4 shadow-card md:-right-10"
-          >
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-ink-faint">
-              <Sparkles size={12} className="text-crimson" /> Accuracy trend
-            </div>
-            <svg viewBox="0 0 216 80" className="mt-2 h-16 w-full" preserveAspectRatio="none">
+        <motion.h1
+          initial={{ opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: EASE, delay: 0.62 }}
+          className="mt-5 font-display text-[2.6rem] font-semibold leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[4.4rem]"
+        >
+          See exactly where your{" "}
+          <span className="relative inline-block text-crimson">
+            marks went
+            <svg className="absolute -bottom-1.5 left-0 h-3 w-full text-crimson/40 md:h-4" viewBox="0 0 200 20" preserveAspectRatio="none" fill="none">
               <motion.path
-                d={`M${trendPoints}`}
-                fill="none"
-                stroke="#A8123C"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1.4, ease: EASE, delay: 0.9 }}
+                d="M2 12 Q 50 2, 100 11 T 198 9" stroke="currentColor" strokeWidth="5" strokeLinecap="round"
+                initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 0.9, ease: EASE, delay: 1.2 }}
               />
-              <path d={`M${trendPoints} L210,80 L6,80 Z`} fill="rgba(168,18,60,.08)" />
             </svg>
-            <div className="mt-1 flex items-center justify-between text-[11px]">
-              <span className="text-ink-faint">8 weeks</span>
-              <span className="inline-flex items-center gap-1 font-bold text-mint">
-                <Check size={12} /> +14%
-              </span>
-            </div>
-          </motion.div>
+          </span>
+        </motion.h1>
 
-          {/* Floating "papers solved" chip (right edge) */}
-          <motion.div
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.85 }}
-            className="absolute right-2 top-1/3 hidden items-center gap-2 rounded-full border border-line bg-surface py-1.5 pl-2 pr-3.5 shadow-card lg:flex"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-crimson-soft text-crimson-ink">
-              <FileText size={14} />
-            </span>
-            <span className="text-xs font-bold text-ink">47 papers</span>
-          </motion.div>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: EASE, delay: 0.72 }}
+          className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
+        >
+          Submit your answers and Propel marks them against the official Cambridge
+          scheme — then shows you every mark won or lost, and the topics to fix next.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: EASE, delay: 0.82 }}
+          className="mt-8 flex flex-col items-center gap-3 sm:flex-row"
+        >
+          {user ? (
+            <Link href={dashboardHref(user, profile)}>
+              <Button size="lg" className="h-14 rounded-full px-8 text-base shadow-crimson">
+                Go to dashboard <ArrowRight size={18} />
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Button onClick={onSignUp} size="lg" className="h-14 rounded-full px-8 text-base shadow-crimson">
+                Get started free <ArrowRight size={18} />
+              </Button>
+              <Button onClick={onExplore} variant="ghost" size="lg" className="h-14 rounded-full border border-line bg-surface px-8 text-base">
+                See how it works
+              </Button>
+            </>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 1 }}
+          className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3"
+        >
+          {[["12k+", "answers marked"], ["15+", "past paper years"], ["100%", "marks explained"]].map(([n, l]) => (
+            <div key={l} className="flex items-baseline gap-2">
+              <b className="font-display text-xl font-semibold text-ink">{n}</b>
+              <span className="text-sm text-ink-faint">{l}</span>
+            </div>
+          ))}
         </motion.div>
       </div>
+
+      {/* -------- Product depiction — the three things Propel does -------- */}
+      <motion.div style={{ y: yUp, opacity: fade }} className="relative z-10 mx-auto mt-16 grid max-w-[1080px] grid-cols-1 gap-4 px-5 md:mt-20 md:grid-cols-3">
+        {/* 1 · Marked against the scheme (the ownable device) */}
+        <motion.div
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="ed-card p-6 md:col-span-1"
+        >
+          <div className="flex items-center justify-between">
+            <span className="ed-label">Where your 6 marks went</span>
+            <span className="font-display text-lg font-semibold text-ink">4/6</span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {SCHEME_ROWS.map((row, i) => (
+              <motion.div
+                key={row.code}
+                initial={{ opacity: 0, x: -12 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, ease: EASE, delay: 0.25 + i * 0.14 }}
+                className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2"
+              >
+                <span className={`text-base font-bold ${row.tone}`}>{row.sym}</span>
+                <span className="font-mono text-[11px] font-medium text-ink-faint">{row.code}</span>
+                <span className="flex-1 truncate text-sm text-ink">{row.text}</span>
+                <span className="font-mono text-[11px] text-ink-faint">{row.sub}</span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* 2 · Exam readiness ring */}
+        <motion.div
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.6, ease: EASE, delay: 0.1 }}
+          className="ed-card flex flex-col items-center justify-center p-6 text-center"
+        >
+          <ReadinessRing score={64} />
+          <div className="mt-3 flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase tracking-[.13em] text-ink-faint">
+            <ClipboardCheck size={13} className="text-crimson" /> Exam readiness
+          </div>
+          <p className="mt-1 font-display text-lg font-semibold text-ink">On track</p>
+          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-bold text-mint-ink">
+            <Check size={12} /> +8% this week
+          </span>
+        </motion.div>
+
+        {/* 3 · Weakest topics, tracked */}
+        <motion.div
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.6, ease: EASE, delay: 0.2 }}
+          className="ed-card p-6"
+        >
+          <span className="ed-label">Weakest topics</span>
+          <div className="mt-4 space-y-3">
+            {WEAK_TOPICS.map((w, i) => (
+              <div key={w.t}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="text-ink">{w.t}</span>
+                  <span className="font-mono text-[11px] text-ink-faint">{w.pct}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-surface-soft">
+                  <motion.div
+                    className={w.pct < 50 ? "h-full rounded-full bg-clay" : w.pct < 75 ? "h-full rounded-full bg-gold" : "h-full rounded-full bg-mint"}
+                    initial={{ width: 0 }}
+                    whileInView={{ width: `${w.pct}%` }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.9, ease: EASE, delay: 0.3 + i * 0.12 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </motion.div>
 
       {/* Scroll cue */}
       <motion.button
         onClick={onExplore}
         style={{ opacity: fade }}
-        className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-ink-faint md:flex"
+        className="mx-auto mt-12 hidden flex-col items-center gap-2 text-ink-faint md:flex"
         aria-label="Scroll to explore"
       >
-        <span className="text-[11px] font-bold uppercase tracking-[.2em]">Scroll</span>
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[.2em]">Scroll</span>
         <span className="flex h-9 w-6 items-start justify-center rounded-full border-2 border-line p-1">
           <motion.span
             animate={{ y: [0, 10, 0] }}
