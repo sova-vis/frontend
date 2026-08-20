@@ -217,7 +217,7 @@ function GenCard({ q, index, mcqAnswer, parts, graded, result, onMcq, onPart }: 
         </div>
         <span className="faint" style={{ fontSize: 12 }}>{q.type === "mcq" ? "1 mark" : `${q.marks || q.parts.reduce((m, p) => m + (p.marks || 0), 0) || 4} marks`}</span>
       </div>
-      <p style={{ whiteSpace: "pre-wrap", fontSize: 16, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{q.questionText}</p>
+      <p style={{ whiteSpace: "pre-wrap", fontSize: 16, lineHeight: 1.5, fontFamily: "var(--font-fraunces), serif" }}>{q.questionText}</p>
 
       {q.type === "mcq" ? (
         <div className="flex-col gap-8">

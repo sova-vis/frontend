@@ -418,7 +418,7 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
   const isAnswered = Boolean(answer?.trim());
   return (
     <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
-      <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{question.questionText}</p>
+      <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "var(--font-fraunces), serif" }}>{question.questionText}</p>
       <SourceNote note={question.sourceNote} />
       <Passages sources={question.sources} />
       {questionImagesOf(question.images).length > 0 && (
@@ -488,7 +488,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
   const revealScheme = showScheme && schemeUnlocked;
   return (
     <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
-      {question.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "Fraunces, serif" }}>{question.questionText}</p>}
+      {question.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "var(--font-fraunces), serif" }}>{question.questionText}</p>}
       <SourceNote note={question.sourceNote} />
       {questionImagesOf(question.images).length > 0 && (
         <div className="flex-col gap-12" style={{ display: "flex" }}>

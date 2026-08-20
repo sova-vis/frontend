@@ -98,7 +98,7 @@
    ============================================================ */
 
 .pr {
-  font-family: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-hanken), system-ui, -apple-system, sans-serif;
   background: var(--canvas);
   color: var(--ink);
   font-size: 15px;
@@ -145,7 +145,7 @@
   color: var(--ink-faint);
 }
 
-.pr .mono { font-family: "Roboto Mono", ui-monospace, monospace; }
+.pr .mono { font-family: var(--font-roboto-mono), ui-monospace, monospace; }
 
 .pr .app-root { position: relative; z-index: 1; }
 
@@ -257,7 +257,7 @@
 }
 
 .pr .brand-word {
-  font-family: "Fraunces", serif; font-weight: 600; font-size: 21px;
+  font-family: var(--font-fraunces), serif; font-weight: 600; font-size: 21px;
   letter-spacing: -.02em; color: var(--ink);
 }
 
@@ -426,7 +426,7 @@
 
 .pr .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
 
-.pr .card-title { font-size: 16px; font-weight: 600; font-family: "Fraunces", serif; }
+.pr .card-title { font-size: 16px; font-weight: 600; font-family: var(--font-fraunces), serif; }
 
 .pr .card-sub { font-size: 13px; color: var(--ink-soft); }
 
@@ -502,13 +502,13 @@
 
 /* ---------- STAT ---------- */
 
-.pr .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: -.02em; }
+.pr .stat-num { font-family: var(--font-fraunces), serif; font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: -.02em; }
 
-.pr .big-num { font-family: "Fraunces", serif; font-weight: 600; letter-spacing: -.03em; }
+.pr .big-num { font-family: var(--font-fraunces), serif; font-weight: 600; letter-spacing: -.03em; }
 
 /* ---------- SECTION HEADINGS ---------- */
 
-.pr .sec-title { font-size: 20px; font-weight: 600; font-family: "Fraunces", serif; }
+.pr .sec-title { font-size: 20px; font-weight: 600; font-family: var(--font-fraunces), serif; }
 
 .pr .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
@@ -777,7 +777,7 @@
 .pr { min-height: 100%; position: relative; }
 .pr *, .pr *::before, .pr *::after { box-sizing: border-box; }
 .pr h1, .pr h2, .pr h3, .pr h4 {
-  font-family: "Fraunces", Georgia, serif; font-weight: 600;
+  font-family: var(--font-fraunces), Georgia, serif; font-weight: 600;
   line-height: 1.08; letter-spacing: -.01em; color: var(--ink); margin: 0;
 }
 .pr p { margin: 0; }
