@@ -16,8 +16,8 @@ const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: '--font-hanken', d
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: '--font-roboto-mono', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: "Propel | Master Your O & A Levels",
-  description: "The premium learning platform for ambitious O and A Level students. Expert tutors, topicals, AI answer grading, and interactive past papers.",
+  title: "Propel — AI marking for Cambridge O & A Level",
+  description: "Propel is an AI-powered assessment platform for Cambridge O Level and A Level. Submit answers, get them marked against the official CAIE scheme, and see exactly where every mark went.",
 };
 
 // Explicit, mobile-first viewport for every route. `viewport-fit=cover` lets

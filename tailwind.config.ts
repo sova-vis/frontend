@@ -43,6 +43,7 @@ const config: Config = {
           ink: ed("--gold-ink"),
         },
         clay: { DEFAULT: ed("--clay"), soft: ed("--clay-soft"), ink: ed("--clay-ink") },
+        purple: { DEFAULT: ed("--purple"), soft: ed("--purple-soft"), ink: ed("--purple-ink") },
 
         /* ---- Brand constants (fixed hues, do not theme-shift) ---- */
         pink: "#E8527A",   /* brand pink — dark-UI mark variant */

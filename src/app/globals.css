@@ -26,18 +26,24 @@
     --crimson-soft: 246 225 231; /* #F6E1E7 pill bg */
     --crimson-ink: 168 18 60;    /* #A8123C pill text */
 
-    --mint: 22 135 107;          /* #16876B */
+    /* Functional accents — meaning is fixed (brand book p9/p14):
+       teal=earned, amber=partial, coral=lost, purple=AI. */
+    --mint: 22 135 107;          /* #16876B teal — earned/correct/improving */
     --mint-soft: 219 239 232;    /* #DBEFE8 */
     --mint-ink: 22 135 107;
 
-    --gold: 217 133 42;          /* #D9852A */
+    --gold: 184 106 24;          /* #B86A18 amber — partial credit/needs review */
     --gold-deep: 138 79 18;      /* #8A4F12 */
-    --gold-soft: 248 231 205;    /* #F8E7CD */
+    --gold-soft: 245 231 209;    /* #F5E7D1 */
     --gold-ink: 138 79 18;
 
-    --clay: 207 81 40;           /* #CF5128 */
-    --clay-soft: 249 226 215;    /* #F9E2D7 */
-    --clay-ink: 207 81 40;
+    --clay: 192 70 31;           /* #C0461F coral — marks lost/weakness */
+    --clay-soft: 247 224 214;    /* #F7E0D6 */
+    --clay-ink: 192 70 31;
+
+    --purple: 107 75 196;        /* #6B4BC4 — AI reasoning / Ask-AI surfaces */
+    --purple-soft: 232 228 249;  /* #E8E4F9 */
+    --purple-ink: 91 63 168;     /* #5B3FA8 */
 
     /* Legacy shadcn-style tokens (HSL) mapped onto the editorial palette */
     --background: 36 50% 96%;
@@ -57,11 +63,11 @@
   }
 
   .dark {
-    /* Editorial palette — DARK (warm charcoal "paper") */
-    --paper: 21 17 14;           /* #15110E */
-    --paper-soft: 33 26 18;      /* #211A12 */
-    --surface: 30 24 19;         /* #1E1813 */
-    --surface-soft: 38 30 23;    /* #261E17 */
+    /* Editorial palette — DARK (warm near-black, brand book p14; never pure black) */
+    --paper: 22 19 16;           /* #161310 canvas */
+    --paper-soft: 30 26 21;      /* #1E1A15 */
+    --surface: 33 28 24;         /* #211C18 surface */
+    --surface-soft: 41 35 29;    /* #29231D */
     --ink: 244 238 230;          /* #F4EEE6 */
     --ink-muted: 187 174 162;    /* #BBAEA2 */
     --ink-faint: 139 125 113;    /* #8B7D71 */
@@ -84,6 +90,10 @@
     --clay: 238 146 112;         /* #EE9270 */
     --clay-soft: 51 33 26;       /* #33211A */
     --clay-ink: 238 146 112;
+
+    --purple: 169 155 232;       /* #A99BE8 — AI, lifted for dark */
+    --purple-soft: 42 35 80;     /* #2A2350 */
+    --purple-ink: 196 184 240;   /* #C4B8F0 */
 
     --background: 26 20% 7%;
     --foreground: 36 33% 93%;
@@ -166,11 +176,13 @@
   }
 
   /* Typographic helpers */
+  /* Eyebrows / labels / data are Roboto Mono, uppercase 0.13em — the brand's
+     "examiner's-desk" precision (brand book p10). */
   .ed-eyebrow {
-    @apply inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-ink-faint;
+    @apply inline-flex items-center gap-2 font-mono text-[12px] font-medium uppercase tracking-[.13em] text-ink-faint;
   }
   .ed-label {
-    @apply text-[11px] font-bold uppercase tracking-[.12em] text-ink-faint;
+    @apply font-mono text-[11px] font-medium uppercase tracking-[.13em] text-ink-faint;
   }
   .ed-title {
     @apply font-display font-semibold tracking-tight text-ink;

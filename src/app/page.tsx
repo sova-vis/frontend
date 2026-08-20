@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { BookOpen, Users, Award, TrendingUp, CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, GraduationCap, PenTool, Loader2 } from 'lucide-react';
+import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, Loader2, FileCheck2, ListChecks, Target, School } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import { useUser } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
@@ -189,11 +189,12 @@ function HomePageContent() {
     },
   };
 
+  // The four claims Propel leads with — assessment, not tutoring (brand book p4).
   const features = [
-    { icon: BookOpen, title: "Comprehensive resources", desc: "Past papers, topical questions, and study materials in one organized place.", pill: "ed-pill-crimson", iconWrap: "bg-crimson-soft text-crimson-ink" },
-    { icon: Users, title: "Expert teachers", desc: "Learn from experienced educators who know exactly what the exam wants.", pill: "ed-pill-mint", iconWrap: "bg-mint-soft text-mint-ink" },
-    { icon: Award, title: "Track readiness", desc: "Monitor performance with accuracy trends and exam-readiness scoring.", pill: "ed-pill-gold", iconWrap: "bg-gold-soft text-gold-ink" },
-    { icon: TrendingUp, title: "Personalized path", desc: "Adaptive practice that targets your weak spots first for the fastest gains.", pill: "ed-pill-clay", iconWrap: "bg-clay-soft text-clay-ink" },
+    { icon: FileCheck2, title: "Marked against the scheme", desc: "Typed or handwritten answers, scored against the official CAIE mark scheme.", iconWrap: "bg-crimson-soft text-crimson-ink" },
+    { icon: ListChecks, title: "Every mark explained", desc: "Each mark traced to the exact scheme point that earned or lost it — no black box.", iconWrap: "bg-crimson-soft text-crimson-ink" },
+    { icon: Target, title: "Weak topics, tracked", desc: "Topic-level analytics show exactly where your marks keep going, over time.", iconWrap: "bg-clay-soft text-clay-ink" },
+    { icon: School, title: "Built for schools", desc: "A teacher portal and institution management, built in from the start — not bolted on.", iconWrap: "bg-crimson-soft text-crimson-ink" },
   ];
 
   // O and A tracks read as real, separate offerings (no "Add Maths" anywhere,
@@ -206,10 +207,10 @@ function HomePageContent() {
   const subjects = Array.from(new Set([...subjectsByLevel.O, ...subjectsByLevel.A]));
 
   const stats = [
-    { to: 12000, suffix: "+", label: "Questions solved" },
+    { to: 12000, suffix: "+", label: "Answers marked" },
     { to: 50, suffix: "+", label: "Paper years" },
-    { to: 12, suffix: "", label: "Subjects covered" },
-    { to: 94, suffix: "%", label: "Hit their target" },
+    { to: 16, suffix: "+", label: "Subjects covered" },
+    { to: 100, suffix: "%", label: "Marks explained" },
   ];
 
   // Once auth is confirmed, cover the page and redirect — the student never
@@ -372,7 +373,7 @@ function HomePageContent() {
         <Marquee speed={42}>
           {subjects.map((s) => (
             <span key={s} className="mx-2.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-muted">
-              <GraduationCap size={15} className="text-crimson" /> {s}
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-crimson" /> {s}
             </span>
           ))}
         </Marquee>
@@ -382,11 +383,11 @@ function HomePageContent() {
       <section id="features" className="relative py-20 md:py-28 px-5 md:px-12 bg-surface-soft">
         <div className="max-w-[1200px] mx-auto">
           <Reveal className="text-center mb-12 md:mb-16">
-            <span className="ed-eyebrow justify-center">Why Propel</span>
+            <span className="ed-eyebrow justify-center">What Propel does</span>
             <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
-              Everything you need to <span className="italic text-crimson">excel</span>
+              See exactly where your <span className="italic text-crimson">marks</span> go
             </h2>
-            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Built around the way O and A Level students actually revise.</p>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Not tutoring — assessment. Your answers, marked against the official Cambridge scheme.</p>
           </Reveal>
 
           <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
@@ -418,15 +419,15 @@ function HomePageContent() {
               Two levels, <span className="italic text-crimson">one platform</span>
             </h2>
             <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">
-              Whether you&apos;re sitting O Levels or pushing through A Levels, Propel has the papers,
-              topicals, and readiness tracking mapped to your syllabus.
+              Whether you&apos;re sitting O Levels or A Levels, Propel marks your work against the
+              right CAIE scheme and tracks your weakest topics over time.
             </p>
           </Reveal>
 
           <Stagger className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {([
-              { key: "O" as const, tag: "IGCSE / O Level", title: "O Levels", blurb: "Foundations locked in — every core subject with full past-paper coverage and topical drills.", accent: "from-crimson to-crimson-deep" },
-              { key: "A" as const, tag: "AS & A Level", title: "A Levels", blurb: "Advanced depth — sciences, maths, and humanities with exam-standard marking and analysis.", accent: "from-[#1C1714] to-[#3A2F28]" },
+              { key: "O" as const, tag: "IGCSE / O Level", title: "O Levels", blurb: "Every core subject, marked against the O Level scheme with topic-level weakness tracking.", accent: "bg-crimson" },
+              { key: "A" as const, tag: "AS & A Level", title: "A Levels", blurb: "Sciences, maths and humanities marked to A Level standard, every mark traced to the scheme.", accent: "bg-ink" },
             ]).map((lvl) => (
               <StaggerItem key={lvl.key}>
                 <motion.div
@@ -435,7 +436,7 @@ function HomePageContent() {
                   className="ed-card h-full p-7 md:p-8 hover:shadow-card-hover"
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`inline-flex items-center rounded-full bg-gradient-to-r ${lvl.accent} px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.12em] text-white`}>
+                    <span className={`inline-flex items-center rounded-full ${lvl.accent} px-3.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[.13em] text-cream`}>
                       {lvl.tag}
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-mint">
@@ -494,8 +495,8 @@ function HomePageContent() {
 
         <div className="relative mx-auto max-w-[1200px]">
           <Reveal className="mb-10 text-center md:mb-14">
-            <span className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-white/50">By the numbers</span>
-            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight">Momentum you can measure</h2>
+            <span className="inline-flex items-center gap-2 font-mono text-[12px] font-medium uppercase tracking-[.13em] text-cream/50">By the numbers</span>
+            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight">Precision you can measure</h2>
           </Reveal>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {stats.map((stat, i) => (
@@ -503,7 +504,7 @@ function HomePageContent() {
                 <div className="font-display text-4xl md:text-6xl font-semibold text-white">
                   <CountUp to={stat.to} suffix={stat.suffix} />
                 </div>
-                <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-crimson" />
+                <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-pink" />
                 <p className="mt-3 text-sm text-white/60">{stat.label}</p>
               </Reveal>
             ))}
@@ -519,14 +520,14 @@ function HomePageContent() {
             <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
               How it <span className="italic text-crimson">works</span>
             </h2>
-            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Three simple steps to your target grade.</p>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Three steps from your answer to an explained mark.</p>
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
             {[
-              { step: "01", title: "Sign up", desc: "Create your account and pick your subjects and level in under a minute." },
-              { step: "02", title: "Choose your path", desc: "Jump into past papers, topical practice, or AI-graded written answers." },
-              { step: "03", title: "Track & excel", desc: "Watch your readiness score climb and lock in your target grades." }
+              { step: "01", title: "Submit your answer", desc: "Type it, or upload a photo of your handwritten answer to any past-paper question." },
+              { step: "02", title: "Marked against the scheme", desc: "Propel scores it against the official CAIE mark scheme, point by point." },
+              { step: "03", title: "See where marks went", desc: "Every mark is explained and your weakest topics are tracked over time." }
             ].map((item, idx) => (
               <motion.div
                 key={idx}
@@ -556,33 +557,33 @@ function HomePageContent() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-20 md:py-28 px-5 md:px-12 bg-gradient-to-br from-[#A8123C] to-[#760B28] text-white">
+      {/* Testimonials Section — dark "product" skin */}
+      <section className="py-20 md:py-28 px-5 md:px-12 bg-[#161310] text-cream">
         <div className="max-w-[1200px] mx-auto">
           <Reveal className="text-center mb-12 md:mb-16">
-            <span className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-white/60">Success stories</span>
-            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight">Students who propelled ahead</h2>
-            <p className="mt-4 text-lg text-white/75 max-w-2xl mx-auto">Real results from focused revision.</p>
+            <span className="inline-flex items-center gap-2 font-mono text-[12px] font-medium uppercase tracking-[.13em] text-cream/50">What they see</span>
+            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight">Marks, finally explained</h2>
+            <p className="mt-4 text-lg text-cream/70 max-w-2xl mx-auto">What students and teachers see on a real Propel screen.</p>
           </Reveal>
 
           <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: "Sarah Ahmed", grade: "A* in Mathematics", quote: "Propel helped me understand complex topics with ease. The practice questions were invaluable!" },
-              { name: "Ali Hassan", grade: "A* in Physics", quote: "The structured approach and expert guidance made all the difference in my preparation." },
-              { name: "Fatima Khan", grade: "A* in Chemistry", quote: "I improved from a B to an A* thanks to the personalized learning path and progress tracking." }
+              { name: "Sara — A Level", label: "Weak topic found", quote: "I finally knew which topics to redo. The breakdown showed every mark I dropped on evaluation points." },
+              { name: "Ali — O Level", label: "Marked in minutes", quote: "I upload a photo of my answer and see exactly where the scheme gave and took marks. No guessing." },
+              { name: "Ms Khan — Teacher", label: "Explained line by line", quote: "My class sees the reasoning, not just a score — and it saves me marking hours every week." }
             ].map((testimonial, idx) => (
               <StaggerItem key={idx}>
                 <motion.div
                   whileHover={{ y: -6 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                  className="h-full bg-white/10 backdrop-blur-sm p-7 rounded-[1.25rem] border border-white/15"
+                  className="h-full bg-cream/[0.06] backdrop-blur-sm p-7 rounded-[1.25rem] border border-cream/10"
                 >
                   <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle className="w-5 h-5 text-[#FFD9A8]" />
-                    <span className="font-bold text-[#FFD9A8] text-sm">{testimonial.grade}</span>
+                    <CheckCircle className="w-5 h-5 text-mint" />
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[.13em] text-mint">{testimonial.label}</span>
                   </div>
-                  <p className="text-base md:text-[17px] mb-6 leading-relaxed text-white/95">&ldquo;{testimonial.quote}&rdquo;</p>
-                  <p className="font-bold text-white">{testimonial.name}</p>
+                  <p className="text-base md:text-[17px] mb-6 leading-relaxed text-cream/95">&ldquo;{testimonial.quote}&rdquo;</p>
+                  <p className="font-semibold text-cream">{testimonial.name}</p>
                 </motion.div>
               </StaggerItem>
             ))}
@@ -593,8 +594,8 @@ function HomePageContent() {
       {/* CTA Section */}
       <section className="py-20 md:py-28 px-5 md:px-12 bg-[#1C1714] text-white">
         <Reveal className="max-w-[1200px] mx-auto text-center">
-          <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-crimson">propel</span> your success?</h2>
-          <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">Join thousands of students achieving their dream grades.</p>
+          <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-pink">propel</span> your success?</h2>
+          <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">See exactly where your marks went — marked against the official Cambridge scheme.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button onClick={() => openAuth("sign-up")} onMouseEnter={preloadClerk} size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
               Get started free <ArrowRight className="ml-1" size={20} />
@@ -614,17 +615,17 @@ function HomePageContent() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 mb-12">
             {/* Brand */}
             <div className="col-span-2 md:col-span-1 space-y-4">
-              <BrandLogo size={38} labelClassName="text-2xl text-white" />
-              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">Empowering O and A Level students to achieve academic excellence through expert guidance and comprehensive resources.</p>
+              <BrandLogo size={38} tone="dark" labelClassName="text-2xl" />
+              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">The AI-powered assessment platform for Cambridge O Level and A Level — every answer marked against the official scheme, every mark explained.</p>
             </div>
 
             {/* Quick Links */}
             <div>
               <h3 className="text-base font-bold mb-4 text-white">Quick Links</h3>
               <ul className="space-y-2.5 text-white/60 text-sm md:text-[15px]">
-                <li><a href="#features" className="hover:text-crimson transition-colors">Features</a></li>
-                <li><a href="#how-it-works" className="hover:text-crimson transition-colors">How It Works</a></li>
-                <li><Link href="/past-papers" className="hover:text-crimson transition-colors">Past Papers</Link></li>
+                <li><a href="#features" className="hover:text-pink transition-colors">Features</a></li>
+                <li><a href="#how-it-works" className="hover:text-pink transition-colors">How It Works</a></li>
+                <li><Link href="/past-papers" className="hover:text-pink transition-colors">Past Papers</Link></li>
               </ul>
             </div>
 
@@ -632,7 +633,7 @@ function HomePageContent() {
             <div>
               <h3 className="text-base font-bold mb-4 text-white">Resources</h3>
               <ul className="space-y-2.5 text-white/60 text-sm md:text-[15px]">
-                <li><Link href="/past-papers" className="hover:text-crimson transition-colors">Past Papers</Link></li>
+                <li><Link href="/past-papers" className="hover:text-pink transition-colors">Past Papers</Link></li>
               </ul>
             </div>
 
@@ -641,8 +642,8 @@ function HomePageContent() {
               <h3 className="text-base font-bold mb-4 text-white">Get In Touch</h3>
               <ul className="space-y-3 text-white/60">
                 <li className="flex items-center gap-2 text-sm md:text-[15px]">
-                  <Mail size={18} className="text-crimson flex-shrink-0" />
-                  <a href="mailto:sovavis2025@gmailcom" className="hover:text-crimson transition-colors truncate">sovavis2025@gmailcom</a>
+                  <Mail size={18} className="text-pink flex-shrink-0" />
+                  <a href="mailto:sovavis2025@gmailcom" className="hover:text-pink transition-colors truncate">sovavis2025@gmailcom</a>
                 </li>
               </ul>
               <div className="flex items-center gap-3 mt-6">
@@ -656,9 +657,9 @@ function HomePageContent() {
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-white/40 text-sm">&copy; 2026 Propel. All rights reserved.</p>
             <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6 text-sm text-white/40">
-              <button onClick={() => setPolicyModal("privacy")} className="hover:text-crimson transition-colors">Privacy Policy</button>
-              <button onClick={() => setPolicyModal("terms")} className="hover:text-crimson transition-colors">Terms of Service</button>
-              <button onClick={() => setPolicyModal("cookies")} className="hover:text-crimson transition-colors">Cookie Policy</button>
+              <button onClick={() => setPolicyModal("privacy")} className="hover:text-pink transition-colors">Privacy Policy</button>
+              <button onClick={() => setPolicyModal("terms")} className="hover:text-pink transition-colors">Terms of Service</button>
+              <button onClick={() => setPolicyModal("cookies")} className="hover:text-pink transition-colors">Cookie Policy</button>
             </div>
           </div>
         </div>

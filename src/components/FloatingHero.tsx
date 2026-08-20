@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   ArrowRight,
-  GraduationCap,
+  ClipboardCheck,
   TrendingUp,
   Flame,
   FileText,
@@ -82,7 +82,7 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
       {/* Brand mark motif — the ascending Unboxed chevrons, oversized and faint */}
       <PropelMark
         size={560}
-        className="pointer-events-none absolute -right-28 -top-20 rotate-6 text-crimson/[0.05] dark:text-crimson/[0.08]"
+        className="pointer-events-none absolute -right-28 -top-20 text-crimson/[0.05] dark:text-crimson/[0.08]"
       />
       <div
         aria-hidden
@@ -103,7 +103,7 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
             className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.14em] text-ink-muted backdrop-blur"
           >
             <Sparkles size={14} className="text-crimson" />
-            O &amp; A Level exam prep, reimagined
+            AI marking for Cambridge O &amp; A Level
           </motion.div>
 
           <motion.h1
@@ -140,8 +140,8 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
             transition={{ duration: 0.7, ease: EASE, delay: 0.15 }}
             className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
           >
-            One focused workspace for past papers, topical practice, AI answer grading, and
-            real exam-readiness tracking — built to turn weak spots into A* grades.
+            Submit your answers and Propel marks them against the official Cambridge
+            scheme — then shows you exactly where every mark was won or lost.
           </motion.p>
 
           <motion.div
@@ -184,9 +184,9 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
             className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-3"
           >
             {[
-              ["12k+", "questions solved"],
+              ["12k+", "answers marked"],
               ["50+", "past paper years"],
-              ["94%", "hit their target"],
+              ["100%", "marks explained"],
             ].map(([n, l]) => (
               <div key={l} className="flex items-baseline gap-2">
                 <b className="font-display text-xl font-semibold text-ink">{n}</b>
@@ -206,14 +206,14 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
             initial={{ opacity: 0, y: 40, rotate: -2 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
             transition={{ duration: 0.8, ease: EASE, delay: 0.2 }}
-            className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#A8123C] to-[#760B28] p-6 text-white shadow-[0_30px_60px_-25px_rgba(168,18,60,0.6)]"
+            className="relative overflow-hidden rounded-[1.5rem] bg-[#A8123C] p-6 text-white shadow-[0_30px_60px_-25px_rgba(168,18,60,0.6)]"
           >
             <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/[.07]" />
             <div className="relative flex items-center gap-5">
               <MiniRing score={64} />
               <div>
                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-white/70">
-                  <GraduationCap size={14} /> Exam readiness
+                  <ClipboardCheck size={14} /> Exam readiness
                 </div>
                 <h3 className="mt-1.5 font-display text-2xl font-semibold">On track</h3>
                 <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
