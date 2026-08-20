@@ -200,7 +200,7 @@
 
 @layer utilities {
   .font-display {
-    font-family: var(--font-fraunces), var(--font-outfit), Georgia, serif;
+    font-family: var(--font-fraunces), Georgia, serif;
   }
   .text-balance {
     text-wrap: balance;

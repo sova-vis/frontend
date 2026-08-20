@@ -5,8 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutGrid, School, Settings } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import StudentSettingsModal from "@/components/student/StudentSettingsModal";
+import dynamic from "next/dynamic";
 import { BrandLogo } from "@/components/ui/Logo";
+
+// Settings is a rarely-opened modal — keep its code (framer-motion + subject
+// selection) out of the always-loaded navbar chunk until the user opens it.
+const StudentSettingsModal = dynamic(() => import("@/components/student/StudentSettingsModal"), { ssr: false });
 
 // Classroom is its own workspace — a reduced nav (no Practice / Papers).
 const CLASSROOM_NAV = [

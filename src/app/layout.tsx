@@ -1,16 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Outfit, Fraunces, Hanken_Grotesk, Roboto_Mono } from "next/font/google";
+import { Fraunces, Hanken_Grotesk, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/propel-scoped.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import ThemeScript from "@/components/ui/ThemeScript";
 
-// All fonts are self-hosted via next/font: preloaded, no render-blocking
+// The three brand fonts, self-hosted via next/font: preloaded, no render-blocking
 // stylesheet request, and no layout shift. `display: swap` keeps text visible
-// while the face loads. The propel-scoped CSS and inline styles reference these
-// through their CSS variables.
-const inter = Inter({ subsets: ["latin"], variable: '--font-inter', display: 'swap' });
-const outfit = Outfit({ subsets: ["latin"], variable: '--font-outfit', display: 'swap' });
+// while the face loads. Referenced through their CSS variables everywhere.
 const fraunces = Fraunces({ subsets: ["latin"], variable: '--font-fraunces', display: 'swap' });
 const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: '--font-hanken', display: 'swap' });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: '--font-roboto-mono', display: 'swap' });
@@ -47,7 +44,7 @@ export default function RootLayout({
     >
       <html
         lang="en"
-        className={`${inter.variable} ${outfit.variable} ${fraunces.variable} ${hanken.variable} ${robotoMono.variable}`}
+        className={`${fraunces.variable} ${hanken.variable} ${robotoMono.variable}`}
         suppressHydrationWarning
       >
         <head>

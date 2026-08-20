@@ -90,9 +90,9 @@ const config: Config = {
       },
       fontFamily: {
         /* Brand type system: Fraunces (display), Hanken Grotesk (body),
-           Roboto Mono (labels). Outfit/Inter kept as fallbacks. */
-        display: ["var(--font-fraunces)", "var(--font-outfit)", "Georgia", "serif"],
-        sans: ["var(--font-hanken)", "var(--font-inter)", "system-ui", "sans-serif"],
+           Roboto Mono (labels). */
+        display: ["var(--font-fraunces)", "Georgia", "serif"],
+        sans: ["var(--font-hanken)", "system-ui", "sans-serif"],
         mono: ["var(--font-roboto-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {

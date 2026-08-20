@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
+import dynamic from "next/dynamic";
+// QR only renders inside the Share tab — keep qrcode.react out of the initial bundle.
+const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), { ssr: false });
 import {
   Archive,
   ArchiveRestore,
