@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Award, CheckCircle2, Target, TrendingUp } from "lucide-react";
+import { CheckCircle2, Target, TrendingUp } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
@@ -83,7 +83,7 @@ export default function ProgressPage() {
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-display text-lg font-semibold tracking-tight text-ink">Goal Achievement</h3>
                         <div className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
-                            <Award size={16} className="text-gold-deep" />
+                            <Target size={16} className="text-gold-deep" />
                             {progressPercent}% complete
                         </div>
                     </div>

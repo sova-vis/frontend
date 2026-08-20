@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Award, CheckCircle2, CircleAlert, Loader2, Sparkles, Upload, FileImage, FileText } from "lucide-react";
+import { CheckCircle2, CircleAlert, Loader2, Sparkles, Upload, FileImage, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -427,7 +427,7 @@ export default function QaGradingPage() {
 
               <div className="rounded-2xl border border-line bg-surface p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <Award className="h-4 w-4 text-crimson" />
+                  <CheckCircle2 className="h-4 w-4 text-crimson" />
                   <h3 className="text-sm font-semibold text-ink">Feedback</h3>
                 </div>
                 <p className="text-sm leading-6 text-ink-muted">{result.feedback}</p>

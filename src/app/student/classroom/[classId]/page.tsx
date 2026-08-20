@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, CheckCircle2, Clock, GraduationCap, LogOut, School } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Clock, LogOut, School } from "lucide-react";
 import { AvailableAssignment, Classroom, getAvailableAssignments, getMyClassrooms, leaveClass } from "@/lib/submissions";
 
 export default function StudentClassPage() {
@@ -97,7 +97,7 @@ function Group({ title, icon: Icon, items, onOpen, cta, empty, muted, mint }: {
         <div className="space-y-2">
           {items.map((a) => (
             <div key={a.id} className="ed-card-soft p-3 flex items-center gap-3">
-              <GraduationCap size={16} className="text-ink-faint shrink-0" />
+              <School size={16} className="text-ink-faint shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-ink truncate">{a.title}</p>
                 <p className="text-xs text-ink-faint truncate">{a.deadline_at ? `Due ${new Date(a.deadline_at).toLocaleDateString()}` : "No deadline"}</p>

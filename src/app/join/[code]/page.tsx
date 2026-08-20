@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { CheckCircle2, Clock, GraduationCap, School, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, School, XCircle } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { BrandLogo } from "@/components/ui/Logo";
 
@@ -94,7 +94,7 @@ export default function JoinPage() {
                 <p className="mt-4 font-display text-lg font-semibold">You&apos;re in{state.className ? ` — ${state.className}` : ""}!</p>
                 <p className="text-ink-muted text-sm mt-1">Your assignments and class are ready in your Classroom.</p>
                 <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-5 px-6 py-2.5 mx-auto">
-                  <GraduationCap size={16} /> Go to my classroom
+                  <School size={16} /> Go to my classroom
                 </button>
               </>
             )}
@@ -105,7 +105,7 @@ export default function JoinPage() {
                 <p className="mt-4 font-display text-lg font-semibold">Request sent</p>
                 <p className="text-ink-muted text-sm mt-1">Your teacher needs to approve you — you&apos;ll get access the moment they do.</p>
                 <button onClick={() => router.push("/student/classroom")} className="ed-btn-primary mt-5 px-6 py-2.5 mx-auto">
-                  <GraduationCap size={16} /> Go to my classroom
+                  <School size={16} /> Go to my classroom
                 </button>
               </>
             )}

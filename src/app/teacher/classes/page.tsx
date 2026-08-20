@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Plus, Users } from "lucide-react";
+import { School, Plus, Users } from "lucide-react";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { subjectStyle } from "@/components/propel/subjects";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
@@ -122,7 +122,7 @@ export default function ClassesPage() {
                           className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-paper"
                           style={{ backgroundColor: style.color }}
                         >
-                          <GraduationCap size={18} />
+                          <School size={18} />
                         </span>
                         <div className="min-w-0">
                           <h3 className="font-semibold text-ink truncate">{c.name}</h3>
@@ -174,7 +174,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="ed-card p-10 text-center">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink">
-        <GraduationCap size={26} />
+        <School size={26} />
       </div>
       <h3 className="mt-4 font-display text-xl font-semibold">Create your first class</h3>
       <p className="mt-1 text-ink-muted max-w-sm mx-auto">

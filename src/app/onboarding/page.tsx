@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Camera, Check, GraduationCap, School } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, ClipboardCheck, School } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { SUBJECT_OPTIONS as SUBJECTS, subjectSlug } from "@/lib/studentSubjects";
@@ -204,7 +204,7 @@ export default function OnboardingPage() {
         </h1>
         <p className="text-ink-muted mt-2">Choose your role to get set up.</p>
         <div className="grid sm:grid-cols-2 gap-4 mt-8">
-          <RoleCard icon={GraduationCap} tone="mint" title="I'm a Student" desc="Practise past papers, take assignments, track progress." onClick={() => { setRole("student"); setStep(0); }} />
+          <RoleCard icon={ClipboardCheck} tone="mint" title="I'm a Student" desc="Practise past papers, take assignments, track progress." onClick={() => { setRole("student"); setStep(0); }} />
           <RoleCard icon={School} tone="crimson" title="I'm a Teacher" desc="Create classes, set assignments, mark with AI, release results." onClick={() => { setRole("teacher"); setStep(0); }} />
         </div>
       </Shell>

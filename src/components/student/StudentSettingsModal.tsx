@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, Check, GraduationCap, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
+import { BookOpen, Check, ClipboardCheck, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { usePaperLevel } from "@/lib/paperLevel";
 import { resolveName } from "@/lib/displayName";
@@ -154,7 +154,7 @@ export default function StudentSettingsModal({ onClose, initialSection = "accoun
                         className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-paper/90 backdrop-blur-sm"
                       >
                         <motion.div initial={{ scale: 0.8, y: 8 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 240, damping: 18 }} className="text-center">
-                          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><GraduationCap size={32} /></div>
+                          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><ClipboardCheck size={32} /></div>
                           <p className="font-display text-lg font-semibold mt-3">Switching to {switching === "alevel" ? "A Level" : "O Level"}</p>
                           <motion.div className="h-1 rounded-full bg-crimson mt-3 mx-auto" initial={{ width: 0 }} animate={{ width: 90 }} transition={{ duration: 0.6 }} />
                         </motion.div>

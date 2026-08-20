@@ -1,6 +1,6 @@
 "use client";
 
-import { Book, BookOpen, GraduationCap, Leaf, Sprout } from "lucide-react";
+import { Book, BookOpen, Leaf, Sprout } from "lucide-react";
 
 // Purely decorative: gently bobbing books and drifting leaves that fill the
 // empty space beside the greeting. aria-hidden + pointer-events:none so it's
@@ -46,7 +46,7 @@ export default function StudyScene() {
         <Book size={54} strokeWidth={1.4} />
       </div>
       <div className="ppl-anim" style={{ position: "absolute", left: "70%", top: "30%", color: "var(--teal-deep)", animation: "pplBookBob 8s ease-in-out infinite 1.2s" }}>
-        <GraduationCap size={50} strokeWidth={1.4} />
+        <Sprout size={50} strokeWidth={1.4} />
       </div>
       <div className="ppl-anim" style={{ position: "absolute", left: "30%", top: "68%", color: "var(--purple, #7c5cbf)", animation: "pplBookBob2 6.8s ease-in-out infinite 1.8s" }}>
         <Sprout size={40} strokeWidth={1.5} />

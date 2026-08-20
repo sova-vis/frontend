@@ -9,7 +9,7 @@ import {
   BookOpen,
   CheckCircle2,
   FileStack,
-  GraduationCap,
+  School,
   Layers,
   ScanLine,
   UserPlus,
@@ -202,7 +202,7 @@ export default function TeacherHome() {
                   <StaggerItem key={c.id}>
                     <Link href={`/teacher/classes/${c.id}`} className="ed-card-soft p-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
                       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-paper" style={{ backgroundColor: style.color }}>
-                        <GraduationCap size={18} />
+                        <School size={18} />
                       </span>
                       <div className="min-w-0">
                         <p className="font-semibold text-ink truncate">{c.name}</p>
@@ -237,7 +237,7 @@ function QuickActions() {
   const actions = [
     { href: "/teacher/assignments/new?mode=topical", label: "Assign topical set", icon: BookOpen },
     { href: "/teacher/assignments/new?mode=paper", label: "Assign full paper", icon: FileStack },
-    { href: "/teacher/classes", label: "Create class", icon: GraduationCap },
+    { href: "/teacher/classes", label: "Create class", icon: School },
     { href: "/teacher/classes", label: "Invite students", icon: UserPlus },
   ];
   return (

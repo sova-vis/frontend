@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { ChevronRight, Clock, GraduationCap, Plus, School, Target } from "lucide-react";
+import { ChevronRight, Clock, Plus, School, Target } from "lucide-react";
 import {
   AvailableAssignment,
   Classroom,
@@ -182,7 +182,7 @@ export default function StudentClassroomPage() {
                     <p className="ed-label">Your teachers</p>
                     {classrooms.map((c) => (
                       <div key={c.class_id} className="flex items-center gap-2 text-sm">
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-crimson-soft text-crimson-ink"><GraduationCap size={15} /></span>
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-crimson-soft text-crimson-ink"><School size={15} /></span>
                         <div className="min-w-0">
                           <p className="font-medium text-ink truncate">{c.teacher_name}</p>
                           <p className="text-xs text-ink-faint truncate">{c.class_name}{c.enrollment_status === "pending" ? " · pending" : ""}</p>

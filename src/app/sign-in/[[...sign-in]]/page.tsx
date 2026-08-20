@@ -2,7 +2,7 @@ import { SignIn } from "@clerk/nextjs";
 import { Metadata } from "next";
 import Link from "next/link";
 import { BrandLogo } from "@/components/ui/Logo";
-import { GraduationCap, LineChart, Sparkles } from "lucide-react";
+import { Target, LineChart, Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Sign In | Propel",
@@ -50,7 +50,7 @@ export default function SignInPage() {
           </p>
           <div className="mt-10 space-y-4">
             {[
-              { Icon: GraduationCap, label: "Track your exam readiness in real time" },
+              { Icon: Target, label: "Track your exam readiness in real time" },
               { Icon: LineChart, label: "See accuracy trends across every subject" },
               { Icon: Sparkles, label: "AI grading on written answers, instantly" },
             ].map(({ Icon, label }) => (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ClipboardCheck, Copy, Rocket, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCheck, Copy, Send, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import SubmissionBoard from "@/components/teacher/SubmissionBoard";
 import {
@@ -126,7 +126,7 @@ export default function AssignmentDetailPage() {
               <div className="flex flex-wrap gap-2">
                 {(a.status === "draft" || a.status === "scheduled") && (
                   <button onClick={() => void publish()} disabled={busy} className="ed-btn-primary px-4 py-2.5">
-                    <Rocket size={15} /> Publish
+                    <Send size={15} /> Publish
                   </button>
                 )}
                 <button onClick={() => void duplicate()} disabled={busy} className="ed-btn-ghost px-4 py-2.5">
