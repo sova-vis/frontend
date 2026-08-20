@@ -903,6 +903,18 @@ function PracticeInner() {
   const [questionType, setQuestionType] = useState<QuestionType>("mcq");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("topic");
 
+  // A deep link from Past Papers carries ?level=olevel|alevel; adopt it before any
+  // data load so the whole page (subjects, this paper, and "view in paper") uses the
+  // right level even on a fresh visit where localStorage isn't set yet.
+  const levelSyncedRef = useRef(false);
+  if (!levelSyncedRef.current && typeof window !== "undefined") {
+    levelSyncedRef.current = true;
+    const lvl = searchParams?.get("level");
+    if (lvl === "alevel" || lvl === "olevel") {
+      try { window.localStorage.setItem("propel_paper_level", lvl); } catch { /* ignore */ }
+    }
+  }
+
   // ---- deep link (?subject&year&session&paper&variant) — consumed once ----
   const deepLinkRef = useRef<{ subject: string; year: string; session: string; paper: string; variant: string } | null>(null);
   const deepLinkDoneRef = useRef(false);

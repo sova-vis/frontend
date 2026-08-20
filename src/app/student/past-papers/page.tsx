@@ -407,11 +407,11 @@ function PapersInner() {
                       bookmarked={hasStatus(p.primary.id, "bookmarked")}
                       onToggle={(s) => toggle(p, s)} statusBadge={statusBadge(p)} hasStatus={(s) => hasStatus(p.primary.id, s)}
                       onView={(file, kind) => setViewing({ file, kind })}
-                      // the practice bank is O-Level only — deep-link straight to this exact paper
-                      onPractice={level === "olevel" && activeSubject ? () => {
+                      // Deep-link straight to this exact paper in Practice (both O & A level).
+                      onPractice={activeSubject ? () => {
                         const params = new URLSearchParams({
                           subject: activeSubject.name.trim(), year: p.year, session: p.session,
-                          paper: p.paperCode, variant: p.variant,
+                          paper: p.paperCode, variant: p.variant, level,
                         });
                         router.push(`/student/paper-practice?${params.toString()}`);
                       } : undefined} />
