@@ -39,7 +39,7 @@ export default function SignInPage() {
         <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/[.06]" />
         <div className="absolute -bottom-24 -left-10 h-80 w-80 rounded-full bg-white/[.05]" />
         <Link href="/" className="relative z-10">
-          <BrandLogo size={40} labelClassName="text-2xl text-white" />
+          <BrandLogo size={40} tone="crimson" labelClassName="text-2xl" />
         </Link>
         <div className="relative z-10 max-w-md">
           <h2 className="font-display text-4xl font-semibold leading-tight">

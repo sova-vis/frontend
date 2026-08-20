@@ -67,7 +67,7 @@
     --ink-faint: 139 125 113;    /* #8B7D71 */
     --line: 56 47 40;            /* #382F28 */
 
-    --crimson: 226 74 110;       /* #E24A6E brighter for dark */
+    --crimson: 232 82 122;       /* #E8527A brand pink — dark-UI variant */
     --crimson-deep: 168 18 60;   /* #A8123C */
     --crimson-soft: 58 22 34;    /* #3A1622 */
     --crimson-ink: 240 138 166;  /* #F08AA6 */
@@ -187,7 +187,7 @@
 
 @layer utilities {
   .font-display {
-    font-family: var(--font-outfit), system-ui, sans-serif;
+    font-family: var(--font-fraunces), var(--font-outfit), Georgia, serif;
   }
   .text-balance {
     text-wrap: balance;

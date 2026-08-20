@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { CheckCircle2, Clock, GraduationCap, School, XCircle } from "lucide-react";
 import { apiCall } from "@/lib/api";
+import { BrandLogo } from "@/components/ui/Logo";
 
 type JoinState =
   | { kind: "loading" }
@@ -60,9 +61,8 @@ export default function JoinPage() {
       <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-gold-soft blur-3xl opacity-50" />
 
       <div className="relative w-full max-w-md">
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-crimson to-crimson-deep font-display text-xl font-bold text-white shadow-[0_6px_16px_rgba(168,18,60,.28)]">P</div>
-          <span className="font-display text-3xl font-semibold tracking-tight text-crimson">Propel</span>
+        <div className="flex items-center justify-center mb-6">
+          <BrandLogo size={40} labelClassName="text-3xl" />
         </div>
 
         <div className="ed-card p-8 text-center">

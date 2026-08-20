@@ -79,7 +79,6 @@ function HomePageContent() {
   const { profile, loading: profileLoading } = useClerkAuth();
   const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
-  const [level, setLevel] = useState<"O" | "A">("O");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
@@ -197,13 +196,14 @@ function HomePageContent() {
     { icon: TrendingUp, title: "Personalized path", desc: "Adaptive practice that targets your weak spots first for the fastest gains.", pill: "ed-pill-clay", iconWrap: "bg-clay-soft text-clay-ink" },
   ];
 
-  // Subjects shown per level — kept distinct so O and A tracks read as real,
-  // separate offerings (no "Add Maths" anywhere, per the current curriculum).
+  // O and A tracks read as real, separate offerings (no "Add Maths" anywhere,
+  // per the current curriculum) — but the landing presents both uniformly.
   const subjectsByLevel: Record<"O" | "A", string[]> = {
     O: ["Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Economics", "Business Studies", "Accounting", "English Language", "Islamiyat", "Pakistan Studies", "Statistics"],
     A: ["Physics", "Chemistry", "Biology", "Mathematics", "Further Mathematics", "Computer Science", "Economics", "Business", "Accounting", "Psychology", "Sociology", "English Literature"],
   };
-  const subjects = subjectsByLevel[level];
+  // Marquee shows the full breadth across both levels (de-duplicated).
+  const subjects = Array.from(new Set([...subjectsByLevel.O, ...subjectsByLevel.A]));
 
   const stats = [
     { to: 12000, suffix: "+", label: "Questions solved" },
@@ -359,8 +359,6 @@ function HomePageContent() {
       <FloatingHero
         user={user}
         profile={profile}
-        level={level}
-        onLevelChange={setLevel}
         onSignUp={() => openAuth("sign-up")}
         onExplore={() => {
           document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
@@ -425,29 +423,24 @@ function HomePageContent() {
             </p>
           </Reveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Stagger className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {([
               { key: "O" as const, tag: "IGCSE / O Level", title: "O Levels", blurb: "Foundations locked in — every core subject with full past-paper coverage and topical drills.", accent: "from-crimson to-crimson-deep" },
               { key: "A" as const, tag: "AS & A Level", title: "A Levels", blurb: "Advanced depth — sciences, maths, and humanities with exam-standard marking and analysis.", accent: "from-[#1C1714] to-[#3A2F28]" },
-            ]).map((lvl) => {
-              const active = level === lvl.key;
-              return (
-                <motion.button
-                  key={lvl.key}
-                  onClick={() => setLevel(lvl.key)}
+            ]).map((lvl) => (
+              <StaggerItem key={lvl.key}>
+                <motion.div
                   whileHover={{ y: -6 }}
                   transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                  className={`ed-card group text-left p-7 md:p-8 transition-shadow ${active ? "ring-2 ring-crimson shadow-card-hover" : "hover:shadow-card-hover"}`}
+                  className="ed-card h-full p-7 md:p-8 hover:shadow-card-hover"
                 >
                   <div className="flex items-center justify-between">
                     <span className={`inline-flex items-center rounded-full bg-gradient-to-r ${lvl.accent} px-3.5 py-1.5 text-xs font-bold uppercase tracking-[.12em] text-white`}>
                       {lvl.tag}
                     </span>
-                    {active && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-crimson">
-                        <CheckCircle size={15} /> Viewing
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-mint">
+                      <CheckCircle size={15} /> Full coverage
+                    </span>
                   </div>
                   <h3 className="mt-5 font-display text-3xl font-semibold text-ink">{lvl.title}</h3>
                   <p className="mt-2 text-[15px] text-ink-muted leading-relaxed">{lvl.blurb}</p>
@@ -461,14 +454,20 @@ function HomePageContent() {
                       +{Math.max(0, subjectsByLevel[lvl.key].length - 8)} more
                     </span>
                   </div>
-                  <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-crimson">
-                    Preview {lvl.title} in the hero
-                    <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-                  </span>
-                </motion.button>
-              );
-            })}
-          </div>
+                  <div className="mt-6 flex items-center gap-5 border-t border-line pt-5 text-sm">
+                    <span className="flex items-baseline gap-1.5">
+                      <b className="font-display text-xl font-semibold text-ink">{subjectsByLevel[lvl.key].length}</b>
+                      <span className="text-ink-faint">subjects</span>
+                    </span>
+                    <span className="flex items-baseline gap-1.5">
+                      <b className="font-display text-xl font-semibold text-ink">50+</b>
+                      <span className="text-ink-faint">paper years</span>
+                    </span>
+                  </div>
+                </motion.div>
+              </StaggerItem>
+            ))}
+          </Stagger>
         </div>
       </section>
 

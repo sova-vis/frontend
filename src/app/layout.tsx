@@ -28,8 +28,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FBF7F0" },
-    { media: "(prefers-color-scheme: dark)", color: "#1C1714" },
+    { media: "(prefers-color-scheme: light)", color: "#FAF6F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#161310" },
   ],
 };
 
@@ -53,7 +53,7 @@ export default function RootLayout({
         <head>
           <ThemeScript />
         </head>
-        <body className={outfit.className}>
+        <body className={hanken.className}>
           {children}
         </body>
       </html>

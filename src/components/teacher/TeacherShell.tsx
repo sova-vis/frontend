@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import NotificationsBell from "@/components/teacher/NotificationsBell";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { resolveName } from "@/lib/displayName";
+import { BrandLogo } from "@/components/ui/Logo";
 
 interface NavItem {
   href: string;
@@ -46,8 +47,8 @@ export default function TeacherShell({ children }: { children: React.ReactNode }
       {/* ---- Desktop sidebar ---- */}
       <aside className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-60 border-r border-line bg-paper-soft">
         <div className="px-6 py-6">
-          <Link href="/teacher/dashboard" className="font-display text-xl font-semibold tracking-tight text-ink">
-            Propel<span className="text-crimson">.</span>
+          <Link href="/teacher/dashboard" className="flex items-center">
+            <BrandLogo size={30} labelClassName="text-xl" />
           </Link>
           <p className="ed-label mt-1">Teacher Portal</p>
         </div>
@@ -93,8 +94,8 @@ export default function TeacherShell({ children }: { children: React.ReactNode }
 
       {/* ---- Mobile top bar ---- */}
       <header className="md:hidden sticky top-0 z-20 flex items-center justify-between border-b border-line bg-paper/90 backdrop-blur px-4 py-3">
-        <Link href="/teacher/dashboard" className="font-display text-lg font-semibold tracking-tight">
-          Propel<span className="text-crimson">.</span>
+        <Link href="/teacher/dashboard" className="flex items-center">
+          <BrandLogo size={28} labelClassName="text-lg" />
         </Link>
         <div className="flex items-center gap-2">
           <NotificationsBell />

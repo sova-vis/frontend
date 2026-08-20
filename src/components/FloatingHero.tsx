@@ -14,48 +14,13 @@ import {
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { EASE } from "@/components/ui/Motion";
+import { PropelMark } from "@/components/ui/Logo";
 
 interface FloatingHeroProps {
   user?: any;
   profile?: { role: string; full_name?: string } | null;
   onSignUp: () => void;
   onExplore: () => void;
-  level: "O" | "A";
-  onLevelChange: (level: "O" | "A") => void;
-}
-
-/* Segmented O / A Level switch — the platform serves both, so the visitor
-   picks the track that's theirs and the whole hero reframes around it. */
-function LevelSwitch({
-  level,
-  onLevelChange,
-}: {
-  level: "O" | "A";
-  onLevelChange: (level: "O" | "A") => void;
-}) {
-  return (
-    <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-line bg-surface/70 p-1 backdrop-blur">
-      {(["O", "A"] as const).map((l) => (
-        <button
-          key={l}
-          onClick={() => onLevelChange(l)}
-          className="relative rounded-full px-4 py-1.5 text-sm font-bold transition-colors"
-          aria-pressed={level === l}
-        >
-          {level === l && (
-            <motion.span
-              layoutId="hero-level-pill"
-              transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              className="absolute inset-0 rounded-full bg-crimson shadow-crimson"
-            />
-          )}
-          <span className={`relative z-10 ${level === l ? "text-white" : "text-ink-muted"}`}>
-            {l} Level
-          </span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function dashboardHref(user: any, profile?: { role: string } | null) {
@@ -98,7 +63,7 @@ function MiniRing({ score = 64 }: { score?: number }) {
 
 const trendPoints = "6,70 40,58 74,62 108,44 142,40 176,28 210,22";
 
-export default function FloatingHero({ user, profile, onSignUp, onExplore, level, onLevelChange }: FloatingHeroProps) {
+export default function FloatingHero({ user, profile, onSignUp, onExplore }: FloatingHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
   const yUp = useTransform(scrollYProgress, [0, 1], [0, -70]);
@@ -114,12 +79,17 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore, level
       <div className="absolute inset-0 ed-grid-bg opacity-60" />
       <div className="absolute -top-24 -left-24 h-[30rem] w-[30rem] rounded-full bg-crimson/10 blur-[120px]" />
       <div className="absolute top-10 right-0 h-[26rem] w-[26rem] rounded-full bg-gold/10 blur-[120px]" />
+      {/* Brand mark motif — the ascending Unboxed chevrons, oversized and faint */}
+      <PropelMark
+        size={560}
+        className="pointer-events-none absolute -right-28 -top-20 rotate-6 text-crimson/[0.05] dark:text-crimson/[0.08]"
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden opacity-[0.03] dark:opacity-[0.05]"
       >
         <span className="-rotate-6 whitespace-nowrap font-display text-[22vw] font-black leading-none text-ink">
-          {level} LEVELS
+          O &amp; A LEVELS
         </span>
       </div>
 
@@ -136,8 +106,6 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore, level
             O &amp; A Level exam prep, reimagined
           </motion.div>
 
-          <LevelSwitch level={level} onLevelChange={onLevelChange} />
-
           <motion.h1
             initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
@@ -146,15 +114,7 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore, level
           >
             Propel your success in{" "}
             <span className="relative inline-block text-crimson">
-              <motion.span
-                key={level}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: EASE }}
-                className="inline-block"
-              >
-                {level} Levels
-              </motion.span>
+              O &amp; A Levels
               <svg
                 className="absolute -bottom-2 left-0 h-3 w-full text-gold md:h-4"
                 viewBox="0 0 200 20"

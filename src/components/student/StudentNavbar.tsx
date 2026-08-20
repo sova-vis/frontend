@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LayoutGrid, School, Settings } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import StudentSettingsModal from "@/components/student/StudentSettingsModal";
+import { BrandLogo } from "@/components/ui/Logo";
 
 // Classroom is its own workspace — a reduced nav (no Practice / Papers).
 const CLASSROOM_NAV = [
@@ -83,9 +84,8 @@ export default function StudentNavbar() {
         <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-4 py-3.5 md:px-7 lg:flex-row lg:items-center lg:justify-between">
           {/* Brand + (mobile) right cluster */}
           <div className="flex items-center justify-between gap-4">
-            <Link href={mode === "classroom" ? "/student/classroom" : "/student/dashboard"} className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-crimson to-crimson-deep font-display text-lg font-bold text-white shadow-[0_6px_16px_rgba(168,18,60,.28)]">P</div>
-              <span className="font-display text-2xl font-semibold tracking-tight text-crimson">Propel</span>
+            <Link href={mode === "classroom" ? "/student/classroom" : "/student/dashboard"} className="flex items-center">
+              <BrandLogo size={32} labelClassName="text-2xl" />
             </Link>
             <div className="flex items-center gap-2 lg:hidden">
               <ModeToggle mode={mode} onSwitch={switchMode} />

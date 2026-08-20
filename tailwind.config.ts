@@ -44,6 +44,10 @@ const config: Config = {
         },
         clay: { DEFAULT: ed("--clay"), soft: ed("--clay-soft"), ink: ed("--clay-ink") },
 
+        /* ---- Brand constants (fixed hues, do not theme-shift) ---- */
+        pink: "#E8527A",   /* brand pink — dark-UI mark variant */
+        cream: "#FAF6F0",  /* brand cream — knockout on crimson/dark */
+
         /* ---- Legacy shadcn-style tokens (kept for backward compat) ---- */
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -84,8 +88,11 @@ const config: Config = {
         ring: ed("--crimson"),
       },
       fontFamily: {
-        display: ["var(--font-outfit)", "system-ui", "sans-serif"],
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        /* Brand type system: Fraunces (display), Hanken Grotesk (body),
+           Roboto Mono (labels). Outfit/Inter kept as fallbacks. */
+        display: ["var(--font-fraunces)", "var(--font-outfit)", "Georgia", "serif"],
+        sans: ["var(--font-hanken)", "var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-roboto-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
         lg: "var(--radius)",
