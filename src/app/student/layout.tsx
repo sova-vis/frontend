@@ -5,15 +5,35 @@ import StudentNavbar from '@/components/student/StudentNavbar';
 import GeometricShapes from '@/components/ui/GeometricShapes';
 import { PaperLevelProvider } from '@/lib/paperLevel';
 import { useClerkAuth } from '@/lib/useClerkAuth';
-import { useUser } from '@clerk/nextjs';
+import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/studentPersonalization';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
 	const { loading, profile } = useClerkAuth();
 	const { user, isLoaded } = useUser();
+	const { getToken } = useAuth();
 	const router = useRouter();
 	const warmed = useRef(false);
+
+	// Make the SERVER the source of truth for subjects + active level: mirror the
+	// profile into this browser on login (so any device shows the same thing), or
+	// migrate this browser's existing choices up if the server has none yet.
+	useEffect(() => {
+		if (loading || !profile || profile.role !== 'student') return;
+		void reconcilePersonalizationWithProfile(profile, getToken);
+	}, [loading, profile, getToken]);
+
+	// Persist O/A toggles to the server too, so the active level follows the account.
+	useEffect(() => {
+		const onLevel = (e: Event) => {
+			const lv = (e as CustomEvent).detail;
+			if (lv === 'olevel' || lv === 'alevel') void persistActiveLevel(lv, getToken);
+		};
+		window.addEventListener('propel:level-change', onLevel);
+		return () => window.removeEventListener('propel:level-change', onLevel);
+	}, [getToken]);
 
 	useEffect(() => {
 		if (!isLoaded || loading) return;

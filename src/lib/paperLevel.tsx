@@ -43,6 +43,22 @@ export function PaperLevelProvider({ children }: { children: React.ReactNode }) 
     setReady(true);
   }, []);
 
+  // Follow external level changes — chiefly when personalization is hydrated from
+  // the server profile on login (so the toggle reflects the account, not just
+  // this browser). Doesn't re-dispatch, so there's no loop with setLevel.
+  useEffect(() => {
+    const onExternal = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === "olevel" || detail === "alevel") { setLevelState(detail); return; }
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved === "olevel" || saved === "alevel") setLevelState(saved);
+      } catch {}
+    };
+    window.addEventListener("propel:level-change", onExternal);
+    return () => window.removeEventListener("propel:level-change", onExternal);
+  }, []);
+
   const setLevel = useCallback((next: PaperLevel) => {
     setLevelState(next);
     try {

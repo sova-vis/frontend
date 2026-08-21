@@ -12,6 +12,12 @@ export interface UserProfile {
   full_name: string;
   email: string;
   selected_subjects?: string[];
+  // Server-side source of truth for personalization (follows the account to any
+  // device). subjects_by_level keeps O and A subjects separate; active_level is
+  // the O/A toggle. The flat selected_subjects above is the union, kept for the
+  // datesheet/mentoring routes.
+  subjects_by_level?: { olevel?: string[]; alevel?: string[] };
+  active_level?: "olevel" | "alevel";
   onboarding_complete?: boolean;
   level?: string;
   exam_session?: string;
