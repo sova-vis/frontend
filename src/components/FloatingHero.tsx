@@ -2,10 +2,11 @@
 
 import { useRef } from "react";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { ArrowRight, Check, PenTool, Atom, Sigma } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { EASE } from "@/components/ui/Motion";
+import { BookStack, OpenBook, Pencil, GradCap, ScoreDial, MarkedScript, StickyMark } from "@/components/ui/StudyObjects";
 
 interface FloatingHeroProps {
   user?: any;
@@ -43,53 +44,6 @@ function Floater({ className, delay = 0, children }: { className: string; delay?
   );
 }
 
-/* Small tile with an icon (rounded, tilted, soft shadow). */
-function IconTile({ icon: Icon, bg, fg, tilt }: { icon: typeof Check; bg: string; fg: string; tilt: string }) {
-  return (
-    <span className={`grid h-14 w-14 place-items-center rounded-2xl shadow-card ${tilt}`} style={{ background: bg, color: fg }}>
-      <Icon size={22} strokeWidth={2.4} />
-    </span>
-  );
-}
-
-/* Mark-scheme chip — symbol + code (colour always paired with a symbol). */
-function SchemeChip({ sym, code, cls, tilt }: { sym: string; code: string; cls: string; tilt: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-semibold shadow-card ${cls} ${tilt}`}>
-      <b className="text-sm">{sym}</b> {code}
-    </span>
-  );
-}
-
-/* Mini marked script with an A* grade. */
-function ScriptTile() {
-  return (
-    <span className="block w-16 -rotate-6 rounded-xl border border-line bg-surface p-2.5 shadow-card">
-      <span className="block space-y-1">
-        <span className="block h-1 w-9 rounded bg-ink/20" />
-        <span className="block h-1 w-11 rounded bg-ink/12" />
-        <span className="block h-1 w-7 rounded bg-ink/12" />
-      </span>
-      <span className="mt-2 block font-display text-base font-bold text-crimson">A*</span>
-    </span>
-  );
-}
-
-/* Mini score dial. */
-function ScoreTile() {
-  return (
-    <span className="grid h-16 w-16 place-items-center rounded-2xl bg-ink shadow-card rotate-6">
-      <span className="relative grid h-12 w-12 place-items-center">
-        <svg viewBox="0 0 48 48" className="absolute inset-0 -rotate-90">
-          <circle cx="24" cy="24" r="19" fill="none" stroke="rgba(250,246,240,0.2)" strokeWidth="5" />
-          <circle cx="24" cy="24" r="19" fill="none" stroke="#5FD3B3" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 19} strokeDashoffset={(2 * Math.PI * 19) * 0.25} />
-        </svg>
-        <b className="font-display text-xs font-semibold text-cream">4/6</b>
-      </span>
-    </span>
-  );
-}
-
 export default function FloatingHero({ user, profile, onSignUp, onExplore }: FloatingHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
@@ -113,17 +67,21 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* ---- Floating study objects (parallax on scroll) ---- */}
+      {/* ---- Floating study objects (parallax on scroll) ----
+           All kept below top-[24%] so nothing tucks behind the fixed navbar,
+           and clear of the centred headline (sides, or lower than 55%).      */}
       <motion.div style={{ y: floatY }} className="absolute inset-0">
-        <Floater className="left-[7%] top-[16%]" delay={0.1}><ScriptTile /></Floater>
-        <Floater className="left-[15%] top-[46%]" delay={0.5}><IconTile icon={Check} bg="#A8123C" fg="#FAF6F0" tilt="rotate-6" /></Floater>
-        <Floater className="left-[8%] top-[72%]" delay={0.9}><SchemeChip sym="✓" code="M1" cls="bg-mint-soft text-mint-ink" tilt="-rotate-3" /></Floater>
-        <Floater className="left-[27%] top-[80%]" delay={1.2}><IconTile icon={Sigma} bg="#F6E1E7" fg="#A8123C" tilt="-rotate-6" /></Floater>
-        <Floater className="right-[9%] top-[14%]" delay={0.3}><IconTile icon={Atom} bg="#1C1714" fg="#FAF6F0" tilt="-rotate-6" /></Floater>
-        <Floater className="right-[16%] top-[44%]" delay={0.7}><SchemeChip sym="±" code="A1" cls="bg-gold-soft text-gold-ink" tilt="rotate-3" /></Floater>
-        <Floater className="right-[7%] top-[70%]" delay={1.0}><ScoreTile /></Floater>
-        <Floater className="right-[26%] top-[82%]" delay={1.3}><IconTile icon={PenTool} bg="#DBEFE8" fg="#16876B" tilt="rotate-6" /></Floater>
-        <Floater className="right-[30%] top-[9%]" delay={1.4}><SchemeChip sym="✕" code="B1" cls="bg-clay-soft text-clay-ink" tilt="rotate-6" /></Floater>
+        {/* left */}
+        <Floater className="left-[5%] top-[27%]" delay={0.1}><BookStack size={80} style={{ transform: "rotate(-4deg)" }} /></Floater>
+        <Floater className="left-[12%] top-[55%]" delay={0.5}><Pencil size={64} style={{ transform: "rotate(8deg)" }} /></Floater>
+        <Floater className="left-[6%] top-[80%]" delay={0.9}><StickyMark sym="✓" code="M1" base="#DBF1E9" ink="#0E6E52" size={50} style={{ transform: "rotate(-5deg)" }} /></Floater>
+        <Floater className="left-[22%] top-[83%]" delay={1.2}><OpenBook size={76} style={{ transform: "rotate(3deg)" }} /></Floater>
+        {/* right */}
+        <Floater className="right-[6%] top-[25%]" delay={0.3}><GradCap size={72} style={{ transform: "rotate(5deg)" }} /></Floater>
+        <Floater className="right-[13%] top-[26%]" delay={1.4}><StickyMark sym="✕" code="B1" base="#F7DED6" ink="#B23A1E" size={48} style={{ transform: "rotate(6deg)" }} /></Floater>
+        <Floater className="right-[16%] top-[53%]" delay={0.7}><StickyMark sym="±" code="A1" base="#FBEBC4" ink="#9A6A05" size={50} style={{ transform: "rotate(-4deg)" }} /></Floater>
+        <Floater className="right-[6%] top-[74%]" delay={1.0}><ScoreDial value={4} total={6} size={62} style={{ transform: "rotate(6deg)" }} /></Floater>
+        <Floater className="right-[21%] top-[84%]" delay={1.3}><MarkedScript size={62} style={{ transform: "rotate(-6deg)" }} /></Floater>
       </motion.div>
 
       {/* ---- Centered headline + CTA ---- */}
