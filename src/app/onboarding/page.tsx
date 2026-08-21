@@ -9,6 +9,7 @@ import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { SUBJECT_OPTIONS as SUBJECTS, subjectSlug } from "@/lib/studentSubjects";
 import { saveSelectedSubjects } from "@/lib/studentPersonalization";
+import { hideAuthSplash } from "@/lib/authSplash";
 import { LevelSubject, loadLevelSubjects } from "@/lib/librarySubjects";
 const SESSIONS = ["Oct/Nov 2026", "May/June 2027", "Oct/Nov 2027", "Not sure yet"];
 const GRADES = ["A*", "A", "B", "C", "Just want to pass"];
@@ -92,7 +93,11 @@ export default function OnboardingPage() {
     if (!isLoaded) return;
     if (!user) { router.replace("/sign-in"); return; }
     if (!loading && profile?.onboarding_complete) {
+      // Keep the splash up — the dashboard will drop it once it's ready.
       router.replace(profile.role === "teacher" ? "/teacher/dashboard" : profile.role === "admin" ? "/admin/dashboard" : "/student/dashboard");
+    } else if (!loading) {
+      // This user genuinely needs onboarding → this IS the destination; reveal it.
+      hideAuthSplash();
     }
   }, [isLoaded, user, loading, profile, router]);
 

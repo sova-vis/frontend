@@ -6,6 +6,7 @@ import GeometricShapes from '@/components/ui/GeometricShapes';
 import { PaperLevelProvider } from '@/lib/paperLevel';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/studentPersonalization';
+import { hideAuthSplash } from '@/lib/authSplash';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -51,6 +52,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
 		if (profile && profile.role !== 'student') {
 			router.replace('/');
+			return;
+		}
+
+		// Student workspace is the destination → drop the post-login splash.
+		if (profile && profile.role === 'student' && profile.onboarding_complete !== false) {
+			hideAuthSplash();
 		}
 	}, [isLoaded, loading, user, profile, router]);
 

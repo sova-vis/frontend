@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { hideAuthSplash } from "@/lib/authSplash";
 import TeacherShell from "@/components/teacher/TeacherShell";
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
@@ -11,6 +12,9 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const { user, isLoaded } = useUser();
     const { profile, loading } = useClerkAuth();
+
+    // Destination reached → drop the post-login splash.
+    useEffect(() => { if (isAuthorized) hideAuthSplash(); }, [isAuthorized]);
 
     useEffect(() => {
         if (!isLoaded || loading) return;

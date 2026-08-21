@@ -11,6 +11,7 @@ import { useUser } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { BrandLogo } from '@/components/ui/Logo';
+import { showAuthSplash } from '@/lib/authSplash';
 import { Reveal, Stagger, StaggerItem, CountUp, Marquee } from '@/components/ui/Motion';
 
 const AuthLoading = () => (
@@ -110,6 +111,13 @@ function HomePageContent() {
   // page. Returning users are routed from their cached profile immediately; a
   // brand-new user (no cache yet) goes straight to onboarding without waiting on
   // the backend round-trip. The onboarding page bounces anyone already onboarded.
+  // The moment auth is confirmed, raise the Propel splash so the landing →
+  // onboarding → dashboard hand-off is covered by one animation, not a flicker
+  // through each page. Each destination drops the splash once it's ready.
+  useEffect(() => {
+    if (isLoaded && user) showAuthSplash();
+  }, [isLoaded, user]);
+
   useEffect(() => {
     if (!isLoaded || !user) return;
     setAuthModal(null);

@@ -4,12 +4,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { hideAuthSplash } from "@/lib/authSplash";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [isAuthorized, setIsAuthorized] = useState(false);
     const { user, isLoaded } = useUser();
     const { profile, loading } = useClerkAuth();
+
+    // Destination reached → drop the post-login splash.
+    useEffect(() => { if (isAuthorized) hideAuthSplash(); }, [isAuthorized]);
 
     useEffect(() => {
         if (!isLoaded || loading) return;

@@ -4,6 +4,7 @@ import "./globals.css";
 import "../styles/propel-scoped.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import ThemeScript from "@/components/ui/ThemeScript";
+import AuthTransitionSplash from "@/components/AuthTransitionSplash";
 
 // The three brand fonts, self-hosted via next/font: preloaded, no render-blocking
 // stylesheet request, and no layout shift. `display: swap` keeps text visible
@@ -54,6 +55,7 @@ export default function RootLayout({
         </head>
         <body className={hanken.className}>
           {children}
+          <AuthTransitionSplash />
         </body>
       </html>
     </ClerkProvider>
