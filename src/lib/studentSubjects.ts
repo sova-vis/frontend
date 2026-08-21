@@ -3,9 +3,10 @@
 export const SUBJECT_OPTIONS = [
   "Mathematics", "Further Mathematics", "Statistics",
   "Physics", "Chemistry", "Biology", "Computer Science",
-  "Economics", "Business", "Accounting", "Sociology", "Psychology",
+  "Economics", "Business", "Accounting", "Commerce", "Sociology", "Psychology",
   "English Language", "English Literature", "Urdu",
   "Geography", "History", "Islamiyat", "Pakistan Studies",
+  "Art and Design", "Environmental Management", "Religious Studies",
 ];
 
 // Subjects hidden from Practice / Past Papers everywhere because their content
