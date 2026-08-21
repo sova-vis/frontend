@@ -34,13 +34,25 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
   );
   useEffect(() => { if (only && subjects.length === 1) setOpen(subjects[0]); }, [only, subjects]);
 
+  // Topic metadata comes from the paper library for the ACTIVE level — without
+  // this, A-Level subjects (whose topics live under level=alevel) showed 0 topics.
+  // Reloads if the student switches O/A level. Uses the same per-level cache key
+  // as Practice, so if they've opened Practice this session it's already warm.
   useEffect(() => {
-    const cached = cacheGet<SubjMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
-    if (cached && cached.length) { setMeta(cached); return; }
-    fetch("/api/paper-practice")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.subjects) { setMeta(d.subjects); cacheSet("pp:practice:subjects", d.subjects); } })
-      .catch(() => {});
+    let active = true;
+    const load = () => {
+      const lvl = typeof window !== "undefined" && window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel";
+      const key = `pp:practice:subjects:${lvl}`;
+      const cached = cacheGet<SubjMeta[]>(key, 30 * 60 * 1000);
+      if (cached && cached.length) { setMeta(cached); return; }
+      fetch(`/api/paper-practice?level=${lvl}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (active && d?.subjects) { setMeta(d.subjects); cacheSet(key, d.subjects); } })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("propel:level-change", load);
+    return () => { active = false; window.removeEventListener("propel:level-change", load); };
   }, []);
 
   const topicsFor = useMemo(() => (subject: string): string[] => {

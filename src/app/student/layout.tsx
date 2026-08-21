@@ -42,8 +42,11 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 		warmed.current = true;
 
 		const warm = () => {
-			// Prime the expensive practice metadata scan (server memory + browser HTTP cache).
-			fetch('/api/paper-practice').catch(() => {});
+			// Prime the expensive practice metadata scan for the active level (server
+			// memory + browser HTTP cache) so the dashboard weak-spots + Practice are
+			// instant on open.
+			const lvl = typeof window !== 'undefined' && window.localStorage.getItem('propel_paper_level') === 'alevel' ? 'alevel' : 'olevel';
+			fetch(`/api/paper-practice?level=${lvl}`).catch(() => {});
 			router.prefetch('/student/paper-practice');
 			router.prefetch('/student/past-papers');
 			router.prefetch('/student/practise');

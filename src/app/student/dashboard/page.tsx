@@ -6,7 +6,7 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { useStudentStats, timeAgo } from "@/lib/useStudentStats";
 import { Icon } from "@/components/propel/Icon";
-import { Bar, CountUp, Delta, Ring, SubjGlyph, EmptyState } from "@/components/propel/primitives";
+import { Bar, CountUp, Delta, SubjGlyph, EmptyState } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";
 import type { TrackedPaper } from "@/lib/paperTracking";
 import {
@@ -121,12 +121,6 @@ export default function StudentDashboard() {
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 
-  // readiness = goal completion when goals exist (real), else completed-paper momentum
-  const readiness = stats.goalsTotal > 0
-    ? Math.round((stats.goalsDone / stats.goalsTotal) * 100)
-    : Math.min(100, stats.completedCount * 8);
-  const readinessLabel = readiness >= 75 ? "On track" : readiness >= 45 ? "Building up" : "Getting started";
-
   // per-subject completed counts (real)
   const bySubject = new Map<string, number>();
   stats.papers.forEach((p) => {
@@ -198,14 +192,12 @@ export default function StudentDashboard() {
             <div className="eyebrow" style={{ marginBottom: 12 }}>{today}</div>
             <h1 style={{ fontSize: "clamp(38px,5.5vw,62px)", lineHeight: 1.02, letterSpacing: "-0.02em" }}>{greeting()},<br />{name} 👋</h1>
             <p className="muted mt-16" style={{ fontSize: 18, maxWidth: 520, lineHeight: 1.5 }}>
-              Keep your momentum — a focused paper today moves the needle. Your readiness and streak are on the right.
+              Keep your momentum — a focused paper today moves the needle. Your streak is on the right.
             </p>
             <StudyScene />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="card card-pad" style={{ display: "flex", gap: 12, justifyContent: "space-around", alignItems: "center", padding: "18px 12px" }}>
-              <RingGauge value={readiness} label={readinessLabel} caption="Readiness" onClick={() => go("/student/past-papers")} />
-              <div style={{ width: 1, alignSelf: "stretch", background: "var(--line)" }} />
+            <div className="card card-pad" style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "18px 12px" }}>
               <StreakBadge days={streak} label={momentum.label} onClick={() => go("/student/paper-practice")} />
             </div>
             <NewspaperDatesheet />
@@ -611,17 +603,6 @@ export default function StudentDashboard() {
         </div>
       </div>
     </div>
-  );
-}
-
-/* ---- readiness: bare circular ring (no card) ---- */
-function RingGauge({ value, label, caption, onClick }: { value: number; label: string; caption: string; onClick?: () => void }) {
-  return (
-    <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: onClick ? "pointer" : "default", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <Ring value={value} size={104} stroke={10} color="var(--crimson)" track="var(--surface-2)" textColor="var(--ink)" />
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-faint)" }}>{caption}</div>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.2, textAlign: "center" }}>{label}</div>
-    </button>
   );
 }
 
