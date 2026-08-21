@@ -1,6 +1,6 @@
 import { apiCall } from "./api";
 import { cacheGet, cacheSet } from "./sessionCache";
-import { isExcludedSubject, SUBJECT_OPTIONS } from "./studentSubjects";
+import { isExcludedSubject, O_LEVEL_SUBJECTS, A_LEVEL_SUBJECTS } from "./studentSubjects";
 
 // Subjects the student can pick come from the actual paper library, filtered by
 // their level (O / A / Both). "Both" merges the two, tagging which level(s) each
@@ -62,13 +62,21 @@ export async function loadLevelSubjects(choice: string | null | undefined): Prom
     .map((v) => ({ name: v.name, levels: Array.from(v.levels).sort() as Lv[] }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Fallback: if the Drive returned nothing (API/CORS/config hiccup, or a level
-  // whose library isn't up yet), still offer the canonical subject list so the
-  // student is never stuck with an empty picker.
+  // Fallback: if the Drive returned nothing (API/CORS/config hiccup), still offer
+  // per-level lists so O and A stay distinct and the student is never stuck.
   if (result.length === 0) {
-    return SUBJECT_OPTIONS
-      .filter((n) => !isExcludedSubject(n))
-      .map((name) => ({ name, levels: want }))
+    const fb = new Map<string, { name: string; levels: Set<Lv> }>();
+    for (const lv of want) {
+      const list = lv === "A" ? A_LEVEL_SUBJECTS : O_LEVEL_SUBJECTS;
+      for (const n of list) {
+        if (isExcludedSubject(n)) continue;
+        const k = n.toLowerCase();
+        if (!fb.has(k)) fb.set(k, { name: n, levels: new Set() });
+        fb.get(k)!.levels.add(lv);
+      }
+    }
+    return Array.from(fb.values())
+      .map((v) => ({ name: v.name, levels: Array.from(v.levels).sort() as Lv[] }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
   return result;
