@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronLeft, Clock, X } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import QuestionBrowser from "@/components/teacher/assignment/QuestionBrowser";
-import { PickedQuestion } from "@/lib/questionBank";
+import { PickedQuestion, toBankLevel } from "@/lib/questionBank";
 import {
   AssignmentRules,
   MarkSchemeVisibility,
@@ -170,7 +170,7 @@ function Builder() {
                     <option value="">Select a class…</option>
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} — {syllabusLabel(c.syllabus_code)}
+                        {c.name} — {c.subject || syllabusLabel(c.syllabus_code)}
                       </option>
                     ))}
                   </select>
@@ -190,7 +190,8 @@ function Builder() {
                 <div className="ed-card p-5">
                   <h2 className="font-display text-lg font-semibold mb-3">Choose questions</h2>
                   <QuestionBrowser
-                    subject={syllabusByCode(selectedClass.syllabus_code)?.subject || selectedClass.subject}
+                    subject={selectedClass.subject || syllabusByCode(selectedClass.syllabus_code)?.subject || ""}
+                    level={toBankLevel(selectedClass.level)}
                     cartKeys={cartKeys}
                     onAdd={addQuestion}
                     onAddMany={addMany}

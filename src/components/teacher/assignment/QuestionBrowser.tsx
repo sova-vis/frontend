@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import {
+  BankLevel,
   BankQuestion,
   PaperOption,
   PickedQuestion,
@@ -14,13 +15,14 @@ import {
   getWholePaper,
 } from "@/lib/questionBank";
 import { CustomQuestion, customToPicked, listCustomQuestions } from "@/lib/customQuestions";
-import QuestionFull, { FullQuestion } from "@/components/teacher/QuestionFull";
+import QuestionSolveCard, { fromBankQuestion } from "@/components/practice/QuestionSolveCard";
 
 type BrowseMode = "paper" | "topic" | "custom";
 type QType = "mcq" | "structured";
 
 interface Props {
   subject: string;
+  level: BankLevel;
   cartKeys: Set<string>;
   onAdd: (q: PickedQuestion) => void;
   onAddMany: (qs: PickedQuestion[]) => void;
@@ -28,7 +30,7 @@ interface Props {
   onModeChange?: (mode: BrowseMode, meta: Record<string, unknown>) => void;
 }
 
-export default function QuestionBrowser({ subject, cartKeys, onAdd, onAddMany, onRemove, onModeChange }: Props) {
+export default function QuestionBrowser({ subject, level, cartKeys, onAdd, onAddMany, onRemove, onModeChange }: Props) {
   const [meta, setMeta] = useState<SubjectMeta | null>(null);
   const [mode, setMode] = useState<BrowseMode>("paper");
   const [type, setType] = useState<QType>("structured");
@@ -39,14 +41,14 @@ export default function QuestionBrowser({ subject, cartKeys, onAdd, onAddMany, o
     void (async () => {
       try {
         setLoadingMeta(true);
-        setMeta(await getSubjectMeta(subject));
+        setMeta(await getSubjectMeta(subject, level));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load question bank");
       } finally {
         setLoadingMeta(false);
       }
     })();
-  }, [subject]);
+  }, [subject, level]);
 
   const typeMeta = meta?.types[type];
 
@@ -93,6 +95,7 @@ export default function QuestionBrowser({ subject, cartKeys, onAdd, onAddMany, o
       ) : mode === "paper" ? (
         <PaperBrowse
           subject={subject}
+          level={level}
           type={type}
           typeMeta={typeMeta}
           cartKeys={cartKeys}
@@ -104,6 +107,7 @@ export default function QuestionBrowser({ subject, cartKeys, onAdd, onAddMany, o
       ) : (
         <TopicBrowse
           subject={subject}
+          level={level}
           type={type}
           typeMeta={typeMeta}
           cartKeys={cartKeys}
@@ -177,13 +181,14 @@ function BankRow({ q, inCart, onAdd, onRemove }: { q: BankQuestion; inCart: bool
           {inCart ? <Check size={15} /> : <Plus size={15} />}
         </button>
       </div>
-      {open && <div className="mt-3 pt-3 border-t border-line"><QuestionFull q={q as unknown as FullQuestion} showAnswers /></div>}
+      {open && <div className="mt-3 pt-3 border-t border-line"><QuestionSolveCard question={fromBankQuestion(q)} reveal readOnly /></div>}
     </div>
   );
 }
 
 function PaperBrowse({
   subject,
+  level,
   type,
   typeMeta,
   cartKeys,
@@ -193,6 +198,7 @@ function PaperBrowse({
   onModeChange,
 }: {
   subject: string;
+  level: BankLevel;
   type: QType;
   typeMeta: SubjectMeta["types"][QType] | undefined;
   cartKeys: Set<string>;
@@ -215,14 +221,14 @@ function PaperBrowse({
       setPapers([]);
       return;
     }
-    void (async () => setPapers(await getPapers(subject, type, year)))();
-  }, [subject, type, year]);
+    void (async () => setPapers(await getPapers(subject, type, year, level)))();
+  }, [subject, level, type, year]);
 
   const loadPaper = async (p: PaperOption) => {
     setSelectedKey(p.key);
     setLoading(true);
     try {
-      const qs = await getWholePaper(subject, p.year, p.session, p.paper, p.variant);
+      const qs = await getWholePaper(subject, p.year, p.session, p.paper, p.variant, level);
       setQuestions(qs);
       onModeChange?.("paper", { subject, year: p.year, session: p.session, paper: p.paper, variant: p.variant });
     } finally {
@@ -294,6 +300,7 @@ function PaperBrowse({
 
 function TopicBrowse({
   subject,
+  level,
   type,
   typeMeta,
   cartKeys,
@@ -302,6 +309,7 @@ function TopicBrowse({
   onModeChange,
 }: {
   subject: string;
+  level: BankLevel;
   type: QType;
   typeMeta: SubjectMeta["types"][QType] | undefined;
   cartKeys: Set<string>;
@@ -322,7 +330,7 @@ function TopicBrowse({
     void (async () => {
       setLoading(true);
       try {
-        const { questions: qs, total: t } = await getTopicQuestions(subject, type, topic, 40, 0);
+        const { questions: qs, total: t } = await getTopicQuestions(subject, type, topic, 40, 0, level);
         setQuestions(qs);
         setTotal(t);
         onModeChange?.("topic", { subject, topics: [topic], types: [type] });
@@ -331,7 +339,7 @@ function TopicBrowse({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subject, type, topic]);
+  }, [subject, level, type, topic]);
 
   return (
     <div className="space-y-3">

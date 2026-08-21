@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { SyllabusLevel, syllabusesForLevel } from "@/lib/syllabus";
 import { CreateClassInput, TeacherClass, createClass } from "@/lib/teacherClasses";
-import { apiCall } from "@/lib/api";
+import { subjectSlug } from "@/lib/studentSubjects";
 
 // Normalise a subject/folder name so "Mathematics (Syllabus D)" ≈ "Mathematics".
 function normSubject(s: string): string {
@@ -16,75 +16,77 @@ interface Props {
   onCreated: (created: TeacherClass) => void;
 }
 
-// Create class (spec §3.1). A class belongs to exactly one syllabus code —
-// a teacher teaching two syllabuses creates two classes.
+// Create class (spec §3.1). The subject list comes from the actual question bank
+// for the chosen level (the same source that drives student Practice and the
+// assignment builder), so EVERY subject we have questions for is offered — not a
+// hardcoded catalogue. A syllabus code is attached automatically when a standard
+// one exists for the subject.
 export default function CreateClassModal({ onClose, onCreated }: Props) {
   const [level, setLevel] = useState<SyllabusLevel>("O");
-  const [syllabusCode, setSyllabusCode] = useState("");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
+  const [syllabusCode, setSyllabusCode] = useState("");
   const [yearGroup, setYearGroup] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [syllabusQuery, setSyllabusQuery] = useState("");
-  const [syllabusOpen, setSyllabusOpen] = useState(false);
-  const [librarySubjects, setLibrarySubjects] = useState<string[] | null>(null); // null = not loaded yet
 
-  // Load the subjects that actually exist in the past-paper library for this
-  // level, so the picker only offers subjects we have papers for.
+  const [bankSubjects, setBankSubjects] = useState<string[] | null>(null); // null = loading
+  const [subjectQuery, setSubjectQuery] = useState("");
+  const [subjectOpen, setSubjectOpen] = useState(false);
+
+  // Load the subjects that actually have questions in the bank for this level.
   useEffect(() => {
     let active = true;
-    setLibrarySubjects(null);
-    type Folder = { id: string; name: string; isFolder: boolean; folderType?: string };
-    const browse = async (path: string): Promise<Folder[]> => {
-      const res = await apiCall(path);
-      if (!res.ok) throw new Error("browse failed");
-      const data = (await res.json()) as { items?: Folder[] };
-      return (data.items ?? []).filter((i) => i.isFolder);
-    };
-    void (async () => {
-      try {
-        let folders = await browse(`/papers/browse?level=${level === "A" ? "alevel" : "olevel"}`);
-        // Some libraries wrap everything in one category folder.
-        if (folders.length === 1 && folders[0].folderType === "category") {
-          folders = await browse(`/papers/browse/${folders[0].id}`);
-        }
-        if (active) setLibrarySubjects(folders.map((f) => normSubject(f.name)).filter(Boolean));
-      } catch {
-        if (active) setLibrarySubjects([]); // fall back to the full catalogue
-      }
-    })();
+    setBankSubjects(null);
+    const lvl = level === "A" ? "alevel" : "olevel";
+    fetch(`/api/paper-practice?level=${lvl}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!active) return;
+        const names = ((d?.subjects ?? []) as { name?: string }[])
+          .map((s) => (s.name || "").trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+        setBankSubjects(names);
+      })
+      .catch(() => { if (active) setBankSubjects([]); });
     return () => { active = false; };
   }, [level]);
 
-  const options = useMemo(() => {
-    const all = syllabusesForLevel(level);
-    // Before the library loads, or if it's unavailable, show the full catalogue.
-    if (!librarySubjects || librarySubjects.length === 0) return all;
-    const mine = all.filter((o) => {
-      const n = normSubject(o.subject);
-      return librarySubjects.some((f) => f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `));
+  // Standard syllabus codes for the chosen subject (Physics → 5054, 0625…).
+  const codeMatches = useMemo(() => {
+    if (!subject) return [];
+    const n = normSubject(subject);
+    return syllabusesForLevel(level).filter((s) => {
+      const f = normSubject(s.subject);
+      return f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `);
     });
-    return mine.length ? mine : all;
-  }, [level, librarySubjects]);
-  const selectedSyllabus = options.find((o) => o.code === syllabusCode) || null;
-  const filteredSyllabuses = useMemo(() => {
-    const q = syllabusQuery.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => `${o.subject} ${o.code} ${o.board}`.toLowerCase().includes(q));
-  }, [options, syllabusQuery]);
+  }, [subject, level]);
 
-  const handleSyllabus = (code: string) => {
-    setSyllabusCode(code);
-    // Always adopt the canonical catalog subject so the question bank resolves it.
-    const found = options.find((o) => o.code === code);
-    if (found) setSubject(found.subject);
+  const chooseSubject = (name: string) => {
+    setSubject(name);
+    setSubjectOpen(false);
+    setSubjectQuery("");
+    const n = normSubject(name);
+    const matches = syllabusesForLevel(level).filter((s) => {
+      const f = normSubject(s.subject);
+      return f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `);
+    });
+    // Attach a standard code when one exists; otherwise derive a stable id so the
+    // class still has a code (required) without blocking non-catalogue subjects.
+    setSyllabusCode(matches[0]?.code || subjectSlug(name));
   };
 
+  const filteredSubjects = useMemo(() => {
+    const list = bankSubjects ?? [];
+    const q = subjectQuery.trim().toLowerCase();
+    return q ? list.filter((s) => s.toLowerCase().includes(q)) : list;
+  }, [bankSubjects, subjectQuery]);
+
   const handleSubmit = async () => {
-    if (!name.trim() || !subject.trim() || !syllabusCode) {
-      setError("Class name, subject and syllabus code are required.");
+    if (!name.trim() || !subject.trim()) {
+      setError("Class name and subject are required.");
       return;
     }
     setSaving(true);
@@ -93,7 +95,7 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
       const input: CreateClassInput = {
         name: name.trim(),
         subject: subject.trim(),
-        syllabus_code: syllabusCode,
+        syllabus_code: (syllabusCode || subjectSlug(subject)).trim(),
         level,
         year_group: yearGroup.trim() || undefined,
         description: description.trim() || undefined,
@@ -127,6 +129,7 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
                   key={l}
                   onClick={() => {
                     setLevel(l);
+                    setSubject("");
                     setSyllabusCode("");
                   }}
                   className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
@@ -139,42 +142,78 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
             </div>
           </div>
 
+          {/* Subject — sourced from the question bank for this level. */}
           <div className="relative">
-            <label className="ed-label">Syllabus code</label>
-            <input
-              value={syllabusOpen ? syllabusQuery : (selectedSyllabus ? `${selectedSyllabus.subject} — ${selectedSyllabus.code} (${selectedSyllabus.board})` : "")}
-              onChange={(e) => { setSyllabusQuery(e.target.value); setSyllabusOpen(true); }}
-              onFocus={() => { setSyllabusOpen(true); setSyllabusQuery(""); }}
-              onBlur={() => window.setTimeout(() => setSyllabusOpen(false), 150)}
-              placeholder="Search subject or code…"
-              className="ed-input mt-1 px-3 py-2.5 text-sm"
-            />
-            {syllabusOpen && (
-              <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-line bg-paper shadow-lg">
-                {filteredSyllabuses.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-ink-faint">No syllabus matches “{syllabusQuery}”.</div>
-                ) : filteredSyllabuses.map((o) => (
-                  <button
-                    key={o.code}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => { handleSyllabus(o.code); setSyllabusOpen(false); setSyllabusQuery(""); }}
-                    className={`block w-full text-left px-3 py-2 text-sm hover:bg-surface-soft ${o.code === syllabusCode ? "bg-crimson-soft text-crimson-ink" : "text-ink"}`}
-                  >
-                    {o.subject} — {o.code} <span className="text-ink-faint">({o.board})</span>
-                  </button>
-                ))}
+            <label className="ed-label">Subject</label>
+            <button
+              type="button"
+              onClick={() => { setSubjectOpen((o) => !o); setSubjectQuery(""); }}
+              className="ed-input mt-1 px-3 py-2.5 text-sm w-full flex items-center justify-between text-left"
+            >
+              <span className={subject ? "text-ink" : "text-ink-faint"}>{subject || "Select a subject…"}</span>
+              <ChevronDown size={15} className={`text-ink-faint transition-transform ${subjectOpen ? "rotate-180" : ""}`} />
+            </button>
+            {subjectOpen && (
+              <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-line bg-paper shadow-lg">
+                <div className="p-2 border-b border-line sticky top-0 bg-paper">
+                  <input
+                    autoFocus
+                    value={subjectQuery}
+                    onChange={(e) => setSubjectQuery(e.target.value)}
+                    placeholder="Search subjects…"
+                    className="ed-input px-3 py-2 text-sm w-full"
+                  />
+                </div>
+                {bankSubjects === null ? (
+                  <div className="px-3 py-3 text-sm text-ink-faint">Loading subjects…</div>
+                ) : filteredSubjects.length === 0 ? (
+                  <div className="px-3 py-3 text-sm text-ink-faint">
+                    {bankSubjects.length === 0 ? "No subjects found for this level yet." : `No subject matches “${subjectQuery}”.`}
+                  </div>
+                ) : (
+                  filteredSubjects.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => chooseSubject(s)}
+                      className={`flex w-full items-center justify-between px-3 py-2 text-sm text-left hover:bg-surface-soft ${
+                        s === subject ? "bg-crimson-soft text-crimson-ink" : "text-ink"
+                      }`}
+                    >
+                      {s}
+                      {s === subject && <Check size={14} />}
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
 
+          {/* Optional syllabus code — only when a standard one exists. */}
+          {subject && codeMatches.length > 0 && (
+            <div>
+              <label className="ed-label">Syllabus code</label>
+              <select
+                value={syllabusCode}
+                onChange={(e) => setSyllabusCode(e.target.value)}
+                className="ed-input mt-1 px-3 py-2.5 text-sm"
+              >
+                {codeMatches.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.subject} — {o.code} ({o.board})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="ed-label">Subject</label>
+              <label className="ed-label">Class name</label>
               <input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g. Chemistry"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. 11-B Chemistry"
                 className="ed-input mt-1 px-3 py-2.5 text-sm"
               />
             </div>
@@ -187,16 +226,6 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
                 className="ed-input mt-1 px-3 py-2.5 text-sm"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="ed-label">Class name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. 11-B Chemistry"
-              className="ed-input mt-1 px-3 py-2.5 text-sm"
-            />
           </div>
 
           <div>

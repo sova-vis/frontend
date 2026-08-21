@@ -6,7 +6,6 @@ import { CheckCircle2, ChevronLeft, Clock } from "lucide-react";
 import {
   SavedAnswer,
   StartSubmissionResponse,
-  StudentQuestion,
   saveAnswer,
   startSubmission,
   submitSubmission,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/submissions";
 import { StudentResult, getStudentResult } from "@/lib/feedbackRelease";
 import VoiceNote from "@/components/teacher/VoiceNote";
+import QuestionSolveCard, { fromStudentQuestion } from "@/components/practice/QuestionSolveCard";
 
 export default function TakeAssignmentPage() {
   const params = useParams<{ id: string }>();
@@ -188,22 +188,27 @@ export default function TakeAssignmentPage() {
 
         {!result?.released && (
         <div className="space-y-4">
-          {data.questions.map((q, i) => (
-            <QuestionCard
-              key={q.assignment_question_id}
-              index={i + 1}
-              q={q}
-              value={answers[q.assignment_question_id] || { answer_text: "", selected_option: "" }}
-              readOnly={readOnly}
-              onText={(t) => setText(q.assignment_question_id, t)}
-              onTextBlur={(t) => persist(q.assignment_question_id, { answer_text: t })}
-              onOption={(o) => setOption(q.assignment_question_id, o)}
-              mode={mode[q.assignment_question_id] || "type"}
-              onMode={(m) => setMode((prev) => ({ ...prev, [q.assignment_question_id]: m }))}
-              upload={uploads[q.assignment_question_id]}
-              onUpload={(f) => handleUpload(q.assignment_question_id, f)}
-            />
-          ))}
+          {data.questions.map((q, i) => {
+            const aq = q.assignment_question_id;
+            const v = answers[aq] || { answer_text: "", selected_option: "" };
+            return (
+              <QuestionSolveCard
+                key={aq}
+                index={i + 1}
+                question={fromStudentQuestion(q)}
+                readOnly={readOnly}
+                selectedOption={v.selected_option}
+                onSelectOption={(o) => setOption(aq, o)}
+                answerText={v.answer_text}
+                onAnswerText={(t) => setText(aq, t)}
+                onAnswerBlur={(t) => persist(aq, { answer_text: t })}
+                answerMode={mode[aq] || "type"}
+                onAnswerMode={(m) => setMode((prev) => ({ ...prev, [aq]: m }))}
+                upload={uploads[aq]}
+                onUpload={(f) => handleUpload(aq, f)}
+              />
+            );
+          })}
         </div>
         )}
 
@@ -290,143 +295,3 @@ function ResultsView({ result }: { result: StudentResult }) {
   );
 }
 
-function QuestionCard({
-  index,
-  q,
-  value,
-  readOnly,
-  onText,
-  onTextBlur,
-  onOption,
-  mode,
-  onMode,
-  upload,
-  onUpload,
-}: {
-  index: number;
-  q: StudentQuestion;
-  value: { answer_text: string; selected_option: string };
-  readOnly: boolean;
-  onText: (t: string) => void;
-  onTextBlur: (t: string) => void;
-  onOption: (o: string) => void;
-  mode: "type" | "upload";
-  onMode: (m: "type" | "upload") => void;
-  upload?: { thumb?: string; confidence?: number; status?: string; busy?: boolean };
-  onUpload: (f: File) => void;
-}) {
-  return (
-    <div className="ed-card p-5">
-      <div className="flex items-start gap-3">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-paper text-xs font-bold shrink-0">{index}</span>
-        <div className="min-w-0 flex-1">
-          {q.question_text?.trim() && <p className="text-ink whitespace-pre-wrap">{q.question_text}</p>}
-          <p className="text-xs text-ink-faint mt-1">{q.marks} marks</p>
-
-          {/* Question figures/diagrams that came with the assigned question. */}
-          {q.images && q.images.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-3">
-              {q.images.map((img, k) =>
-                img.src ? (
-                  <figure key={k} className="m-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.src} alt={img.alt || "Question figure"} className="max-h-72 rounded-lg border border-line object-contain bg-white" />
-                    {img.caption && <figcaption className="text-[0.7rem] text-ink-faint mt-1">{img.caption}</figcaption>}
-                  </figure>
-                ) : null
-              )}
-            </div>
-          )}
-
-          {/* Structured sub-parts (a, b, c…) so the student sees the whole question. */}
-          {q.parts && q.parts.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {q.parts.map((p, k) => (
-                <div key={k} className="rounded-lg border border-line p-2.5">
-                  <div className="flex items-baseline gap-2 text-sm">
-                    {p.label && <span className="font-bold text-ink">{p.label}</span>}
-                    {p.marks != null && <span className="text-xs text-ink-faint">[{p.marks}]</span>}
-                  </div>
-                  {p.body && <p className="text-sm text-ink whitespace-pre-wrap mt-0.5">{p.body}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {q.type === "mcq" ? (
-            <div className="mt-3 space-y-2">
-              {q.options.map((o) => (
-                <label
-                  key={o.label}
-                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer ${
-                    value.selected_option === o.label ? "border-crimson bg-crimson-soft" : "border-line"
-                  } ${readOnly ? "pointer-events-none opacity-80" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name={q.assignment_question_id}
-                    checked={value.selected_option === o.label}
-                    onChange={() => onOption(o.label)}
-                    className="accent-crimson"
-                    disabled={readOnly}
-                  />
-                  <span className="font-mono text-xs text-ink-faint">{o.label}</span>
-                  <span className="text-sm text-ink">{o.text}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3">
-              {!readOnly && (
-                <div className="inline-flex rounded-lg border border-line overflow-hidden mb-2">
-                  <button onClick={() => onMode("type")} className={`px-3 py-1.5 text-xs font-semibold ${mode === "type" ? "bg-crimson-soft text-crimson-ink" : "text-ink-muted"}`}>✏️ Type</button>
-                  <button onClick={() => onMode("upload")} className={`px-3 py-1.5 text-xs font-semibold ${mode === "upload" ? "bg-crimson-soft text-crimson-ink" : "text-ink-muted"}`}>📷 Upload handwritten</button>
-                </div>
-              )}
-
-              {mode === "upload" && !readOnly ? (
-                <div>
-                  <label className="ed-card-soft p-4 flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed border-2 border-line rounded-xl">
-                    <span className="text-sm text-ink-muted">{upload?.busy ? "Reading your handwriting…" : "Tap to upload a photo of your written answer"}</span>
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
-                  </label>
-                  {upload?.thumb && (
-                    <div className="mt-2 flex items-start gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={upload.thumb} alt="your answer" className="h-24 w-24 object-cover rounded-lg border border-line" />
-                      <div className="flex-1">
-                        {upload.status === "failed" ? (
-                          <p className="text-xs text-crimson">Couldn&apos;t read that clearly — try a sharper photo, or type it below.</p>
-                        ) : (
-                          <p className="text-xs text-mint-ink">Read your answer{upload.confidence != null ? ` (${Math.round(upload.confidence * 100)}% legible)` : ""}. Check and edit if needed:</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  <textarea
-                    value={value.answer_text}
-                    onChange={(e) => onText(e.target.value)}
-                    onBlur={(e) => onTextBlur(e.target.value)}
-                    rows={4}
-                    placeholder="Extracted text appears here — edit if needed…"
-                    className="ed-input mt-2 px-3 py-2.5 text-sm resize-y"
-                  />
-                </div>
-              ) : (
-                <textarea
-                  value={value.answer_text}
-                  onChange={(e) => onText(e.target.value)}
-                  onBlur={(e) => onTextBlur(e.target.value)}
-                  rows={5}
-                  disabled={readOnly}
-                  placeholder="Type your answer…"
-                  className="ed-input px-3 py-2.5 text-sm resize-y disabled:opacity-80"
-                />
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -65,15 +65,25 @@ async function bankFetch(params: Record<string, string>): Promise<any> {
   return res.json();
 }
 
-export async function getSubjectMeta(subject: string): Promise<SubjectMeta | null> {
-  const data = await bankFetch({ subject });
+// O/A level of the class, so the bank returns the right subjects/questions —
+// A-Level content lives under level=alevel and is otherwise invisible.
+export type BankLevel = "olevel" | "alevel";
+export function toBankLevel(level?: string | null): BankLevel {
+  return level === "A" || level === "alevel" ? "alevel" : "olevel";
+}
+
+export async function getSubjectMeta(subject: string, level?: BankLevel): Promise<SubjectMeta | null> {
+  const params: Record<string, string> = { subject };
+  if (level) params.level = level;
+  const data = await bankFetch(params);
   return (data.subject as SubjectMeta) ?? null;
 }
 
-export async function getPapers(subject: string, type?: "mcq" | "structured", year?: string): Promise<PaperOption[]> {
+export async function getPapers(subject: string, type?: "mcq" | "structured", year?: string, level?: BankLevel): Promise<PaperOption[]> {
   const params: Record<string, string> = { subject, papers: "1" };
   if (type) params.type = type;
   if (year) params.year = year;
+  if (level) params.level = level;
   const data = await bankFetch(params);
   return (data.papers as PaperOption[]) ?? [];
 }
@@ -83,10 +93,12 @@ export async function getWholePaper(
   year: string,
   session: string,
   paper: string,
-  variant: string
+  variant: string,
+  level?: BankLevel
 ): Promise<BankQuestion[]> {
   const params: Record<string, string> = { subject, year, session, paper };
   if (variant) params.variant = variant;
+  if (level) params.level = level;
   const data = await bankFetch(params);
   return (data.questions as BankQuestion[]) ?? [];
 }
@@ -96,16 +108,19 @@ export async function getTopicQuestions(
   type: "mcq" | "structured",
   topic: string,
   limit = 40,
-  offset = 0
+  offset = 0,
+  level?: BankLevel
 ): Promise<{ questions: BankQuestion[]; total: number }> {
-  const data = await bankFetch({
+  const params: Record<string, string> = {
     subject,
     mode: "topic",
     type,
     topic,
     limit: String(limit),
     offset: String(offset),
-  });
+  };
+  if (level) params.level = level;
+  const data = await bankFetch(params);
   return { questions: (data.questions as BankQuestion[]) ?? [], total: data.total ?? 0 };
 }
 
