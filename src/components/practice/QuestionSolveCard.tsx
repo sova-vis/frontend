@@ -84,10 +84,23 @@ interface Props {
   answerText?: string;
   onAnswerText?: (text: string) => void;
   onAnswerBlur?: (text: string) => void;
+  /** Per-part answers keyed by part index ("0","1",…). When onPartAnswer is set
+   *  and the question has parts, each part gets its own box (like Practice). */
+  partAnswers?: Record<string, string>;
+  onPartAnswer?: (key: string, value: string) => void;
+  onPartAnswerBlur?: (key: string, value: string) => void;
   answerMode?: "type" | "upload";
   onAnswerMode?: (m: "type" | "upload") => void;
   upload?: { thumb?: string; confidence?: number; status?: string; busy?: boolean };
   onUpload?: (file: File) => void;
+}
+
+// A part is answerable (gets its own box) when it carries marks; if no part has
+// marks, every part is answerable. Marks-less lead-in parts are headers only.
+function answerablePartIndexes(parts: SolvePart[]): number[] {
+  const withMarks = parts.map((p, i) => ({ p, i })).filter(({ p }) => p.marks != null);
+  if (withMarks.length > 0) return withMarks.map(({ i }) => i);
+  return parts.map((_, i) => i);
 }
 
 const SERIF: React.CSSProperties = { fontFamily: "var(--font-fraunces), serif" };
@@ -98,7 +111,8 @@ export default function QuestionSolveCard(props: Props) {
   const figures = q.images.filter((im) => im.src && im.role !== "answer");
   const answerFigures = q.images.filter((im) => im.src && im.role === "answer");
 
-  const answered = isMcq ? Boolean(props.selectedOption) : Boolean(props.answerText?.trim());
+  const partHasText = props.partAnswers ? Object.values(props.partAnswers).some((v) => v?.trim()) : false;
+  const answered = isMcq ? Boolean(props.selectedOption) : Boolean(props.answerText?.trim()) || partHasText;
 
   return (
     <div className="pr">
@@ -131,6 +145,7 @@ export default function QuestionSolveCard(props: Props) {
         ) : (
           <StructuredBody q={q} reveal={reveal} readOnly={readOnly} figures={figures} answerFigures={answerFigures}
             answerText={props.answerText} onAnswerText={props.onAnswerText} onAnswerBlur={props.onAnswerBlur}
+            partAnswers={props.partAnswers} onPartAnswer={props.onPartAnswer} onPartAnswerBlur={props.onPartAnswerBlur}
             answerMode={props.answerMode} onAnswerMode={props.onAnswerMode} upload={props.upload} onUpload={props.onUpload} />
         )}
       </article>
@@ -215,55 +230,78 @@ function McqBody({ q, reveal, readOnly, selected, onSelect, figures }: {
 function StructuredBody(props: {
   q: SolveQuestion; reveal?: boolean; readOnly?: boolean; figures: SolveImage[]; answerFigures: SolveImage[];
   answerText?: string; onAnswerText?: (t: string) => void; onAnswerBlur?: (t: string) => void;
+  partAnswers?: Record<string, string>; onPartAnswer?: (key: string, value: string) => void; onPartAnswerBlur?: (key: string, value: string) => void;
   answerMode?: "type" | "upload"; onAnswerMode?: (m: "type" | "upload") => void;
   upload?: { thumb?: string; confidence?: number; status?: string; busy?: boolean }; onUpload?: (f: File) => void;
 }) {
   const { q, reveal, readOnly, figures, answerFigures } = props;
   const mode = props.answerMode ?? "type";
+  // Per-part answering (like Practice): each marked sub-part gets its own box.
+  const answerableIdx = answerablePartIndexes(q.parts);
+  const perPart = !readOnly && Boolean(props.onPartAnswer) && q.parts.length > 0;
+  const pa = props.partAnswers ?? {};
+  const hasPartAnswers = Object.keys(pa).some((k) => (pa[k] ?? "").trim());
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "4px 2px" }}>
       {q.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, ...SERIF }}>{q.questionText}</p>}
       {figures.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{figures.map((im, i) => <QImage key={i} image={im} />)}</div>}
 
-      {/* Sub-parts (a, b, c…) so the whole question is visible, with their marks. */}
-      {q.parts.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {q.parts.map((part, i) => (
-            <div key={i} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 13 }}>
-              <div className="row-between" style={{ alignItems: "baseline" }}>
-                <p style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>
-                  {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
-                  {part.body}
-                </p>
-                {part.marks != null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
-              </div>
-              {reveal && part.answer && <div style={{ marginTop: 8 }}><SchemeList text={part.answer} label="Model answer" /></div>}
-            </div>
-          ))}
+      {/* Type/Upload toggle (only when there are answer inputs). */}
+      {!readOnly && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <p className="eyebrow" style={{ color: "var(--ink-soft)" }}>Your answer</p>
+          <div style={{ display: "inline-flex", borderRadius: 10, border: "1px solid var(--line-strong)", overflow: "hidden" }}>
+            <button type="button" onClick={() => props.onAnswerMode?.("type")}
+              className="btn btn-sm" style={{ borderRadius: 0, background: mode === "type" ? "var(--crimson-soft)" : "transparent", color: mode === "type" ? "var(--crimson)" : "var(--ink-soft)", boxShadow: "none" }}>
+              ✏️ Type
+            </button>
+            <button type="button" onClick={() => props.onAnswerMode?.("upload")}
+              className="btn btn-sm" style={{ borderRadius: 0, background: mode === "upload" ? "var(--crimson-soft)" : "transparent", color: mode === "upload" ? "var(--crimson)" : "var(--ink-soft)", boxShadow: "none" }}>
+              📷 Upload
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Answer area (solving only). */}
-      {!readOnly && (
+      {/* Sub-parts (a, b, c…) — with a per-part answer box in type mode. */}
+      {q.parts.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {q.parts.map((part, i) => {
+            const answerable = answerableIdx.includes(i);
+            return (
+              <div key={i} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 13 }}>
+                <div className="row-between" style={{ alignItems: "baseline" }}>
+                  <p style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>
+                    {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
+                    {part.body}
+                  </p>
+                  {part.marks != null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
+                </div>
+                {perPart && mode === "type" && answerable && (
+                  <textarea
+                    className="textarea"
+                    value={pa[String(i)] ?? ""}
+                    onChange={(e) => props.onPartAnswer?.(String(i), e.target.value)}
+                    onBlur={(e) => props.onPartAnswerBlur?.(String(i), e.target.value)}
+                    placeholder="Write your answer…"
+                    style={{ marginTop: 8, minHeight: 84 }}
+                  />
+                )}
+                {readOnly && (pa[String(i)] ?? "").trim() && (
+                  <p style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--line)" }}>{pa[String(i)]}</p>
+                )}
+                {reveal && part.answer && <div style={{ marginTop: 8 }}><SchemeList text={part.answer} label="Model answer" /></div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Upload mode, OR questions with no parts → a single combined answer box. */}
+      {!readOnly && (mode === "upload" || !perPart) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <p className="eyebrow" style={{ color: "var(--ink-soft)" }}>Your answer</p>
-            <div style={{ display: "inline-flex", borderRadius: 10, border: "1px solid var(--line-strong)", overflow: "hidden" }}>
-              <button type="button" onClick={() => props.onAnswerMode?.("type")}
-                className="btn btn-sm" style={{ borderRadius: 0, background: mode === "type" ? "var(--crimson-soft)" : "transparent", color: mode === "type" ? "var(--crimson)" : "var(--ink-soft)", boxShadow: "none" }}>
-                ✏️ Type
-              </button>
-              <button type="button" onClick={() => props.onAnswerMode?.("upload")}
-                className="btn btn-sm" style={{ borderRadius: 0, background: mode === "upload" ? "var(--crimson-soft)" : "transparent", color: mode === "upload" ? "var(--crimson)" : "var(--ink-soft)", boxShadow: "none" }}>
-                📷 Upload
-              </button>
-            </div>
-          </div>
-
-          {mode === "upload" ? (
-            <UploadBox upload={props.upload} onFile={(f) => props.onUpload?.(f)} />
-          ) : null}
-
+          {mode === "upload" && <UploadBox upload={props.upload} onFile={(f) => props.onUpload?.(f)} />}
           <textarea
             className="textarea"
             value={props.answerText ?? ""}
@@ -275,8 +313,8 @@ function StructuredBody(props: {
         </div>
       )}
 
-      {/* Read-only answer echo (teacher preview never has an answer; kept for review reuse). */}
-      {readOnly && (props.answerText ?? "").trim() && (
+      {/* Read-only combined answer echo — only when there are no per-part answers. */}
+      {readOnly && !hasPartAnswers && (props.answerText ?? "").trim() && (
         <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--line)" }}>{props.answerText}</p>
       )}
 

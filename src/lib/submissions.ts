@@ -73,6 +73,8 @@ export interface SavedAnswer {
   answer_text: string | null;
   selected_option: string | null;
   answered: boolean;
+  /** Per-part answers keyed by part index ("0","1",…), like Practice. */
+  part_answers?: Record<string, string> | null;
 }
 
 export interface StartSubmissionResponse {
@@ -135,7 +137,7 @@ export async function startSubmission(assignmentId: string): Promise<StartSubmis
 export async function saveAnswer(
   submissionId: string,
   assignmentQuestionId: string,
-  answer: { answer_text?: string; selected_option?: string }
+  answer: { answer_text?: string; selected_option?: string; part_answers?: Record<string, string> }
 ): Promise<void> {
   await json(
     await apiCall(`/submissions/${submissionId}/answer`, {

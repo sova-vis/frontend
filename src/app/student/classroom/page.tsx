@@ -15,7 +15,11 @@ import {
 } from "@/lib/submissions";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { resolveName } from "@/lib/displayName";
+import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
+
+interface HubCache { classrooms: Classroom[]; assignments: AvailableAssignment[]; weak: WeakTopic[] }
+const HUB_KEY = "pp:classroom:hub";
 
 export default function StudentClassroomPage() {
   const router = useRouter();
@@ -30,12 +34,23 @@ export default function StudentClassroomPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = async (useCache = false) => {
+    // Instant paint from the last view while we revalidate in the background.
+    if (useCache) {
+      const cached = cacheGet<HubCache>(HUB_KEY, 60_000);
+      if (cached) {
+        setClassrooms(cached.classrooms);
+        setAssignments(cached.assignments);
+        setWeak(cached.weak);
+        setLoading(false);
+      }
+    }
     try {
       const [c, a, w] = await Promise.all([getMyClassrooms(), getAvailableAssignments(), getWeakSpots().catch(() => ({ topics: [] }))]);
       setClassrooms(c);
       setAssignments(a);
       setWeak(w.topics);
+      cacheSet(HUB_KEY, { classrooms: c, assignments: a, weak: w.topics });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load classroom");
     } finally {
@@ -43,7 +58,7 @@ export default function StudentClassroomPage() {
     }
   };
 
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { void load(true); /* eslint-disable-next-line */ }, []);
 
   const join = async () => {
     if (!code.trim()) return;

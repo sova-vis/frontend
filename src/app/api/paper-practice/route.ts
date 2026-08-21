@@ -464,46 +464,69 @@ async function fetchTopicQuestions(
 }
 
 // ---------------------------------------------------------------------------
-// available_papers view -> the "load a whole paper" picker.
+// The "load a whole paper" picker. Built by grouping the questions table for
+// this subject + LEVEL, so O-Level and A-Level papers never mix (the
+// available_papers view is level-agnostic and would return the wrong paper for
+// an A-Level class whose subject name also exists at O-Level).
 // ---------------------------------------------------------------------------
 async function fetchAvailablePapers(
   supabase: SupabaseClient,
   subject: string,
   type: QuestionType | null,
   year: number | null,
+  level: string,
 ) {
-  let query = supabase
-    .from("available_papers")
-    .select("subject,exam_year,session,paper,variant,question_count,is_mcq")
-    .ilike("subject", subject)
-    .order("exam_year", { ascending: false })
-    .order("session", { ascending: true })
-    .order("paper", { ascending: true })
-    .order("variant", { ascending: true });
+  const rows: Array<{ exam_year: number; session: string | null; paper: string | null; variant: string | null; type: QuestionType }> = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    let query = supabase
+      .from("questions")
+      .select("exam_year,session,paper,variant,type")
+      .eq("level", level)
+      .ilike("subject", subject)
+      .order("question_id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (year) query = query.eq("exam_year", year);
+    if (type) query = query.eq("type", type);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...(data as typeof rows));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
 
-  if (year) query = query.eq("exam_year", year);
-  if (type === "mcq") query = query.eq("is_mcq", true);
-  if (type === "structured") query = query.eq("is_mcq", false);
+  const groups = new Map<string, { year: number; session: string; paper: string; variant: string; count: number; isMcq: boolean }>();
+  for (const r of rows) {
+    const session = cleanText(r.session);
+    const paper = cleanText(r.paper);
+    const variant = cleanText(r.variant);
+    const key = [r.exam_year, session, paper, variant].join("|");
+    const g = groups.get(key) ?? { year: r.exam_year, session, paper, variant, count: 0, isMcq: r.type === "mcq" };
+    g.count += 1;
+    if (r.type === "mcq") g.isMcq = true;
+    groups.set(key, g);
+  }
 
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return (data ?? []).map((row) => ({
-    year: String(row.exam_year),
-    session: cleanText(row.session),
-    paper: cleanText(row.paper),
-    variant: cleanText(row.variant),
-    count: row.question_count,
-    isMcq: Boolean(row.is_mcq),
-    key: [row.exam_year, row.session, row.paper, row.variant].join("|"),
-    label: [row.exam_year, cleanText(row.session).replace(/_/g, " "), cleanText(row.paper).replace(/_/g, " "), cleanText(row.variant).replace(/_/g, " ")]
-      .filter(Boolean)
-      .join(" · "),
-  }));
+  return Array.from(groups.values())
+    .sort((a, b) => b.year - a.year || a.session.localeCompare(b.session) || a.paper.localeCompare(b.paper) || a.variant.localeCompare(b.variant))
+    .map((g) => ({
+      year: String(g.year),
+      session: g.session,
+      paper: g.paper,
+      variant: g.variant,
+      count: g.count,
+      isMcq: g.isMcq,
+      key: [g.year, g.session, g.paper, g.variant].join("|"),
+      label: [g.year, g.session.replace(/_/g, " "), g.paper.replace(/_/g, " "), g.variant.replace(/_/g, " ")].filter(Boolean).join(" · "),
+    }));
 }
 
 // ---------------------------------------------------------------------------
-// fetch_paper RPC -> one complete ordered paper with parts folded in.
+// One complete ordered paper with parts folded in — LEVEL-filtered directly on
+// the questions table (the fetch_paper RPC takes no level and would leak the
+// other level's questions for a shared subject name).
 // ---------------------------------------------------------------------------
 async function fetchWholePaper(
   supabase: SupabaseClient,
@@ -512,18 +535,22 @@ async function fetchWholePaper(
   session: string,
   paper: string,
   variant: string,
+  level: string,
 ) {
-  const { data, error } = await supabase.rpc("fetch_paper", {
-    p_subject: subject,
-    p_year: year,
-    p_session: session,
-    p_paper: paper,
-    p_variant: variant,
-  });
-  if (error) throw error;
+  let query = supabase
+    .from("questions")
+    .select(QUESTION_COLUMNS)
+    .eq("level", level)
+    .ilike("subject", subject)
+    .eq("exam_year", year)
+    .eq("session", session)
+    .eq("paper", paper)
+    .order("question_number", { ascending: true });
+  if (variant && variant.toLowerCase() !== "all") query = query.eq("variant", variant);
 
-  const rows = Array.isArray(data) ? (data as Array<DbQuestion & { parts?: DbPart[] }>) : [];
-  return rows.map((row) => normalizeQuestion(row, Array.isArray(row.parts) ? row.parts : []));
+  const { data, error } = await query;
+  if (error) throw error;
+  return withParts(supabase, (data ?? []) as DbQuestion[]);
 }
 
 export async function GET(request: Request) {
@@ -556,7 +583,7 @@ export async function GET(request: Request) {
       if (rawSubject) {
         // Available-papers picker (available_papers view).
         if (wantPapers) {
-          const papers = await fetchAvailablePapers(supabase, rawSubject, typeParam, validYear);
+          const papers = await fetchAvailablePapers(supabase, rawSubject, typeParam, validYear, level);
           return NextResponse.json({ subject: rawSubject, papers });
         }
 
@@ -578,6 +605,7 @@ export async function GET(request: Request) {
             session,
             paper,
             variant && variant.toLowerCase() !== "all" ? variant : "",
+            level,
           );
           return NextResponse.json({
             subject: rawSubject,

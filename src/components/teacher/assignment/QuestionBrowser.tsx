@@ -172,7 +172,9 @@ function BankRow({ q, inCart, onAdd, onRemove }: { q: BankQuestion; inCart: bool
             <span>{q.marks ?? "?"} marks</span>
             {q.year && <span>· {q.year} {q.session} {q.paper}{q.variant}</span>}
           </div>
-          <p className={`text-sm text-ink mt-1 ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>{q.questionText || "(no text)"}</p>
+          <p className={`text-sm text-ink mt-1 ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>
+            {q.questionText || q.parts?.find((p) => p.body?.trim())?.body || (q.topic ? `${q.topic} — multi-part question` : "Multi-part question")}
+          </p>
           <button onClick={() => setOpen((o) => !o)} className="text-xs text-crimson font-semibold mt-1 inline-flex items-center gap-1">
             {open ? "Hide" : "View full question"} <ChevronDown size={12} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
           </button>

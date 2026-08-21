@@ -15,13 +15,35 @@ import { StudentResult, getStudentResult } from "@/lib/feedbackRelease";
 import VoiceNote from "@/components/teacher/VoiceNote";
 import QuestionSolveCard, { fromStudentQuestion } from "@/components/practice/QuestionSolveCard";
 
+interface AnswerState { answer_text: string; selected_option: string; part_answers: Record<string, string> }
+type QParts = { label: string; body: string; marks: number | null }[] | undefined;
+
+// Which parts are answerable (carry marks); if none carry marks, all are.
+function answerableParts(parts: QParts): { label: string; index: number }[] {
+  const list = parts ?? [];
+  const withMarks = list.map((p, i) => ({ label: p.label, index: i, marks: p.marks })).filter((x) => x.marks != null);
+  const chosen = withMarks.length ? withMarks : list.map((p, i) => ({ label: p.label, index: i }));
+  return chosen.map((x) => ({ label: x.label, index: x.index }));
+}
+
+// Combined answer text (what the AI marks) from the per-part answers.
+function combineParts(parts: QParts, pa: Record<string, string>): string {
+  const segs = answerableParts(parts).map(({ label, index }) => {
+    const a = (pa[String(index)] ?? "").trim();
+    if (!a) return "";
+    const lbl = label ? `(${label.replace(/[()]/g, "")}) ` : "";
+    return `${lbl}${a}`;
+  });
+  return segs.filter(Boolean).join("\n\n");
+}
+
 export default function TakeAssignmentPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const assignmentId = (params?.id ?? "") as string;
 
   const [data, setData] = useState<StartSubmissionResponse | null>(null);
-  const [answers, setAnswers] = useState<Record<string, { answer_text: string; selected_option: string }>>({});
+  const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,9 +60,13 @@ export default function TakeAssignmentPage() {
           // Marking may have been released — show results if so.
           getStudentResult(assignmentId).then(setResult).catch(() => {});
         }
-        const initial: Record<string, { answer_text: string; selected_option: string }> = {};
+        const initial: Record<string, AnswerState> = {};
         for (const a of res.answers as SavedAnswer[]) {
-          initial[a.assignment_question_id] = { answer_text: a.answer_text || "", selected_option: a.selected_option || "" };
+          initial[a.assignment_question_id] = {
+            answer_text: a.answer_text || "",
+            selected_option: a.selected_option || "",
+            part_answers: (a.part_answers as Record<string, string>) || {},
+          };
         }
         setAnswers(initial);
         startRef.current = Date.now();
@@ -56,19 +82,35 @@ export default function TakeAssignmentPage() {
   const submissionId = data?.submission.id;
 
   const persist = useCallback(
-    (aqId: string, patch: { answer_text?: string; selected_option?: string }) => {
+    (aqId: string, patch: { answer_text?: string; selected_option?: string; part_answers?: Record<string, string> }) => {
       if (!submissionId || readOnly) return;
       void saveAnswer(submissionId, aqId, patch).catch(() => {});
     },
     [submissionId, readOnly]
   );
 
+  const blank = (aqId: string): AnswerState => answers[aqId] || { answer_text: "", selected_option: "", part_answers: {} };
+
   const setText = (aqId: string, text: string) => {
-    setAnswers((prev) => ({ ...prev, [aqId]: { ...prev[aqId], answer_text: text, selected_option: prev[aqId]?.selected_option || "" } }));
+    setAnswers((prev) => ({ ...prev, [aqId]: { ...(prev[aqId] || { selected_option: "", part_answers: {} }), answer_text: text } as AnswerState }));
   };
   const setOption = (aqId: string, option: string) => {
-    setAnswers((prev) => ({ ...prev, [aqId]: { answer_text: prev[aqId]?.answer_text || "", selected_option: option } }));
+    setAnswers((prev) => ({ ...prev, [aqId]: { ...(prev[aqId] || { answer_text: "", part_answers: {} }), selected_option: option } as AnswerState }));
     persist(aqId, { selected_option: option });
+  };
+
+  // Per-part answering (like Practice): each part keeps its own text; answer_text
+  // stays the combined text (what the AI marks), rebuilt as parts change.
+  const setPart = (aqId: string, parts: QParts, key: string, value: string) => {
+    setAnswers((prev) => {
+      const cur = prev[aqId] || { answer_text: "", selected_option: "", part_answers: {} };
+      const nextParts = { ...cur.part_answers, [key]: value };
+      return { ...prev, [aqId]: { ...cur, part_answers: nextParts, answer_text: combineParts(parts, nextParts) } };
+    });
+  };
+  const persistPart = (aqId: string, parts: QParts, key: string, value: string) => {
+    const nextParts = { ...blank(aqId).part_answers, [key]: value };
+    persist(aqId, { answer_text: combineParts(parts, nextParts), part_answers: nextParts });
   };
 
   // Handwritten upload → OCR (per theory question).
@@ -96,7 +138,9 @@ export default function TakeAssignmentPage() {
     if (!data) return 0;
     return data.questions.filter((q) => {
       const a = answers[q.assignment_question_id];
-      return a && (a.answer_text.trim() || a.selected_option);
+      if (!a) return false;
+      const partsAnswered = Object.values(a.part_answers || {}).some((v) => v.trim());
+      return Boolean(a.answer_text.trim() || a.selected_option || partsAnswered);
     }).length;
   }, [answers, data]);
 
@@ -190,7 +234,8 @@ export default function TakeAssignmentPage() {
         <div className="space-y-4">
           {data.questions.map((q, i) => {
             const aq = q.assignment_question_id;
-            const v = answers[aq] || { answer_text: "", selected_option: "" };
+            const v = answers[aq] || { answer_text: "", selected_option: "", part_answers: {} };
+            const hasParts = (q.parts?.length ?? 0) > 0;
             return (
               <QuestionSolveCard
                 key={aq}
@@ -202,6 +247,9 @@ export default function TakeAssignmentPage() {
                 answerText={v.answer_text}
                 onAnswerText={(t) => setText(aq, t)}
                 onAnswerBlur={(t) => persist(aq, { answer_text: t })}
+                partAnswers={v.part_answers}
+                onPartAnswer={hasParts ? (k, val) => setPart(aq, q.parts, k, val) : undefined}
+                onPartAnswerBlur={hasParts ? (k, val) => persistPart(aq, q.parts, k, val) : undefined}
                 answerMode={mode[aq] || "type"}
                 onAnswerMode={(m) => setMode((prev) => ({ ...prev, [aq]: m }))}
                 upload={uploads[aq]}

@@ -8,9 +8,11 @@ import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { subjectStyle } from "@/components/propel/subjects";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
 import { syllabusLabel } from "@/lib/syllabus";
+import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import CreateClassModal from "@/components/teacher/CreateClassModal";
 
 type SortKey = "name" | "subject" | "recent";
+const CLASSES_KEY = "pp:teacher:classes";
 
 export default function ClassesPage() {
   const router = useRouter();
@@ -21,10 +23,16 @@ export default function ClassesPage() {
   const [sort, setSort] = useState<SortKey>("name");
   const [showCreate, setShowCreate] = useState(false);
 
-  const load = async () => {
+  const load = async (useCache = false) => {
+    // Instant paint from the last view while we revalidate in the background.
+    if (useCache) {
+      const cached = cacheGet<TeacherClass[]>(CLASSES_KEY, 60_000);
+      if (cached) { setClasses(cached); setLoading(false); }
+    }
     try {
-      setLoading(true);
-      setClasses(await listClasses(true)); // fetch all; filter archived client-side
+      const fresh = await listClasses(true); // fetch all; filter archived client-side
+      setClasses(fresh);
+      cacheSet(CLASSES_KEY, fresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load classes");
     } finally {
@@ -33,7 +41,7 @@ export default function ClassesPage() {
   };
 
   useEffect(() => {
-    void load();
+    void load(true);
   }, []);
 
   const visible = useMemo(() => {
