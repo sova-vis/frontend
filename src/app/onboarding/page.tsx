@@ -98,10 +98,12 @@ export default function OnboardingPage() {
 
   // Subjects the student can pick come from the real paper library for their level.
   useEffect(() => {
-    if (role !== "student" || !data.level) { setLevelSubjects([]); return; }
+    if (role !== "student") { setLevelSubjects([]); return; }
     let active = true;
     setSubjectsLoading(true);
-    loadLevelSubjects(data.level)
+    // Default to O Level when the level step is skipped (class-join students) so
+    // the picker is never blank.
+    loadLevelSubjects(data.level || "O Level")
       .then((ls) => { if (active) setLevelSubjects(ls); })
       .finally(() => { if (active) setSubjectsLoading(false); });
     return () => { active = false; };

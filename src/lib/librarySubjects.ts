@@ -1,6 +1,6 @@
 import { apiCall } from "./api";
 import { cacheGet, cacheSet } from "./sessionCache";
-import { isExcludedSubject } from "./studentSubjects";
+import { isExcludedSubject, SUBJECT_OPTIONS } from "./studentSubjects";
 
 // Subjects the student can pick come from the actual paper library, filtered by
 // their level (O / A / Both). "Both" merges the two, tagging which level(s) each
@@ -30,7 +30,8 @@ async function browseSubjects(lv: Lv): Promise<string[]> {
       if (inner.ok) folders = ((await inner.json()) as { items?: Folder[] }).items?.filter((i) => i.isFolder) ?? [];
     }
     const names = folders.map((f) => cleanName(f.name)).filter((n) => n && !isExcludedSubject(n));
-    cacheSet(key, names);
+    // Never cache an empty result — a transient failure shouldn't stick for 30m.
+    if (names.length) cacheSet(key, names);
     return names;
   } catch {
     return [];
@@ -55,7 +56,18 @@ export async function loadLevelSubjects(choice: string | null | undefined): Prom
       byName.get(key)!.levels.add(lv);
     }
   }
-  return Array.from(byName.values())
+  const result = Array.from(byName.values())
     .map((v) => ({ name: v.name, levels: Array.from(v.levels).sort() as Lv[] }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Fallback: if the Drive returned nothing (API/CORS/config hiccup, or a level
+  // whose library isn't up yet), still offer the canonical subject list so the
+  // student is never stuck with an empty picker.
+  if (result.length === 0) {
+    return SUBJECT_OPTIONS
+      .filter((n) => !isExcludedSubject(n))
+      .map((name) => ({ name, levels: want }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return result;
 }
