@@ -19,7 +19,9 @@ function cleanName(s: string): string {
 async function browseSubjects(lv: Lv): Promise<string[]> {
   const key = `lib:subjects:${lv}`;
   const cached = cacheGet<string[]>(key, 30 * 60 * 1000);
-  if (cached) return cached;
+  // An empty array is truthy — never treat a cached-empty as a hit, or a single
+  // failed load would stick (and stop us re-fetching) for the whole TTL.
+  if (cached && cached.length) return cached;
   try {
     const res = await apiCall(`/papers/browse?level=${lv === "A" ? "alevel" : "olevel"}`);
     if (!res.ok) return [];
