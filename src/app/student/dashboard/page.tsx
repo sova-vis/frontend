@@ -134,18 +134,49 @@ export default function StudentDashboard() {
 
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const bookmarks = useMemo(() => stats.papers.filter((p) => p.statuses.includes("bookmarked" as never)), [stats.papers]);
+  const [viewingPaper, setViewingPaper] = useState<TrackedPaper | null>(null);
+
+  // Recent activity — practice sessions (marked / in-progress) merged with tracked
+  // paper events (completed / goal / bookmarked), newest first, each openable.
+  type ActivityItem = { key: string; label: string; sub: string; icon: string; tone: string; at: string; href?: string; paper?: TrackedPaper };
+  const recentActivity = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = [];
+    for (const p of practice) {
+      items.push({
+        key: `pr:${p.paperKey}:${p.report ? "m" : "w"}`,
+        label: `${p.report ? "Marked" : "Working on"} · ${p.subject}`,
+        sub: `${practiceLabel(p)}${p.report ? ` · ${p.report.grade} · ${p.report.percent}%` : ` · ${p.answeredCount}/${p.totalCount} answered`}`,
+        icon: p.report ? "award" : "clock",
+        tone: p.report ? "teal" : "amber",
+        at: p.updatedAt || p.startedAt || "",
+        href: practiceHref(p),
+      });
+    }
+    const META: Record<string, { label: string; icon: string; tone: string }> = {
+      completed: { label: "Completed", icon: "check_circle", tone: "teal" },
+      goal: { label: "Set as goal", icon: "target", tone: "crimson" },
+      bookmarked: { label: "Bookmarked", icon: "bookmark", tone: "crimson" },
+      in_progress: { label: "Working on", icon: "clock", tone: "amber" },
+    };
+    for (const tp of stats.papers) {
+      const status = [...tp.statuses].find((s) => s !== "in_progress") || tp.statuses[0];
+      const meta = (status && META[status]) || META.completed;
+      items.push({
+        key: `tp:${tp.id}:${status}`,
+        label: `${meta.label} · ${tp.name}`,
+        sub: tp.type || "Paper",
+        icon: meta.icon, tone: meta.tone, at: tp.savedAt || "", paper: tp,
+      });
+    }
+    return items.filter((i) => i.at).sort((a, b) => (b.at || "").localeCompare(a.at || "")).slice(0, 5);
+  }, [practice, stats.papers]);
+
+  const openPaper = (tp: TrackedPaper) => {
+    if (tp.embedUrl || tp.viewUrl) setViewingPaper(tp);
+    else router.push("/student/past-papers");
+  };
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-
-  // per-subject completed counts (real)
-  const bySubject = new Map<string, number>();
-  stats.papers.forEach((p) => {
-    if (!p.statuses.includes("completed" as never)) return;
-    const s = paperSubject(p);
-    bySubject.set(s, (bySubject.get(s) || 0) + 1);
-  });
-  const subjectRows = Array.from(bySubject.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const maxSubject = Math.max(1, ...subjectRows.map(([, c]) => c));
 
   // weekly completed series for the trend (real)
   const weeks = 8;
@@ -419,6 +450,26 @@ export default function StudentDashboard() {
                   <button className="btn btn-block mt-16" style={{ background: "var(--crimson)", color: "#fff" }} onClick={() => go(practiceHref(practiceResume))}>
                     <Icon name="play" size={15} fill="#fff" stroke={0} /> Continue paper
                   </button>
+                  {practiceInProgress.length > 1 && (
+                    <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,.12)", paddingTop: 10 }}>
+                      <div className="eyebrow" style={{ color: "var(--ink-faint)", marginBottom: 6 }}>More you haven&apos;t finished</div>
+                      <div className="flex-col" style={{ gap: 2 }}>
+                        {practiceInProgress.slice(1, 4).map((s) => (
+                          <button key={s.paperKey} onClick={() => go(practiceHref(s))}
+                            style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", margin: "0 -8px", borderRadius: 10, background: "transparent", border: "none", cursor: "pointer", color: "var(--canvas)" }}>
+                            <div style={{ width: 26, height: 26, borderRadius: 8, flex: "none", display: "grid", placeItems: "center", background: "rgba(255,255,255,.1)" }}>
+                              <Icon name={subjectStyle(s.subject).icon} size={13} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.subject} · {practiceLabel(s)}</div>
+                              <div style={{ fontSize: 11, opacity: 0.6 }}>{s.solveMode === "handwritten" ? `${s.uploads.length} file${s.uploads.length === 1 ? "" : "s"}` : `${progressPercent(s)}% done`}</div>
+                            </div>
+                            <Icon name="chevron_right" size={14} style={{ opacity: 0.5, flex: "none" }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : stats.resume ? (
                 <>
@@ -442,43 +493,6 @@ export default function StudentDashboard() {
                 </>
               )}
             </div>
-
-            {/* practice sessions in progress (real, cross-device) */}
-            {practiceInProgress.length > 0 && (
-              <div className="card card-pad">
-                <div className="card-head">
-                  <span className="card-title">Continue practising</span>
-                  <span className="badge amber"><Icon name="clock" size={13} /> {practiceInProgress.length}</span>
-                </div>
-                <div className="flex-col gap-12">
-                  {practiceInProgress.slice(0, 4).map((session) => {
-                    const subj = subjectStyle(session.subject);
-                    return (
-                      <button key={session.paperKey} className="flex items-center gap-12" onClick={() => go(practiceHref(session))}
-                        style={{ textAlign: "left", padding: "8px 10px", margin: "-4px -10px", borderRadius: 12, background: "transparent" }}>
-                        <SubjGlyph subj={subj} size={34} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {session.subject} · {practiceLabel(session)}
-                          </div>
-                          <div className="flex items-center gap-8" style={{ marginTop: 4 }}>
-                            {session.solveMode === "handwritten" ? (
-                              <span className="faint" style={{ fontSize: 11.5 }}>Handwritten · {session.uploads.length} file{session.uploads.length === 1 ? "" : "s"}</span>
-                            ) : (
-                              <>
-                                <div style={{ flex: 1, maxWidth: 140 }}><Bar value={progressPercent(session)} tone="teal" height={5} /></div>
-                                <span className="faint" style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{progressPercent(session)}%</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <Icon name="chevron_right" size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* graded papers — AI marks (real) */}
             {practiceGraded.length > 0 && (
@@ -545,58 +559,28 @@ export default function StudentDashboard() {
                 <p className="faint" style={{ fontSize: 13.5 }}>No goals yet. Mark papers as a goal from the Papers tab to track them here.</p>
               )}
             </div>
-
-            {/* subject activity (real) */}
-            <div className="card card-pad">
-              <div className="card-head"><span className="card-title">Papers by subject</span></div>
-              {subjectRows.length > 0 ? (
-                <div className="flex-col gap-16">
-                  {subjectRows.map(([s, c]) => {
-                    const subj = subjectStyle(s);
-                    return (
-                      <div key={s} className="flex items-center gap-12">
-                        <SubjGlyph subj={subj} size={34} />
-                        <div style={{ flex: 1 }}>
-                          <div className="row-between" style={{ fontSize: 13.5, marginBottom: 5 }}>
-                            <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{s}</span>
-                            <span className="tnum" style={{ fontWeight: 600, color: subj.color }}>{c}</span>
-                          </div>
-                          <div className="bar" style={{ height: 8 }}>
-                            <i style={{ width: Math.round((c / maxSubject) * 100) + "%", background: subj.color }} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="faint" style={{ fontSize: 13.5 }}>Complete papers to see your subject breakdown.</p>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* activity feed (real) */}
+        {/* activity feed (real) — merged practice + paper events, click to open */}
         <div className="card card-pad">
           <div className="card-head"><span className="card-title">Recent activity</span></div>
-          {stats.activity.length > 0 ? (
-            <div className="flex-col" style={{ gap: 2 }}>
-              {stats.activity.map(({ paper, status, at }) => {
-                const tone = status === "completed" ? "teal" : status === "in_progress" ? "amber" : status === "goal" ? "crimson" : "crimson";
-                const icon = status === "completed" ? "check_circle" : status === "in_progress" ? "clock" : status === "goal" ? "target" : "bookmark";
-                const label = status === "completed" ? "Completed" : status === "in_progress" ? "Working on" : status === "goal" ? "Set as goal" : "Bookmarked";
-                return (
-                  <div key={paper.id + status} className="flex items-center gap-12" style={{ padding: "9px 0" }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: `var(--${tone}-soft)`, color: `var(--${tone === "crimson" ? "crimson" : tone})` }}>
-                      <Icon name={icon} size={16} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label} · {paper.name}</div>
-                      <div className="faint" style={{ fontSize: 11.5 }}>{timeAgo(at)}</div>
-                    </div>
+          {recentActivity.length > 0 ? (
+            <div className="flex-col" style={{ gap: 0 }}>
+              {recentActivity.map((a) => (
+                <button key={a.key} onClick={() => { if (a.href) go(a.href); else if (a.paper) openPaper(a.paper); }}
+                  className="flex items-center gap-12"
+                  style={{ width: "100%", textAlign: "left", padding: "10px 0", border: "none", borderTop: "1px solid var(--line)", background: "transparent", cursor: "pointer" }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: `var(--${a.tone}-soft)`, color: `var(--${a.tone === "crimson" ? "crimson" : a.tone})` }}>
+                    <Icon name={a.icon} size={16} />
                   </div>
-                );
-              })}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.label}</div>
+                    <div className="faint" style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.sub} · {timeAgo(a.at)}</div>
+                  </div>
+                  <Icon name="chevron_right" size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                </button>
+              ))}
             </div>
           ) : (
             <p className="faint" style={{ fontSize: 13.5 }}>Your paper activity will show up here as you study.</p>
@@ -605,6 +589,22 @@ export default function StudentDashboard() {
       </div>
 
       {bookmarksOpen && <BookmarksModal papers={bookmarks} onClose={() => setBookmarksOpen(false)} />}
+      {viewingPaper && <PaperViewerModal paper={viewingPaper} onClose={() => setViewingPaper(null)} />}
+    </div>
+  );
+}
+
+/* ---- in-app PDF viewer for a saved/tracked paper ---- */
+function PaperViewerModal({ paper, onClose }: { paper: TrackedPaper; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4" style={{ position: "fixed" }} onClick={onClose}>
+      <div className="card" style={{ width: "100%", maxWidth: 900, height: "min(88vh,760px)", display: "flex", flexDirection: "column", overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+        <div className="row-between" style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
+          <span className="card-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{paper.name}</span>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" style={{ width: 30, height: 30, flex: "none" }}><Icon name="x" size={16} /></button>
+        </div>
+        <iframe src={`${getApiUrl()}${paper.embedUrl || paper.viewUrl}`} title={paper.name} style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }} />
+      </div>
     </div>
   );
 }

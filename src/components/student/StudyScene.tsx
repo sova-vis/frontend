@@ -73,7 +73,7 @@ export default function StudyScene() {
           <div
             key={i}
             className="ppl-anim"
-            style={{ position: "absolute", left: l.left, top: 0, ["--dx" as string]: `${l.drift}px`, animation: `pplLeafFall ${l.dur}s linear ${l.delay}s infinite` }}
+            style={{ position: "absolute", left: l.left, top: 0, ["--dx" as string]: `${l.drift}px`, animation: `pplLeafFall ${l.dur}s linear ${l.delay}s infinite backwards` }}
           >
             <Leaf size={l.size} c1={c1} c2={c2} />
           </div>
