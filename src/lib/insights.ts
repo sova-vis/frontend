@@ -27,6 +27,42 @@ export interface Attempt {
   paper?: string;
   variant?: string;
   at: string;
+  // Captured so the notebook can show, per mistake, what the student wrote vs the
+  // correct answer. Present only on attempts logged after this shipped.
+  questionText?: string;
+  yourAnswer?: string;
+  correctAnswer?: string;
+}
+
+/** The student's answer + the correct/model answer for a mistake row. */
+export interface AnswerExtra { questionText?: string; yourAnswer?: string; correctAnswer?: string }
+
+// A part is a lead-in header (no answer box) when it carries no marks while some
+// sibling part does — mirrors the practice renderer's isHeaderPart heuristic.
+function isHeaderPart(parts: { marks?: number | null }[], i: number): boolean {
+  const anyMarks = parts.some((p) => p.marks != null);
+  return anyMarks && parts[i]?.marks == null;
+}
+
+interface McqLike { questionText?: string; options?: { label: string; text: string }[] }
+export function mcqAnswerExtra(q: McqLike, chosen: string | undefined, correct: string | null | undefined): AnswerExtra {
+  const text = (l?: string | null) => q.options?.find((o) => o.label === l)?.text || "";
+  const fmt = (l?: string | null) => (l ? `${l}${text(l) ? `) ${text(l)}` : ""}` : "");
+  return { questionText: q.questionText, yourAnswer: fmt(clean(chosen)) || undefined, correctAnswer: fmt(clean(correct)) || undefined };
+}
+
+interface StructLike { questionText?: string; markingScheme?: string; parts?: { label: string; body: string; answer?: string | null; marks?: number | null }[] }
+export function structuredAnswerExtra(q: StructLike, partAnswers: Record<string, string>, qid: string): AnswerExtra {
+  const parts = q.parts ?? [];
+  const yourSegs = parts.length
+    ? parts.map((p, i) => ({ p, i })).filter(({ i }) => !isHeaderPart(parts, i)).map(({ p, i }) => {
+        const a = (partAnswers[`${qid}::${i}`] ?? "").trim();
+        return a ? `${p.label ? `(${p.label.replace(/[()]/g, "")}) ` : ""}${a}` : "";
+      }).filter(Boolean)
+    : [(partAnswers[`${qid}::0`] ?? "").trim()].filter(Boolean);
+  const modelSegs = parts.map((p) => (p.answer ? `${p.label ? `(${p.label.replace(/[()]/g, "")}) ` : ""}${p.answer}` : "")).filter(Boolean);
+  const correct = modelSegs.length ? modelSegs.join("\n\n") : clean(q.markingScheme);
+  return { questionText: q.questionText, yourAnswer: yourSegs.join("\n\n") || undefined, correctAnswer: correct || undefined };
 }
 
 /** Minimal question shape the builders need (PracticeQuestion is assignable). */
@@ -55,7 +91,7 @@ const clean = (v: string | null | undefined) => (v ?? "").toString().trim();
 
 /* ---------------- builders ---------------- */
 
-export function attemptFromMcq(q: QuestionMeta, chosen: string | undefined, correct: string | null | undefined): Attempt {
+export function attemptFromMcq(q: QuestionMeta, chosen: string | undefined, correct: string | null | undefined, extra?: AnswerExtra): Attempt {
   const max = Math.max(1, Number(q.marks ?? 1) || 1);
   const answered = Boolean(clean(chosen));
   const isCorrect = answered && Boolean(correct) && chosen === correct;
@@ -76,10 +112,11 @@ export function attemptFromMcq(q: QuestionMeta, chosen: string | undefined, corr
     paper: clean(q.paper) || undefined,
     variant: clean(q.variant) || undefined,
     at,
+    ...extra,
   };
 }
 
-export function attemptFromGraded(q: QuestionMeta, g: GradedQuestion): Attempt {
+export function attemptFromGraded(q: QuestionMeta, g: GradedQuestion, extra?: AnswerExtra): Attempt {
   const at = nowIso();
   const reason = g.verdict === "correct" ? "" : (g.missingPoints[0] || g.feedback || "").slice(0, 300);
   return {
@@ -98,17 +135,18 @@ export function attemptFromGraded(q: QuestionMeta, g: GradedQuestion): Attempt {
     paper: clean(q.paper) || undefined,
     variant: clean(q.variant) || undefined,
     at,
+    ...extra,
   };
 }
 
 /** Join a whole-paper report's per-question grades back to their topics. */
-export function attemptsFromReport(perQuestion: GradedQuestion[], questions: QuestionMeta[]): Attempt[] {
+export function attemptsFromReport(perQuestion: GradedQuestion[], questions: QuestionMeta[], extras?: Record<string, AnswerExtra>): Attempt[] {
   const byId = new Map(questions.map((q) => [q.id, q]));
   const out: Attempt[] = [];
   for (const g of perQuestion) {
     const q = byId.get(g.id);
     if (!q) continue;
-    out.push(attemptFromGraded(q, g));
+    out.push(attemptFromGraded(q, g, extras?.[g.id]));
   }
   return out;
 }

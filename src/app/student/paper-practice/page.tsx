@@ -17,7 +17,7 @@ import {
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 import { isExcludedSubject } from "@/lib/studentSubjects";
-import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded } from "@/lib/insights";
+import { logAttempts, attemptsFromReport, attemptFromMcq, attemptFromGraded, mcqAnswerExtra, structuredAnswerExtra, type AnswerExtra } from "@/lib/insights";
 import { gradePractice, gradeOneQuestion, gradeOneImage, downloadReport, verdictColor, GradeQuestionInput, slotAnswersFromGraded } from "@/lib/practiceGrading";
 import { syncPracticePaperTracking } from "@/lib/paperTracking";
 import { apiCall, getApiUrl } from "@/lib/api";
@@ -1600,7 +1600,7 @@ function PracticeInner() {
     checkedLoggedRef.current = true;
     const records = displayQuestions
       .filter((q) => q.type === "mcq" && q.correctOption)
-      .map((q) => attemptFromMcq(q, mcqAnswers[q.id], q.correctOption));
+      .map((q) => attemptFromMcq(q, mcqAnswers[q.id], q.correctOption, mcqAnswerExtra(q, mcqAnswers[q.id], q.correctOption)));
     void logAttempts(records, getToken);
   }
   // one-click jump into a subject/type/mode, so the blank state isn't a dead end
@@ -1732,7 +1732,7 @@ function PracticeInner() {
       const result = await gradeOneQuestion(selectedSubject, toGradeInput(q), getToken);
       markTouched(q.id); // keep it open right after marking; it collapses on reopen
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
-      void logAttempts([attemptFromGraded(q, result)], getToken);
+      void logAttempts([attemptFromGraded(q, result, structuredAnswerExtra(q, partAnswers, q.id))], getToken);
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
     } finally {
@@ -1753,7 +1753,12 @@ function PracticeInner() {
       const slotted = slotAnswersFromGraded(q, result);
       if (slotted.mcq) setMcqAnswers((prev) => ({ ...prev, [q.id]: slotted.mcq as string }));
       if (Object.keys(slotted.parts).length) setPartAnswers((prev) => ({ ...prev, ...slotted.parts }));
-      void logAttempts([attemptFromGraded(q, result)], getToken);
+      // Handwritten: the read text is what the student "wrote" — use the slotted answers.
+      const mergedParts = { ...partAnswers, ...slotted.parts };
+      const imgExtra = q.type === "mcq"
+        ? mcqAnswerExtra(q, slotted.mcq || mcqAnswers[q.id], q.correctOption)
+        : structuredAnswerExtra(q, mergedParts, q.id);
+      void logAttempts([attemptFromGraded(q, result, imgExtra)], getToken);
     } catch (gradeError) {
       setError(gradeError instanceof Error ? gradeError.message : "Grading failed. Please try again.");
     } finally {
@@ -1814,7 +1819,15 @@ function PracticeInner() {
         }
       }
       // Phase 1 — log every graded question to the attempts backbone (mastery, predicted grade, notebook)
-      void logAttempts(attemptsFromReport(graded.perQuestion, questions), getToken);
+      const finalMcq: Record<string, string> = solveMode === "handwritten" ? (item.answers?.mcq ?? {}) : mcqAnswers;
+      const finalParts: Record<string, string> = solveMode === "handwritten" ? (item.answers?.parts ?? {}) : partAnswers;
+      const paperExtras: Record<string, AnswerExtra> = {};
+      for (const q of questions) {
+        paperExtras[q.id] = q.type === "mcq"
+          ? mcqAnswerExtra(q, finalMcq[q.id], q.correctOption)
+          : structuredAnswerExtra(q, finalParts, q.id);
+      }
+      void logAttempts(attemptsFromReport(graded.perQuestion, questions, paperExtras), getToken);
       if (selectedPaper) {
         void syncPracticePaperTracking({
           paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
