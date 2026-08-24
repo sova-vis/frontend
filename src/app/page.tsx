@@ -2,32 +2,36 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, Loader2, FileCheck2, ListChecks, Target, School } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'framer-motion';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useSignIn } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { BrandLogo } from '@/components/ui/Logo';
 import { showAuthSplash } from '@/lib/authSplash';
 import { Reveal, Stagger, StaggerItem, CountUp, Marquee } from '@/components/ui/Motion';
 
-const AuthLoading = () => (
-  <div className="flex items-center justify-center py-16">
-    <Loader2 className="h-7 w-7 animate-spin text-crimson" />
-  </div>
-);
+/** Google 'G' mark for the single sign-in button. */
+function GoogleG({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className="shrink-0">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C39.9 36.7 44 31 44 24c0-1.3-.1-2.3-.4-3.5z" />
+    </svg>
+  );
+}
 
 const FloatingHero = dynamic(() => import('@/components/FloatingHero'), {
   loading: () => <div className="h-[70vh] animate-pulse bg-surface-soft" />,
   ssr: false,
 });
-const SignIn = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignIn })), { ssr: false, loading: AuthLoading });
-const SignUp = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.SignUp })), { ssr: false, loading: AuthLoading });
 
-/** Preload the Clerk auth chunk so the modal opens instantly on first click. */
+/** Preload the Clerk auth chunk so Google sign-in starts instantly on click. */
 function preloadClerk() {
   import('@clerk/nextjs').catch(() => {});
 }
@@ -52,60 +56,43 @@ function destForUser(user: any, profile: { role?: string; onboarding_complete?: 
   return "/student/dashboard";
 }
 
-const clerkAppearance = (accent: 'sign-in' | 'sign-up') => ({
-  elements: {
-    card: "shadow-none border-0 bg-transparent",
-    rootBox: "w-full",
-    cardBox: "shadow-none w-full",
-    main: "w-full",
-    identityPreview: "hidden",
-    identityPreviewText: "hidden",
-    identityPreviewEditButton: "hidden",
-    footerAction: "hidden",
-    formButtonPrimary: "bg-crimson hover:bg-crimson-deep text-white font-bold",
-    formFieldInput: "rounded-xl border border-line bg-surface text-ink focus:border-crimson",
-    headerTitle: "text-crimson font-black text-2xl",
-    headerSubtitle: "text-ink-muted",
-    socialButtonsBlockButton: "border border-line hover:border-crimson transition-all bg-surface text-ink",
-    socialButtonsBlockButtonText: "text-ink",
-    dividerLine: "bg-line",
-    dividerText: "text-ink-faint",
-    formFieldLabel: "text-ink-muted",
-    otpCodeFieldInput: "border-line bg-surface text-ink",
-  },
-});
-
 function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, loading: profileLoading } = useClerkAuth();
-  const [authModal, setAuthModal] = useState<"sign-in" | "sign-up" | null>(null);
+  const { signIn, isLoaded: signInLoaded } = useSignIn();
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 });
 
-  const openAuth = useCallback((mode: "sign-in" | "sign-up") => {
+  // Single sign-in path: Google. Clerk signs in returning users and registers
+  // first-timers through the same OAuth flow, returning to /sso-callback → "/".
+  const continueWithGoogle = useCallback(async () => {
+    if (googleBusy) return;
     preloadClerk();
-    setAuthModal(mode);
-  }, []);
-
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const auth = searchParams?.get("auth");
-
-    if (auth !== "sign-in" && auth !== "sign-up") {
-      return;
+    if (!signInLoaded || !signIn) return;
+    setGoogleBusy(true);
+    setAuthError("");
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/",
+      });
+    } catch {
+      setAuthError("Couldn't start Google sign-in. Please try again.");
+      setGoogleBusy(false);
     }
+  }, [signIn, signInLoaded, googleBusy]);
 
-    setAuthModal(auth);
-    url.searchParams.delete("auth");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [searchParams]);
+  // Back-compat shim: every old sign-in/sign-up entry point now starts Google.
+  const openAuth = useCallback((_mode?: "sign-in" | "sign-up") => { void continueWithGoogle(); }, [continueWithGoogle]);
 
   // Instant redirect the moment auth is confirmed — no lingering on the landing
   // page. Returning users are routed from their cached profile immediately; a
@@ -120,7 +107,6 @@ function HomePageContent() {
 
   useEffect(() => {
     if (!isLoaded || !user) return;
-    setAuthModal(null);
 
     let resolved: { role?: string; onboarding_complete?: boolean } | null = !profileLoading ? profile : null;
     if (!resolved && typeof window !== "undefined") {
@@ -132,9 +118,13 @@ function HomePageContent() {
 
     if (resolved) {
       router.replace(destForUser(user, resolved));
-    } else {
-      // No profile known yet → treat as new; onboard immediately.
-      router.replace("/onboarding");
+    } else if (!profileLoading) {
+      // Only once the profile has FINISHED loading and is genuinely absent do we
+      // treat this as a new account. Routing to /onboarding while it's still
+      // loading (e.g. right after a login, when the cached profile was cleared on
+      // the previous sign-out) sent returning users to onboarding every time.
+      // While it loads with no cache, we wait here — the splash covers the gap.
+      router.replace(destForUser(user, profile));
     }
   }, [isLoaded, user, profileLoading, profile, router]);
 
@@ -276,24 +266,18 @@ function HomePageContent() {
                 <Menu size={18} className="mx-auto" />
               </button>
               {isLoaded ? (
-                <div className="flex items-center gap-2 md:gap-3">
-                  <button
-                    onClick={() => openAuth("sign-in")}
-                    onMouseEnter={preloadClerk}
-                    className="hidden md:block font-bold text-ink-muted hover:text-crimson transition-colors"
-                  >
-                    Log In
-                  </button>
-                  <Button
-                    onClick={() => openAuth("sign-up")}
-                    onMouseEnter={preloadClerk}
-                    className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
-                  >
-                    Sign up
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => void continueWithGoogle()}
+                  onMouseEnter={preloadClerk}
+                  disabled={googleBusy}
+                  className="rounded-full px-4 md:px-6 h-10 md:h-11 text-xs md:text-sm gap-2 bg-surface text-ink border border-line hover:bg-surface-soft"
+                >
+                  <GoogleG size={16} />
+                  <span className="hidden sm:inline">Continue with Google</span>
+                  <span className="sm:hidden">Sign in</span>
+                </Button>
               ) : (
-                <div className="h-10 w-20 md:w-24 rounded-full bg-surface-soft animate-pulse" />
+                <div className="h-10 w-28 md:w-44 rounded-full bg-surface-soft animate-pulse" />
               )}
             </div>
           </div>
@@ -307,60 +291,16 @@ function HomePageContent() {
             <a href="#levels" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Levels</a>
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
             <Link href="/past-papers" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Past Papers</Link>
-            <button onClick={() => { openAuth("sign-in"); setIsMobileNavOpen(false); }} className="w-full text-left py-1">Log In</button>
-            <button onClick={() => { openAuth("sign-up"); setIsMobileNavOpen(false); }} className="w-full text-left py-1 text-crimson">Sign up</button>
+            <button onClick={() => { setIsMobileNavOpen(false); void continueWithGoogle(); }} className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-full border border-line bg-surface py-2 text-ink">
+              <GoogleG size={16} /> Continue with Google
+            </button>
           </div>
         </div>
       )}
 
-      {authModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setAuthModal(null)}>
-          <div className="relative w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setAuthModal(null)}
-              className="absolute -right-2 -top-2 z-10 bg-surface rounded-full p-2 text-ink hover:bg-crimson hover:text-white transition-all shadow-lg"
-              aria-label="Close authentication modal"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="mb-3 flex items-center gap-2 justify-center">
-              <button
-                onClick={() => setAuthModal("sign-in")}
-                className={`rounded-full px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-in" ? "bg-crimson text-white shadow-lg scale-105" : "bg-surface/90 text-ink-muted hover:bg-surface"}`}
-              >
-                Log In
-              </button>
-              <button
-                onClick={() => setAuthModal("sign-up")}
-                className={`rounded-full px-6 py-2.5 text-sm font-bold transition-all ${authModal === "sign-up" ? "bg-crimson text-white shadow-lg scale-105" : "bg-surface/90 text-ink-muted hover:bg-surface"}`}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            <div className="bg-surface/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl border border-line overflow-hidden">
-              {authModal === "sign-in" ? (
-                <SignIn
-                  routing="hash"
-                  signUpUrl="/"
-                  afterSignInUrl="/"
-                  fallbackRedirectUrl="/"
-                  forceRedirectUrl="/"
-                  appearance={clerkAppearance('sign-in')}
-                />
-              ) : (
-                <SignUp
-                  routing="hash"
-                  signInUrl="/?auth=sign-in"
-                  afterSignUpUrl="/"
-                  fallbackRedirectUrl="/"
-                  forceRedirectUrl="/"
-                  appearance={clerkAppearance('sign-up')}
-                />
-              )}
-            </div>
-          </div>
+      {authError && (
+        <div className="fixed top-24 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-crimson/30 bg-crimson-soft px-4 py-2 text-sm text-crimson-ink shadow-card">
+          {authError}
         </div>
       )}
 

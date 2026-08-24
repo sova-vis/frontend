@@ -15,7 +15,7 @@ export default function DashboardRedirect() {
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) {
-      router.replace("/sign-in");
+      router.replace("/");
       return;
     }
 
@@ -28,6 +28,10 @@ export default function DashboardRedirect() {
         /* ignore */
       }
     }
+
+    // Wait for the profile before deciding — routing on an unknown profile would
+    // send the wrong role to the wrong dashboard (and looked like a flash).
+    if (!resolved && loading) return;
 
     if (resolved && resolved.onboarding_complete === false) {
       router.replace("/onboarding");

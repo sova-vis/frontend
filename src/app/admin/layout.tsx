@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { hideAuthSplash } from "@/lib/authSplash";
+import { useInactivityLogout } from "@/lib/useInactivityLogout";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [isAuthorized, setIsAuthorized] = useState(false);
     const { user, isLoaded } = useUser();
     const { profile, loading } = useClerkAuth();
+    useInactivityLogout(30);
 
     // Destination reached → drop the post-login splash.
     useEffect(() => { if (isAuthorized) hideAuthSplash(); }, [isAuthorized]);
@@ -19,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!isLoaded || loading) return;
 
         if (!user) {
-            router.replace("/sign-in");
+            router.replace("/");
             return;
         }
 

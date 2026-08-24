@@ -7,6 +7,7 @@ import { PaperLevelProvider } from '@/lib/paperLevel';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/studentPersonalization';
 import { hideAuthSplash } from '@/lib/authSplash';
+import { useInactivityLogout } from '@/lib/useInactivityLogout';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -17,6 +18,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 	const { getToken } = useAuth();
 	const router = useRouter();
 	const warmed = useRef(false);
+	useInactivityLogout(30);
 
 	// Make the SERVER the source of truth for subjects + active level: mirror the
 	// profile into this browser on login (so any device shows the same thing), or
@@ -40,7 +42,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 		if (!isLoaded || loading) return;
 
 		if (!user) {
-			router.replace('/sign-in');
+			router.replace('/');
 			return;
 		}
 

@@ -91,7 +91,7 @@ export default function OnboardingPage() {
   // Already onboarded → straight to the right place.
   useEffect(() => {
     if (!isLoaded) return;
-    if (!user) { router.replace("/sign-in"); return; }
+    if (!user) { router.replace("/"); return; }
     if (!loading && profile?.onboarding_complete) {
       // Keep the splash up — the dashboard will drop it once it's ready.
       router.replace(profile.role === "teacher" ? "/teacher/dashboard" : profile.role === "admin" ? "/admin/dashboard" : "/student/dashboard");
