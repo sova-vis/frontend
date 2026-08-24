@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import PropelLoader from "@/components/ui/PropelLoader";
 
 // Legacy route. Some auth flows still land here — bounce to the real, role-based
 // dashboard so nobody gets stuck on a placeholder.
@@ -43,12 +44,5 @@ export default function DashboardRedirect() {
     router.replace(role === "teacher" ? "/teacher/dashboard" : role === "admin" ? "/admin/dashboard" : "/student/dashboard");
   }, [isLoaded, user, loading, profile, router]);
 
-  return (
-    <div className="min-h-screen grid place-items-center bg-paper">
-      <div className="flex items-center gap-3 text-ink-muted">
-        <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-crimson" />
-        <span className="text-sm font-semibold">Loading your dashboard…</span>
-      </div>
-    </div>
-  );
+  return <PropelLoader fullScreen label="Loading your dashboard…" />;
 }

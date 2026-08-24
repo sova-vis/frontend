@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { hideAuthSplash } from "@/lib/authSplash";
 import { useInactivityLogout } from "@/lib/useInactivityLogout";
+import PropelLoader from "@/components/ui/PropelLoader";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -41,14 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }, [isLoaded, loading, profile, router, user]);
 
     if (!isLoaded || loading || !isAuthorized) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-paper">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crimson mx-auto mb-4"></div>
-                    <p className="text-ink-muted">Verifying admin access...</p>
-                </div>
-            </div>
-        );
+        return <PropelLoader fullScreen label="Verifying admin access…" />;
     }
 
     return <>{children}</>;

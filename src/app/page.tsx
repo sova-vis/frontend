@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, Loader2, FileCheck2, ListChecks, Target, School } from 'lucide-react';
+import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, FileCheck2, ListChecks, Target, School } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import { useUser, useSignIn } from '@clerk/nextjs';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { BrandLogo } from '@/components/ui/Logo';
+import PropelLoader from '@/components/ui/PropelLoader';
 import { showAuthSplash } from '@/lib/authSplash';
 import { Reveal, Stagger, StaggerItem, CountUp, Marquee } from '@/components/ui/Motion';
 
@@ -218,14 +219,8 @@ function HomePageContent() {
   // lingers on the landing page after signing in / up.
   if (isLoaded && user) {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-paper text-ink">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <BrandLogo size={46} labelClassName="text-2xl text-crimson" />
-        </motion.div>
-        <div className="flex items-center gap-3 text-ink-muted">
-          <Loader2 className="h-5 w-5 animate-spin text-crimson" />
-          <span className="text-sm font-semibold">Getting things ready…</span>
-        </div>
+      <div className="fixed inset-0 z-[100] bg-paper">
+        <PropelLoader fullScreen label="Getting things ready…" />
       </div>
     );
   }

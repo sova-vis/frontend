@@ -8,6 +8,7 @@ import { useClerkAuth } from '@/lib/useClerkAuth';
 import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/studentPersonalization';
 import { hideAuthSplash } from '@/lib/authSplash';
 import { useInactivityLogout } from '@/lib/useInactivityLogout';
+import PropelLoader from '@/components/ui/PropelLoader';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -96,14 +97,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 	// Only block on the full-screen spinner when we have nothing cached yet.
 	// A cached profile renders the dashboard instantly while it revalidates.
 	if ((!profile && loading) || !isLoaded || !user || (profile && profile.role !== 'student')) {
-		return (
-			<div className="min-h-screen flex items-center justify-center bg-paper">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crimson mx-auto mb-4"></div>
-					<p className="text-ink-muted">Loading...</p>
-				</div>
-			</div>
-		);
+		return <PropelLoader fullScreen label="Loading…" />;
 	}
 
 	return (
