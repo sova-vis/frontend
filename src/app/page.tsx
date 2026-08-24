@@ -84,7 +84,9 @@ function HomePageContent() {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/",
+        // Land on the neutral role-router (a splash-covered spinner), never the
+        // marketing landing — that "/" briefly rendered and caused the flicker.
+        redirectUrlComplete: "/dashboard",
       });
     } catch {
       setAuthError("Couldn't start Google sign-in. Please try again.");
