@@ -60,6 +60,7 @@ function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, loading: profileLoading } = useClerkAuth();
   const { signIn, isLoaded: signInLoaded } = useSignIn();
+  const [authOpen, setAuthOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
@@ -91,8 +92,8 @@ function HomePageContent() {
     }
   }, [signIn, signInLoaded, googleBusy]);
 
-  // Back-compat shim: every old sign-in/sign-up entry point now starts Google.
-  const openAuth = useCallback((_mode?: "sign-in" | "sign-up") => { void continueWithGoogle(); }, [continueWithGoogle]);
+  // Every old sign-in/sign-up entry point now opens the single "Login" popup.
+  const openAuth = useCallback((_mode?: "sign-in" | "sign-up") => { preloadClerk(); setAuthError(""); setAuthOpen(true); }, []);
 
   // Instant redirect the moment auth is confirmed — no lingering on the landing
   // page. Returning users are routed from their cached profile immediately; a
@@ -267,17 +268,14 @@ function HomePageContent() {
               </button>
               {isLoaded ? (
                 <Button
-                  onClick={() => void continueWithGoogle()}
+                  onClick={() => { setAuthError(""); setAuthOpen(true); }}
                   onMouseEnter={preloadClerk}
-                  disabled={googleBusy}
-                  className="rounded-full px-4 md:px-6 h-10 md:h-11 text-xs md:text-sm gap-2 bg-surface text-ink border border-line hover:bg-surface-soft"
+                  className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
                 >
-                  <GoogleG size={16} />
-                  <span className="hidden sm:inline">Continue with Google</span>
-                  <span className="sm:hidden">Sign in</span>
+                  Login
                 </Button>
               ) : (
-                <div className="h-10 w-28 md:w-44 rounded-full bg-surface-soft animate-pulse" />
+                <div className="h-10 w-20 md:w-24 rounded-full bg-surface-soft animate-pulse" />
               )}
             </div>
           </div>
@@ -291,16 +289,37 @@ function HomePageContent() {
             <a href="#levels" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Levels</a>
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
             <Link href="/past-papers" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Past Papers</Link>
-            <button onClick={() => { setIsMobileNavOpen(false); void continueWithGoogle(); }} className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-full border border-line bg-surface py-2 text-ink">
-              <GoogleG size={16} /> Continue with Google
+            <button onClick={() => { setIsMobileNavOpen(false); setAuthError(""); setAuthOpen(true); }} className="mt-1 w-full rounded-full bg-crimson py-2 font-semibold text-white">
+              Login
             </button>
           </div>
         </div>
       )}
 
-      {authError && (
-        <div className="fixed top-24 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-crimson/30 bg-crimson-soft px-4 py-2 text-sm text-crimson-ink shadow-card">
-          {authError}
+      {/* Login popup — one tap, Google only. */}
+      {authOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setAuthOpen(false)}>
+          <div className="relative w-full max-w-sm rounded-[1.5rem] border border-line bg-surface p-7 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setAuthOpen(false)}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-ink-muted hover:bg-surface-soft"
+              aria-label="Close login"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex justify-center"><BrandLogo size={38} labelClassName="text-2xl" /></div>
+            <h2 className="mt-4 font-display text-xl font-semibold tracking-tight">Welcome to Propel</h2>
+            <p className="mt-1 text-sm text-ink-muted">Log in or sign up in one tap.</p>
+            <button
+              onClick={() => void continueWithGoogle()}
+              disabled={googleBusy}
+              className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 font-semibold text-ink shadow-card transition-colors hover:bg-surface-soft disabled:opacity-60"
+            >
+              <GoogleG size={18} /> {googleBusy ? "Connecting…" : "Continue with Google"}
+            </button>
+            {authError && <p className="mt-3 text-sm text-crimson">{authError}</p>}
+            <p className="mt-4 text-xs text-ink-faint">By continuing you agree to our Terms &amp; Privacy Policy.</p>
+          </div>
         </div>
       )}
 
