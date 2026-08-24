@@ -275,7 +275,16 @@ export function buildDailyPlan(attempts: Attempt[], now = Date.now()): { items: 
   const items: PlanItem[] = [];
   const seen = new Set<string>();
 
-  for (const w of weak.slice(0, 2)) {
+  // One weak topic per SUBJECT, weakest-subject first — so the plan spans the
+  // multiple subjects the student is actually weak in, not two topics of one.
+  const perSubject: WeaknessTopic[] = [];
+  const subjSeen = new Set<string>();
+  for (const w of weak) {
+    if (subjSeen.has(w.subject)) continue;
+    subjSeen.add(w.subject);
+    perSubject.push(w);
+  }
+  for (const w of perSubject.slice(0, 3)) {
     seen.add(w.key);
     items.push({
       kind: "practice",

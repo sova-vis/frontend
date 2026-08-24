@@ -12,9 +12,9 @@ import type { TrackedPaper } from "@/lib/paperTracking";
 import {
   PracticeProgress, loadPracticeProgressList, loadPracticeProgressLocal, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
-import { EXAM_DATE } from "@/lib/examCountdown";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
-import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade, readinessTimeline } from "@/lib/insights";
+import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade } from "@/lib/insights";
+import { getApiUrl } from "@/lib/api";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 import WeakPointsBySubject from "@/components/student/WeakPointsBySubject";
 import StudyScene from "@/components/student/StudyScene";
@@ -116,8 +116,24 @@ export default function StudentDashboard() {
     return n;
   }, [attempts]);
   const dailyPlan = useMemo(() => buildDailyPlan(attempts), [attempts]);
-  const prediction = useMemo(() => predictedGrade(attempts), [attempts]);
-  const timeline = useMemo(() => readinessTimeline(attempts, EXAM_DATE), [attempts]);
+
+  // Predicted grade PER SUBJECT (needs a handful of graded answers per subject).
+  const subjectPredictions = useMemo(() => {
+    const bySubj = new Map<string, Attempt[]>();
+    for (const a of attempts) {
+      if (!a.subject) continue;
+      const list = bySubj.get(a.subject) ?? [];
+      list.push(a);
+      bySubj.set(a.subject, list);
+    }
+    return Array.from(bySubj.entries())
+      .map(([subject, list]) => ({ subject, pred: predictedGrade(list), attempts: list.length }))
+      .filter((r) => r.pred)
+      .sort((a, b) => (b.pred!.percent) - (a.pred!.percent));
+  }, [attempts]);
+
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const bookmarks = useMemo(() => stats.papers.filter((p) => p.statuses.includes("bookmarked" as never)), [stats.papers]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 
@@ -176,10 +192,10 @@ export default function StudentDashboard() {
   const activeStep = onboardingSteps.find((s) => !s.done);
   const showOnboarding = !stats.loading && !onbHidden && onboardingDone < onboardingSteps.length;
 
-  const statCards = [
+  const statCards: { key: string; label: string; value: number; icon: string; tone: string; onClick?: () => void }[] = [
     { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
-    { key: "prog", label: "In progress", value: stats.inProgressCount, icon: "clock", tone: "amber" },
-    { key: "marks", label: "Bookmarked", value: stats.bookmarkedCount, icon: "bookmark", tone: "teal" },
+    { key: "qs", label: "Questions solved", value: attempts.length, icon: "check_circle", tone: "amber" },
+    { key: "marks", label: "Bookmarked", value: stats.bookmarkedCount, icon: "bookmark", tone: "teal", onClick: () => setBookmarksOpen(true) },
     { key: "goals", label: "Goals set", value: stats.goalsTotal, icon: "target", tone: "crimson" },
   ];
 
@@ -284,75 +300,60 @@ export default function StudentDashboard() {
 
         {/* STAT STRIP (real) */}
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-          {statCards.map((st) => (
-            <div className="card card-pad card-hover" key={st.key} style={{ padding: 18 }}>
-              <div className="row-between" style={{ marginBottom: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-2)", color: "var(--ink-soft)", display: "grid", placeItems: "center" }}>
-                  <Icon name={st.icon} size={18} />
+          {statCards.map((st) => {
+            const Tag = st.onClick ? "button" : "div";
+            return (
+              <Tag className="card card-pad card-hover" key={st.key}
+                onClick={st.onClick}
+                style={{ padding: 18, textAlign: "left", cursor: st.onClick ? "pointer" : "default", border: st.onClick ? "1px solid var(--line)" : undefined, width: "100%" }}>
+                <div className="row-between" style={{ marginBottom: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-2)", color: "var(--ink-soft)", display: "grid", placeItems: "center" }}>
+                    <Icon name={st.icon} size={18} />
+                  </div>
+                  <span className={"badge " + st.tone} style={{ flex: "none" }}>{st.label.split(" ")[0]}</span>
                 </div>
-                <span className={"badge " + st.tone} style={{ flex: "none" }}>{st.label.split(" ")[0]}</span>
-              </div>
-              <div className="stat-num"><CountUp value={st.value} /></div>
-              <div style={{ fontSize: 13, marginTop: 2, color: "var(--ink-muted)", fontWeight: 500 }}>{st.label}</div>
-            </div>
-          ))}
+                <div className="stat-num"><CountUp value={st.value} /></div>
+                <div className="row-between" style={{ marginTop: 2, gap: 8 }}>
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", fontWeight: 500 }}>{st.label}</div>
+                  {st.onClick && <span className="faint" style={{ fontSize: 11.5, display: "inline-flex", alignItems: "center", gap: 3 }}>View <Icon name="chevron_right" size={12} /></span>}
+                </div>
+              </Tag>
+            );
+          })}
         </div>
 
-        {/* Predicted grade + readiness forecast (Phase 4) */}
-        {prediction && (
-          <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.4fr)", alignItems: "stretch", gap: 18 }}>
-            {/* predicted grade */}
-            <div className="card card-pad flex-col" style={{ display: "flex", gap: 12 }}>
-              <div className="card-head" style={{ marginBottom: 0 }}>
-                <div>
-                  <span className="card-title">Predicted grade</span>
-                  <div className="card-sub mt-6">From {prediction.sampleSize} graded answers · {prediction.confidence}% confidence</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-14">
-                <div style={{ fontSize: 46, fontWeight: 800, color: "var(--crimson)", lineHeight: 1 }}>{prediction.grade}</div>
-                <div>
-                  <div className="big-num" style={{ fontSize: 22 }}>{prediction.percent}%</div>
-                  <div className="faint" style={{ fontSize: 12 }}>overall accuracy{prediction.borderline ? " · borderline" : ""}</div>
-                </div>
-              </div>
-              {/* probability across bands */}
-              <div className="flex-col gap-6">
-                {prediction.bands.slice(0, 4).map((b) => (
-                  <div key={b.grade} className="flex items-center gap-8" style={{ fontSize: 12 }}>
-                    <span style={{ width: 22, fontWeight: 700, flex: "none" }}>{b.grade}</span>
-                    <div className="bar" style={{ height: 7, flex: 1 }}><i style={{ width: b.prob + "%", background: "var(--crimson)" }} /></div>
-                    <span className="faint tnum" style={{ width: 30, textAlign: "right", flex: "none" }}>{b.prob}%</span>
-                  </div>
-                ))}
+        {/* Predicted grades — per subject (Phase 4) */}
+        {subjectPredictions.length > 0 && (
+          <div className="card card-pad">
+            <div className="card-head">
+              <div>
+                <span className="card-title">Predicted grades</span>
+                <div className="card-sub mt-6">Estimated per subject from your graded answers — sharpens as you solve more.</div>
               </div>
             </div>
-
-            {/* readiness timeline */}
-            {timeline && (
-              <div className="card card-pad flex-col" style={{ display: "flex", gap: 12 }}>
-                <div className="card-head" style={{ marginBottom: 0 }}>
-                  <div>
-                    <span className="card-title">Exam readiness timeline</span>
-                    <div className="card-sub mt-6">
-                      {timeline.ratePerWeek > 0 ? `Improving ~${timeline.ratePerWeek}%/week at your current pace` : timeline.ratePerWeek < 0 ? `Down ${Math.abs(timeline.ratePerWeek)}%/week recently — worth a push` : "Steady — keep practising to build the trend"}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-end" style={{ gap: 10, minHeight: 130 }}>
-                  {timeline.points.map((p, i) => {
-                    const col = p.percent >= 75 ? "var(--teal-deep)" : p.percent >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
-                    return (
-                      <div key={i} className="flex-col items-center" style={{ display: "flex", flex: 1, gap: 6, justifyContent: "flex-end" }}>
-                        <span className="tnum" style={{ fontSize: 13, fontWeight: 700, color: col }}>{p.percent}%</span>
-                        <div style={{ width: "70%", maxWidth: 46, height: Math.max(8, p.percent) + "%", minHeight: 8, background: col, borderRadius: "6px 6px 0 0", opacity: i === 0 ? 1 : 0.72 }} />
-                        <span className="faint" style={{ fontSize: 11, textAlign: "center" }}>{p.label}</span>
+            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 }}>
+              {subjectPredictions.map(({ subject, pred, attempts: n }) => {
+                const subj = subjectStyle(subject);
+                const col = pred!.percent >= 75 ? "var(--teal-deep)" : pred!.percent >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
+                return (
+                  <div key={subject} style={{ borderRadius: 14, border: "1px solid var(--line)", padding: 14 }}>
+                    <div className="flex items-center gap-10" style={{ marginBottom: 8 }}>
+                      <SubjGlyph subj={subj} size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subject}</div>
+                        <div className="faint" style={{ fontSize: 11 }}>{n} answers · {pred!.confidence}% conf</div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                    </div>
+                    <div className="flex items-baseline gap-8">
+                      <span style={{ fontSize: 34, fontWeight: 800, color: col, lineHeight: 1 }}>{pred!.grade}</span>
+                      <span className="faint tnum" style={{ fontSize: 14, fontWeight: 700 }}>{pred!.percent}%</span>
+                      {pred!.borderline && <span className="badge amber" style={{ fontSize: 10 }}>borderline</span>}
+                    </div>
+                    <div className="bar" style={{ height: 7, marginTop: 8 }}><i style={{ width: Math.max(3, pred!.percent) + "%", background: col }} /></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -601,6 +602,65 @@ export default function StudentDashboard() {
             <p className="faint" style={{ fontSize: 13.5 }}>Your paper activity will show up here as you study.</p>
           )}
         </div>
+      </div>
+
+      {bookmarksOpen && <BookmarksModal papers={bookmarks} onClose={() => setBookmarksOpen(false)} />}
+    </div>
+  );
+}
+
+/* ---- bookmarks: central modal listing all saved papers; click to open one ---- */
+function BookmarksModal({ papers, onClose }: { papers: TrackedPaper[]; onClose: () => void }) {
+  const [viewing, setViewing] = useState<TrackedPaper | null>(null);
+  const router = useRouter();
+  const open = (p: TrackedPaper) => {
+    // A saved past paper opens in the in-app viewer; a practice-session bookmark
+    // (id "practice:…") has no PDF url, so route into Practice instead.
+    if (p.embedUrl || p.viewUrl) setViewing(p);
+    else { onClose(); router.push("/student/paper-practice"); }
+  };
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4" style={{ position: "fixed" }} onClick={onClose}>
+      <div className="card" style={{ width: "100%", maxWidth: viewing ? 900 : 520, height: viewing ? "min(88vh,760px)" : "auto", maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+        <div className="row-between" style={{ padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
+          <div className="flex items-center gap-8">
+            {viewing && (
+              <button className="icon-btn" onClick={() => setViewing(null)} aria-label="Back" style={{ width: 30, height: 30 }}>
+                <Icon name="chevron_right" size={16} style={{ transform: "rotate(180deg)" }} />
+              </button>
+            )}
+            <Icon name="bookmark" size={18} style={{ color: "var(--teal-deep)" }} />
+            <span className="card-title">{viewing ? viewing.name : `Bookmarks · ${papers.length}`}</span>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" style={{ width: 30, height: 30 }}><Icon name="x" size={16} /></button>
+        </div>
+
+        {viewing ? (
+          <iframe src={`${getApiUrl()}${viewing.embedUrl || viewing.viewUrl}`} title={viewing.name} style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }} />
+        ) : papers.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <p className="faint" style={{ fontSize: 13.5 }}>No bookmarks yet. Bookmark a paper from Past Papers to save it here.</p>
+          </div>
+        ) : (
+          <div style={{ overflowY: "auto", padding: 10 }}>
+            {papers.map((p) => {
+              const subj = subjectStyle(p.name);
+              return (
+                <button key={p.id} onClick={() => open(p)} className="flex items-center gap-12"
+                  style={{ width: "100%", textAlign: "left", padding: "11px 12px", borderRadius: 12, background: "transparent", border: "none", cursor: "pointer" }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: subj.color + "1e", color: subj.color }}>
+                    <Icon name={subj.icon} size={16} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                    <div className="faint" style={{ fontSize: 11.5 }}>{p.type || "Paper"}</div>
+                  </div>
+                  <Icon name="chevron_right" size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -28,6 +28,22 @@ export default function PlannerPage() {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [examBySubjectRaw, setExamBySubjectRaw] = useState<Record<string, string>>({});
   const [topicsRaw, setTopicsRaw] = useState<Record<string, string[]>>({});
+  const [level, setLevel] = useState<"olevel" | "alevel">("olevel");
+
+  // Active O/A level, so links open Practice at the right bank and topics are
+  // fetched for the right level.
+  useEffect(() => {
+    const read = () => setLevel(typeof window !== "undefined" && window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel");
+    read();
+    window.addEventListener("propel:level-change", read);
+    return () => window.removeEventListener("propel:level-change", read);
+  }, []);
+  // Each session opens the exact subject/topic in Practice (level-aware).
+  const sessionHref = (subject: string, topic?: string | null) => {
+    const p = new URLSearchParams({ subject, level });
+    if (topic) p.set("topic", topic);
+    return `/student/paper-practice?${p.toString()}`;
+  };
 
   const [config, setConfig] = useState<Config | null>(null);
   const [editing, setEditing] = useState(false);
@@ -83,10 +99,11 @@ export default function PlannerPage() {
       }
       setTopicsRaw(map);
     };
-    const cached = cacheGet<SubjMeta[]>("pp:practice:subjects", 30 * 60 * 1000);
+    const key = `pp:practice:subjects:${level}`;
+    const cached = cacheGet<SubjMeta[]>(key, 30 * 60 * 1000);
     if (cached && cached.length) use(cached);
-    fetch("/api/paper-practice").then((r) => (r.ok ? r.json() : null)).then((d: { subjects?: SubjMeta[] } | null) => { if (d?.subjects) { cacheSet("pp:practice:subjects", d.subjects); use(d.subjects); } }).catch(() => {});
-  }, []);
+    fetch(`/api/paper-practice?level=${level}`).then((r) => (r.ok ? r.json() : null)).then((d: { subjects?: SubjMeta[] } | null) => { if (d?.subjects) { cacheSet(key, d.subjects); use(d.subjects); } }).catch(() => {});
+  }, [level]);
 
   // Map raw datesheet/library keys onto the student's selected subject names
   const examDateBySubject = useMemo(() => {
@@ -239,7 +256,7 @@ export default function PlannerPage() {
                     </div>
                     <div className="flex-col" style={{ gap: 2 }}>
                       {list.map((s, i) => (
-                        <Link key={i} href="/student/paper-practice" className="flex items-center gap-12" style={{ padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+                        <Link key={i} href={sessionHref(s.subject, s.topic)} className="flex items-center gap-12" style={{ padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
                           <div style={{ width: 44, flex: "none", textAlign: "center" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-faint)", textTransform: "uppercase" }}>{fmtDate(s.date).split(" ")[0]}</div>
                             <div style={{ fontSize: 15, fontWeight: 700 }}>{fmtDate(s.date).split(" ")[1]}</div>
