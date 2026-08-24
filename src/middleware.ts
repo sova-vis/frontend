@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+// Routes anyone can hit without being signed in.
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
@@ -14,19 +15,18 @@ export default clerkMiddleware(async (auth, req) => {
   const authState = typeof auth === "function" ? await auth() : (auth as any);
   const userId = authState?.userId;
 
-  if (req.nextUrl.pathname === "/" && userId) {
-    // Let the app route with backend profile data to avoid stale session-claim redirects.
-    return NextResponse.next();
+  // Signed-out visitor on a protected route → send them to OUR landing page
+  // (which shows the Login popup). Never to Clerk's hosted Account Portal, which
+  // is what auth.protect() would do here. Any link → landing when logged out,
+  // dashboard when logged in (the app routes signed-in users by role).
+  if (!userId && !isPublicRoute(req)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
   }
 
-  if (!isPublicRoute(req)) {
-    if (typeof auth === "function") {
-      const authFn = auth as any;
-      await authFn.protect();
-    } else {
-      await (auth as any).protect();
-    }
-  }
+  return NextResponse.next();
 });
 
 export const config = {
