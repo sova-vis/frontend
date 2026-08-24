@@ -164,7 +164,7 @@ export default function NotebookPage() {
     <div className="pr">
       <div className="main flex-col gap-24">
         {/* header */}
-        <div className="row-between wrap" style={{ gap: 14, alignItems: "flex-end" }}>
+        <div className="flex-col" style={{ gap: 14 }}>
           <div>
             <div className="eyebrow" style={{ marginBottom: 12 }}>Insights</div>
             <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Mistake Notebook</h1>
@@ -172,15 +172,28 @@ export default function NotebookPage() {
               Every wrong answer is logged automatically with its topic and reason — so your weak spots surface by concept, not just by subject.
             </p>
           </div>
+          {/* Subject picker — one button per subject (plus All). Click to focus the notebook. */}
           {subjects.length > 0 && (
-            <label className="chip" style={{ padding: "0 6px 0 13px", gap: 4, cursor: "pointer" }}>
-              <span className="faint" style={{ fontSize: 12 }}>Subject</span>
-              <select value={subject} onChange={(e) => setSubject(e.target.value)}
-                style={{ border: "none", background: "transparent", padding: "8px 4px", fontWeight: 500, cursor: "pointer", outline: "none", color: "var(--ink)" }}>
-                <option value="">All subjects</option>
-                {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
+            <div className="flex wrap" style={{ gap: 8 }}>
+              {[{ v: "", label: "All" }, ...subjects.map((s) => ({ v: s, label: s }))].map((opt) => {
+                const active = subject === opt.v;
+                return (
+                  <button
+                    key={opt.v || "all"}
+                    onClick={() => setSubject(opt.v)}
+                    style={{
+                      padding: "7px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      border: `1.5px solid ${active ? "var(--crimson)" : "var(--line-strong)"}`,
+                      background: active ? "var(--crimson-soft)" : "var(--surface)",
+                      color: active ? "var(--crimson)" : "var(--ink-soft)",
+                      transition: "all .14s", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -231,25 +244,25 @@ export default function NotebookPage() {
               {/* topic readiness — now with an Unsolved box */}
               {readinessHasData && (
                 <Panel icon="flag" iconColor="var(--teal-deep)" title="Topic readiness" sub="Where each topic stands — including ones you haven't started.">
-                  <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
+                  <div className="flex-col" style={{ gap: 14 }}>
                     {readinessGroups.map((group) => (
-                      <div key={group.key} style={{ borderRadius: 12, border: "1px solid var(--line)", padding: 12 }}>
-                        <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
+                      <div key={group.key}>
+                        <div className="flex items-center gap-8" style={{ marginBottom: 7 }}>
                           <span className={"badge " + group.tone}>{group.items.length}</span>
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{group.label}</span>
+                          <span style={{ fontWeight: 600, fontSize: 13.5 }}>{group.label}</span>
                         </div>
                         {group.items.length === 0 ? (
-                          <p className="faint" style={{ fontSize: 12 }}>None.</p>
+                          <p className="faint" style={{ fontSize: 12, paddingLeft: 2 }}>None.</p>
                         ) : (
-                          <div className="flex-col" style={{ gap: 4 }}>
-                            {group.items.slice(0, 6).map((t) => (
+                          <div className="flex-col" style={{ gap: 5 }}>
+                            {group.items.slice(0, 8).map((t) => (
                               <Link key={t.key} href={`/student/paper-practice?subject=${encodeURIComponent(t.href.split("|")[0])}&topic=${encodeURIComponent(t.href.split("|")[1])}`}
-                                className="row-between" style={{ fontSize: 12.5, gap: 8, textDecoration: "none", color: "var(--ink)" }}>
+                                className="row-between" style={{ fontSize: 12.5, gap: 8, textDecoration: "none", color: "var(--ink)", padding: "5px 10px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)" }}>
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.topic}</span>
                                 <span className="faint tnum" style={{ flex: "none" }}>{t.meta}</span>
                               </Link>
                             ))}
-                            {group.items.length > 6 && <span className="faint" style={{ fontSize: 11 }}>+{group.items.length - 6} more</span>}
+                            {group.items.length > 8 && <span className="faint" style={{ fontSize: 11, paddingLeft: 2 }}>+{group.items.length - 8} more</span>}
                           </div>
                         )}
                       </div>
