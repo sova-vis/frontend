@@ -43,6 +43,7 @@ type DbPart = {
   body: string | null;
   marks: number | null;
   answer: string | null;
+  images?: DbImage[] | null;
 };
 
 type DbImage = {
@@ -344,6 +345,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
         body: cleanText(part.body),
         marks: part.marks ?? null,
         answer: cleanText(part.answer) || null,
+        images: normalizeImages(part.images ?? null, question.question_number),
       })),
   };
 }
@@ -356,7 +358,7 @@ async function withParts(supabase: SupabaseClient, questions: DbQuestion[]) {
   if (structuredUids.length > 0) {
     const { data: partData, error: partError } = await supabase
       .from("question_parts")
-      .select("id,question_uid,label,order_index,body,marks,answer")
+      .select("id,question_uid,label,order_index,body,marks,answer,images")
       .in("question_uid", structuredUids)
       .order("order_index", { ascending: true });
     if (partError) throw partError;

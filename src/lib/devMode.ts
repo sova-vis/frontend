@@ -88,12 +88,14 @@ async function devSend(path: string, method: string, body?: unknown): Promise<Re
 
 const devPatch = (path: string, patch: Record<string, unknown>) => devSend(path, "PATCH", patch);
 
+export type DevImage = { role?: string; caption?: string | null; width?: number | null; height?: number | null; data_url: string };
+
 export type QuestionPatch = {
   question_text?: string;
   marking_scheme?: string;
   correct_option?: string | null;
   options?: Record<string, string>;
-  images?: Array<{ role?: string; caption?: string | null; width?: number | null; height?: number | null; data_url: string }>;
+  images?: DevImage[];
 };
 
 export const patchQuestion = (uid: string, patch: QuestionPatch) => devPatch(`/dev/questions/${uid}`, patch);
@@ -101,9 +103,9 @@ export const patchPart = (uid: string, patch: { body?: string; marks?: number | 
   devPatch(`/dev/parts/${uid}`, patch);
 
 /** A part as sent to the bulk-replace endpoint. */
-export type DevPart = { label: string; body: string; marks: number | null; answer: string | null };
+export type DevPart = { label: string; body: string; marks: number | null; answer: string | null; images?: DevImage[] };
 /** Saved part echoed back with its new DB id + resolved order. */
-export type SavedPart = DevPart & { id: string; order_index: number };
+export type SavedPart = DevPart & { id: string; order_index: number; images?: DevImage[] };
 
 /** Replace a question's entire ordered part list (add / delete / rename / reorder in one save). */
 export async function replaceParts(questionUid: string, parts: DevPart[]): Promise<SavedPart[]> {

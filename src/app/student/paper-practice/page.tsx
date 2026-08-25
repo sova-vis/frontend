@@ -39,7 +39,7 @@ type PracticeImage = {
 };
 
 type PracticeOption = { label: string; text: string };
-type PracticePart = { uid?: string; label: string; body: string; marks: number | null; answer: string | null };
+type PracticePart = { uid?: string; label: string; body: string; marks: number | null; answer: string | null; images?: PracticeImage[] };
 type PracticeSource = {
   label: string | null;
   reference: string | null;
@@ -528,12 +528,21 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
           {question.parts.map((part, index) => {
             const partKey = `${question.id}::${index}`;
             // Lead-in header: introduces the sub-parts below, so no answer box.
+            const partFigures = questionImagesOf(part.images ?? []);
+            const partAnswerFigures = answerImagesOf(part.images ?? []);
             if (isHeaderPart(question.parts, part.label)) {
               return (
-                <p key={partKey} style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5, padding: "0 2px" }}>
-                  {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
-                  {part.body}
-                </p>
+                <div key={partKey}>
+                  <p style={{ whiteSpace: "pre-wrap", fontSize: 14, fontWeight: 600, lineHeight: 1.5, padding: "0 2px" }}>
+                    {part.label && <span style={{ marginRight: 4, color: "var(--crimson)" }}>{part.label}</span>}
+                    {part.body}
+                  </p>
+                  {partFigures.length > 0 && (
+                    <div className="flex-col gap-12" style={{ display: "flex", marginTop: 8 }}>
+                      {partFigures.map((image, i) => <QuestionImage key={`${partKey}-img-${i}`} image={image} />)}
+                    </div>
+                  )}
+                </div>
               );
             }
             return (
@@ -545,6 +554,11 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
                   </p>
                   {part.marks !== null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
                 </div>
+                {partFigures.length > 0 && (
+                  <div className="flex-col gap-12" style={{ display: "flex", marginTop: 8 }}>
+                    {partFigures.map((image, i) => <QuestionImage key={`${partKey}-img-${i}`} image={image} />)}
+                  </div>
+                )}
                 {!readOnly ? (
                   <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
                     className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
@@ -554,6 +568,11 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
                 ) : null}
                 {revealScheme && part.answer && (
                   <div style={{ marginTop: 8 }}><SchemeList text={part.answer} /></div>
+                )}
+                {revealScheme && partAnswerFigures.length > 0 && (
+                  <div className="flex-col gap-12" style={{ display: "flex", marginTop: 8 }}>
+                    {partAnswerFigures.map((image, i) => <QuestionImage key={`${partKey}-ans-${i}`} image={image} />)}
+                  </div>
                 )}
               </div>
             );
