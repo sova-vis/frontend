@@ -1,10 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { ArrowRight, Plus, MousePointer2 } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
+import { motion, useReducedMotion } from "framer-motion";
+import { MousePointer2 } from "lucide-react";
 import { EASE } from "@/components/ui/Motion";
 
 interface PlayfulHeroProps {
@@ -23,176 +21,164 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
 
 const display = { fontFamily: "var(--font-fredoka), var(--font-fraunces), system-ui, sans-serif" } as const;
 
-/* -------------------------------------------------------------------------- */
-/* A colourful "sticker" character in a corner — organic blob frame in one of
-   the brand accents with an emoji inside. Gentle bob; reduced-motion fades in.
-   Hidden on small screens so the headline stays clean on mobile.              */
-function Sticker({
-  className, radius, soft, ring, emoji, rotate = 0, delay = 0, size = 104,
-}: {
-  className: string; radius: string; soft: string; ring: string; emoji: string; rotate?: number; delay?: number; size?: number;
-}) {
+/* Real 3D sticker avatars cropped from the brief, placed by their centre and
+   sized in cqw so the whole composition scales as one unit with the stage.  */
+const AVATARS = [
+  { src: "/hero/star.png",   cx: 9.8,  cy: 23,   w: 13,   rot: -3, delay: 0.10 },
+  { src: "/hero/selfie.png", cx: 89,   cy: 24,   w: 15.5, rot: 3,  delay: 0.30 },
+  { src: "/hero/laptop.png", cx: 10,   cy: 68.5, w: 11,   rot: -2, delay: 0.50 },
+  { src: "/hero/flower.png", cx: 90,   cy: 80.5, w: 14.5, rot: 2,  delay: 0.70 },
+  { src: "/hero/book.png",   cx: 65,   cy: 18,   w: 10,   rot: 0,  delay: 0.90 },
+  { src: "/hero/globe.png",  cx: 38.5, cy: 82,   w: 9,    rot: 0,  delay: 1.00 },
+];
+
+const DOTS = [
+  { cx: 56, cy: 5,  s: 1.5, c: "var(--crimson)" },
+  { cx: 37, cy: 12, s: 1.1, c: "var(--gold)" },
+  { cx: 6.5, cy: 42, s: 1.3, c: "var(--crimson)" },
+  { cx: 33, cy: 77, s: 1.4, c: "var(--gold)" },
+  { cx: 82, cy: 93, s: 1.1, c: "var(--mint)" },
+  { cx: 96, cy: 66, s: 1.0, c: "var(--crimson)" },
+];
+
+export default function PlayfulHero({ user, profile, onSignUp }: PlayfulHeroProps) {
+  const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const go = () => onSignUp();
+  const primaryHref = user ? dashboardHref(user, profile) : undefined;
+
+  // absolute element positioned by its centre; float bob lives on an inner layer
+  const bob = (delay: number) => (reduce ? {} : { animate: { y: [0, -9, 0] }, transition: { duration: 4.6 + delay, repeat: Infinity, ease: "easeInOut" as const, delay } });
+
   return (
-    <motion.div
-      aria-hidden
-      className={`pointer-events-none absolute z-0 hidden md:flex items-center justify-center ${className}`}
-      initial={{ opacity: 0, scale: 0.6 }}
-      animate={{ opacity: 1, scale: 1, y: reduce ? 0 : [0, -12, 0] }}
-      transition={{
-        opacity: { duration: 0.6, delay, ease: EASE },
-        scale: { duration: 0.6, delay, ease: EASE },
-        y: reduce ? {} : { duration: 4.5 + delay, repeat: Infinity, ease: "easeInOut", delay: 0.6 + delay },
-      }}
-    >
-      <div
-        className="flex items-center justify-center shadow-[0_18px_40px_-16px_rgba(0,0,0,0.35)]"
-        style={{ width: size, height: size, borderRadius: radius, background: soft, border: `2px solid ${ring}`, transform: `rotate(${rotate}deg)` }}
-      >
-        <span style={{ fontSize: size * 0.5, lineHeight: 1, transform: `rotate(${-rotate}deg)` }}>{emoji}</span>
+    <section ref={ref} className="relative w-full overflow-hidden bg-paper pt-28 pb-16 md:pt-32 md:pb-20">
+      <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/3 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-crimson/5 blur-[130px]" />
+
+      {/* ======================= desktop / tablet: exact stage ======================= */}
+      <div className="relative mx-auto hidden w-full max-w-[1000px] px-4 md:block">
+        <div className="relative w-full" style={{ aspectRatio: "698 / 377", containerType: "inline-size" } as React.CSSProperties}>
+          {/* avatars */}
+          {AVATARS.map((a) => (
+            <motion.div key={a.src} aria-hidden
+              className="pointer-events-none absolute"
+              style={{ left: `${a.cx}%`, top: `${a.cy}%`, width: `${a.w}cqw`, transform: "translate(-50%,-50%)", zIndex: 1 }}
+              initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, ease: EASE, delay: a.delay }}>
+              <motion.div {...bob(a.delay)} style={{ rotate: a.rot }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.src} alt="" className="block h-auto w-full select-none" style={{ filter: "drop-shadow(0 14px 22px rgba(0,0,0,0.16))" }} />
+              </motion.div>
+            </motion.div>
+          ))}
+
+          {/* confetti dots */}
+          {DOTS.map((d, i) => (
+            <span key={i} aria-hidden className="absolute rounded-full"
+              style={{ left: `${d.cx}%`, top: `${d.cy}%`, width: `${d.s}cqw`, height: `${d.s}cqw`, background: `rgb(${d.c})`, transform: "translate(-50%,-50%)" }} />
+          ))}
+
+          {/* red "+" app icon */}
+          <motion.div aria-hidden className="absolute" style={{ left: "29.7%", top: "23.5%", width: "8.6cqw", transform: "translate(-50%,-50%)", zIndex: 2 }}
+            initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, ease: EASE, delay: 0.2 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/hero/plus.png" alt="" className="block h-auto w-full select-none" style={{ transform: "rotate(-6deg)", filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.18))" }} />
+          </motion.div>
+
+          {/* ---- headline words (Fredoka), placed like the brief ---- */}
+          <Word cx={50}   cy={27}   size={9.9} delay={0.15}>Take&nbsp;it</Word>
+          <Word cx={51.5} cy={47}   size={9.9} delay={0.28}>to</Word>
+          {/* "the" in a dark chip + "next" */}
+          <div className="absolute" style={{ left: "40.5%", top: "56.5%", transform: "translate(-50%,-50%)", zIndex: 2, ...display }}>
+            <motion.span initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
+              className="inline-flex items-center rounded-[0.35em] bg-ink px-[0.32em] py-[0.02em] font-semibold leading-none text-paper"
+              style={{ fontSize: "8.8cqw", transform: "rotate(-2deg)", boxShadow: "0 0.14em 0.3em rgba(0,0,0,0.35)" }}>the</motion.span>
+          </div>
+          <Word cx={58.5} cy={58.5} size={9.9} delay={0.46}>next</Word>
+
+          {/* "levels" with a hand-drawn crimson/gold ring */}
+          <div className="absolute" style={{ left: "55%", top: "80%", transform: "translate(-50%,-50%)", zIndex: 2 }}>
+            <motion.div className="relative inline-block" style={{ ...display }}
+              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.56 }}>
+              <span className="font-semibold leading-none text-ink" style={{ fontSize: "9.9cqw" }}>levels</span>
+              <svg aria-hidden viewBox="0 0 240 120" className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: "128%", height: "156%" }} fill="none">
+                <path d="M120 10 C56 10 14 33 14 60 C14 89 66 110 124 110 C184 110 228 86 226 57 C224 31 178 12 130 11"
+                  stroke="rgb(var(--gold))" strokeWidth="4.5" strokeLinecap="round" />
+              </svg>
+            </motion.div>
+          </div>
+
+          {/* "Let's Chat" pill + cursor — the only call to action, like the brief */}
+          {user ? (
+            <a href={primaryHref} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "61%", top: "43.8%" }}>
+              <ChatPill />
+            </a>
+          ) : (
+            <button type="button" onClick={go} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "61%", top: "43.8%" }}>
+              <ChatPill />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* ============================= mobile: stacked ============================= */}
+      <div className="mx-auto flex max-w-md flex-col items-center px-6 text-center md:hidden">
+        <div className="mb-6 flex items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/star.png" alt="" className="h-16 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/selfie.png" alt="" className="h-20 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/flower.png" alt="" className="h-16 w-auto" />
+        </div>
+        <h1 style={display} className="text-[3.4rem] font-semibold leading-[1.04] tracking-tight text-ink">
+          <span className="flex items-center justify-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/hero/plus.png" alt="" className="h-11 w-auto -rotate-6" /> Take it
+          </span>
+          <span className="block">to</span>
+          <span className="flex items-center justify-center gap-2">
+            <span className="inline-flex items-center rounded-xl bg-ink px-3 py-0.5 text-paper" style={{ transform: "rotate(-2deg)" }}>the</span> next
+          </span>
+          <span className="relative inline-block">
+            levels
+            <svg aria-hidden viewBox="0 0 240 120" className="pointer-events-none absolute left-1/2 top-1/2 h-[150%] w-[128%] -translate-x-1/2 -translate-y-1/2" fill="none">
+              <path d="M120 10 C56 10 14 33 14 60 C14 89 66 110 124 110 C184 110 228 86 226 57 C224 31 178 12 130 11" stroke="rgb(var(--gold))" strokeWidth="5" strokeLinecap="round" />
+            </svg>
+          </span>
+        </h1>
+        <button type="button" onClick={go} className="mt-8 inline-flex items-center rounded-full border border-line bg-surface px-6 py-3 text-base font-semibold text-ink shadow-sm">
+          Let&rsquo;s Chat <MousePointer2 size={16} className="ml-2 text-crimson" fill="currentColor" />
+        </button>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/laptop.png" alt="" className="h-16 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/globe.png" alt="" className="h-12 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hero/book.png" alt="" className="h-12 w-auto" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* A headline word positioned by centre, sized in container units. */
+function Word({ cx, cy, size, delay, children }: { cx: number; cy: number; size: number; delay: number; children: React.ReactNode }) {
+  return (
+    <motion.div className="absolute whitespace-nowrap font-semibold leading-none text-ink"
+      style={{ left: `${cx}%`, top: `${cy}%`, fontSize: `${size}cqw`, transform: "translate(-50%,-50%)", zIndex: 2, ...display }}
+      initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay }}>
+      {children}
     </motion.div>
   );
 }
 
-/* A small floating emoji prop (globe, book, bulb) — lighter than a Sticker. */
-function Prop({ className, emoji, size = 44, rotate = 0, delay = 0 }: { className: string; emoji: string; size?: number; rotate?: number; delay?: number }) {
-  const reduce = useReducedMotion();
+/* The outlined "Let's Chat" pill with its little cursor, used in the stage. */
+function ChatPill() {
   return (
-    <motion.span
-      aria-hidden
-      className={`pointer-events-none absolute z-0 hidden md:block ${className}`}
-      style={{ fontSize: size, lineHeight: 1 }}
-      initial={{ opacity: 0, scale: 0.6 }}
-      animate={{ opacity: 1, scale: 1, y: reduce ? 0 : [0, -9, 0], rotate }}
-      transition={{
-        opacity: { duration: 0.6, delay, ease: EASE },
-        scale: { duration: 0.6, delay, ease: EASE },
-        y: reduce ? {} : { duration: 4 + delay, repeat: Infinity, ease: "easeInOut", delay: 0.5 + delay },
-      }}
-    >
-      {emoji}
-    </motion.span>
-  );
-}
-
-/* A scattered confetti dot. */
-function Dot({ className, color, size = 10 }: { className: string; color: string; size?: number }) {
-  return <span aria-hidden className={`pointer-events-none absolute rounded-full ${className}`} style={{ width: size, height: size, background: color }} />;
-}
-
-export default function PlayfulHero({ user, profile, onSignUp, onExplore }: PlayfulHeroProps) {
-  const ref = useRef<HTMLElement>(null);
-  const reduce = useReducedMotion();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const floatY = useTransform(scrollYProgress, [0, 1], [0, 70]);
-
-  const pop = (delay: number) => ({
-    initial: reduce ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.9 },
-    animate: { opacity: 1, y: 0, scale: 1 },
-    transition: { duration: 0.6, ease: EASE, delay },
-  });
-
-  const primaryHref = user ? dashboardHref(user, profile) : undefined;
-
-  return (
-    <section ref={ref} className="relative w-full overflow-hidden bg-paper pt-40 pb-24 md:pt-52 md:pb-32">
-      {/* soft radial wash so the paper doesn't read flat */}
-      <div aria-hidden className="pointer-events-none absolute left-1/2 top-[10%] h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-crimson/5 blur-[130px]" />
-
-      {/* ---- corner character stickers + floating props (parallax) ---- */}
-      <motion.div style={{ y: floatY }} className="absolute inset-0">
-        <Sticker className="left-[4%] top-[26%]"  radius="46% 54% 60% 40% / 52% 44% 56% 48%" soft="rgb(var(--mint-soft))"    ring="rgb(var(--mint) / 0.5)"    emoji="🧑‍⚕️" rotate={-6} delay={0.1} />
-        <Sticker className="right-[4%] top-[24%]"  radius="58% 42% 45% 55% / 46% 56% 44% 54%" soft="rgb(var(--crimson-soft))" ring="rgb(var(--crimson) / 0.45)" emoji="🤳"   rotate={5}  delay={0.35} size={112} />
-        <Sticker className="left-[5%] bottom-[12%]" radius="52% 48% 44% 56% / 58% 46% 54% 42%" soft="rgb(var(--gold-soft))"   ring="rgb(var(--gold) / 0.5)"    emoji="👩‍💻" rotate={4}  delay={0.55} />
-        <Sticker className="right-[5%] bottom-[11%]" radius="60% 40% 55% 45% / 44% 58% 42% 56%" soft="rgb(var(--crimson-soft))" ring="rgb(var(--crimson) / 0.45)" emoji="🧑‍🎓" rotate={-5} delay={0.75} size={110} />
-
-        <Prop className="left-[19%] top-[30%]"  emoji="📖" size={40} rotate={-10} delay={0.5} />
-        <Prop className="right-[20%] top-[34%]" emoji="💡" size={34} rotate={8}  delay={0.9} />
-        <Prop className="left-[23%] bottom-[18%]" emoji="🌍" size={44} rotate={-6} delay={0.7} />
-        <Prop className="right-[23%] bottom-[20%]" emoji="✏️" size={36} rotate={12} delay={1.0} />
-
-        {/* confetti dots in the brand accents */}
-        <Dot className="left-[30%] top-[24%]" color="rgb(var(--crimson))" size={12} />
-        <Dot className="right-[34%] top-[26%]" color="rgb(var(--gold))" size={9} />
-        <Dot className="left-[13%] top-[52%]" color="rgb(var(--mint))" size={10} />
-        <Dot className="right-[12%] top-[48%]" color="rgb(var(--crimson))" size={8} />
-        <Dot className="left-[34%] bottom-[16%]" color="rgb(var(--gold))" size={11} />
-        <Dot className="right-[30%] bottom-[14%]" color="rgb(var(--mint))" size={9} />
-        <Dot className="left-[45%] top-[20%]" color="rgb(var(--ink) / 0.35)" size={7} />
-      </motion.div>
-
-      {/* ---- centred playful headline ---- */}
-      <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-5 text-center">
-        <h1 style={display} className="font-semibold tracking-tight text-ink text-[3.1rem] leading-[1.02] sm:text-7xl lg:text-[5.4rem]">
-          {/* line 1 — with the crimson “+” app icon */}
-          <motion.span className="relative inline-flex items-center justify-center gap-3" {...pop(0.15)}>
-            <span aria-hidden className="hidden sm:flex items-center justify-center shadow-crimson"
-              style={{ width: 52, height: 52, borderRadius: 15, background: "rgb(var(--crimson))", transform: "rotate(-8deg)" }}>
-              <Plus size={30} color="#fff" strokeWidth={3} />
-            </span>
-            <span>Take it</span>
-          </motion.span>
-
-          {/* line 2 — “to”, with the Let's Chat pill + cursor floating in the open space to its right */}
-          <motion.span className="relative mt-1 inline-flex items-center justify-center" {...pop(0.28)}>
-            <span>to</span>
-            <button type="button" onClick={onSignUp}
-              className="pointer-events-auto absolute left-full top-1/2 ml-6 hidden -translate-y-1/2 lg:inline-flex items-center rounded-full border border-line bg-surface px-3.5 py-1.5 text-[0.9rem] font-semibold text-ink shadow-sm transition-transform hover:-translate-y-[55%]"
-              style={{ fontFamily: "var(--font-hanken), sans-serif" }}>
-              Let&rsquo;s Chat
-              <MousePointer2 aria-hidden size={16} className="absolute -bottom-4 -right-3 rotate-6 text-crimson" fill="currentColor" />
-            </button>
-          </motion.span>
-
-          {/* line 3 — the “the” chip inline before “next” */}
-          <motion.span className="mt-1 flex items-center justify-center gap-3" {...pop(0.4)}>
-            <span className="inline-flex items-center rounded-2xl bg-ink px-4 py-1 text-paper shadow-[0_10px_24px_-10px_rgba(0,0,0,0.5)]" style={{ transform: "rotate(-2deg)" }}>the</span>
-            <span>next</span>
-          </motion.span>
-
-          {/* line 4 — “levels”, hand-drawn crimson circle around it */}
-          <motion.span className="relative mt-1 inline-block" {...pop(0.52)}>
-            levels
-            <svg aria-hidden viewBox="0 0 240 120" className="pointer-events-none absolute left-1/2 top-1/2 h-[150%] w-[128%] -translate-x-1/2 -translate-y-1/2" fill="none">
-              <path d="M120 12 C58 12 16 34 16 60 C16 88 66 108 124 108 C182 108 226 86 224 58 C222 33 178 14 132 12"
-                stroke="rgb(var(--crimson))" strokeWidth="4" strokeLinecap="round" />
-            </svg>
-          </motion.span>
-        </h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: EASE, delay: 0.7 }}
-          className="mt-8 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
-        >
-          AI marking against the official Cambridge scheme, mark-scheme feedback and
-          weakness tracking — everything to take your O &amp; A Level prep further.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: EASE, delay: 0.85 }}
-          className="mt-9 flex flex-col items-center gap-3 sm:flex-row"
-        >
-          {user ? (
-            <Link href={primaryHref!}>
-              <Button size="lg" className="h-14 rounded-full px-9 text-base shadow-crimson">
-                Go to dashboard <ArrowRight size={18} />
-              </Button>
-            </Link>
-          ) : (
-            <>
-              <Button onClick={onSignUp} size="lg" className="h-14 rounded-full px-9 text-base shadow-crimson">
-                Get started free <ArrowRight size={18} />
-              </Button>
-              <Button onClick={onExplore} variant="ghost" size="lg" className="h-14 rounded-full border border-line bg-surface px-8 text-base">
-                See how it works
-              </Button>
-            </>
-          )}
-        </motion.div>
-      </div>
-    </section>
+    <span className="relative inline-flex items-center rounded-full border border-line bg-surface px-[1em] py-[0.5em] font-semibold text-ink shadow-sm transition-transform group-hover:-translate-y-0.5"
+      style={{ fontSize: "3cqw", fontFamily: "var(--font-hanken), sans-serif" }}>
+      Let&rsquo;s Chat
+      <MousePointer2 aria-hidden className="absolute -bottom-[1em] -right-[0.6em] rotate-6 text-crimson" style={{ width: "1.5em", height: "1.5em" }} fill="currentColor" />
+    </span>
   );
 }
