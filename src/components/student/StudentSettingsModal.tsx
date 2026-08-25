@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, Check, ClipboardCheck, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, X } from "lucide-react";
+import { BookOpen, Check, ClipboardCheck, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, Wrench, X } from "lucide-react";
+import DevModeCard from "@/components/DevModeCard";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { usePaperLevel } from "@/lib/paperLevel";
 import { resolveName } from "@/lib/displayName";
@@ -13,7 +14,7 @@ import { loadSelectedSubjects, saveSelectedSubjectsForUser } from "@/lib/student
 import DeleteAccountModal from "@/components/DeleteAccountModal";
 
 const THEME_KEY = "propel_theme";
-type Section = "account" | "profile" | "appearance";
+type Section = "account" | "profile" | "appearance" | "devmode";
 
 // Central settings modal: account, profile (name + subjects), appearance (theme),
 // logout, and the danger zone. Everything here works live.
@@ -98,6 +99,7 @@ export default function StudentSettingsModal({ onClose, initialSection = "accoun
             <RailItem active={section === "account"} icon={User} label="Account" onClick={() => setSection("account")} />
             <RailItem active={section === "profile"} icon={BookOpen} label="Profile & subjects" onClick={() => setSection("profile")} />
             <RailItem active={section === "appearance"} icon={SettingsIcon} label="Appearance" onClick={() => setSection("appearance")} />
+            <RailItem active={section === "devmode"} icon={Wrench} label="Dev mode" onClick={() => setSection("devmode")} />
             <div className="flex-1" />
             <button onClick={() => void signOut({ redirectUrl: "/" })} className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-crimson hover:bg-crimson-soft text-left">
               <LogOut size={15} /> Log out
@@ -107,7 +109,7 @@ export default function StudentSettingsModal({ onClose, initialSection = "accoun
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-              <h2 className="font-display text-lg font-semibold">{section === "profile" ? "Profile & subjects" : section === "appearance" ? "Appearance" : "Account"}</h2>
+              <h2 className="font-display text-lg font-semibold">{section === "profile" ? "Profile & subjects" : section === "appearance" ? "Appearance" : section === "devmode" ? "Dev mode" : "Account"}</h2>
               <button onClick={onClose} className="ed-btn-ghost p-2"><X size={16} /></button>
             </div>
 
@@ -224,6 +226,8 @@ export default function StudentSettingsModal({ onClose, initialSection = "accoun
                   <p className="text-xs text-ink-faint mt-2">Applies instantly across Propel.</p>
                 </div>
               )}
+
+              {section === "devmode" && <DevModeCard />}
             </div>
           </div>
         </div>
