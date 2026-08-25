@@ -223,9 +223,21 @@ export default function StudentDashboard() {
   const activeStep = onboardingSteps.find((s) => !s.done);
   const showOnboarding = !stats.loading && !onbHidden && onboardingDone < onboardingSteps.length;
 
+  // Questions solved = total answered across every saved practice session (DB-backed),
+  // so 2 answered shows 2 and a fully-solved paper contributes all its questions.
+  // Falls back to the local attempts log only when no server progress exists.
+  const questionsSolved = (() => {
+    const fromProgress = practice.reduce((sum, p) => sum + Math.max(0, p.answeredCount || 0), 0);
+    return fromProgress > 0 ? fromProgress : attempts.length;
+  })();
+  const papersSolved = (() => {
+    const done = practice.filter((p) => p.status === "completed").length;
+    return Math.max(done, stats.completedCount);
+  })();
+
   const statCards: { key: string; label: string; value: number; icon: string; tone: string; onClick?: () => void }[] = [
-    { key: "done", label: "Papers solved", value: stats.completedCount, icon: "book", tone: "crimson" },
-    { key: "qs", label: "Questions solved", value: attempts.length, icon: "check_circle", tone: "amber" },
+    { key: "done", label: "Papers solved", value: papersSolved, icon: "book", tone: "crimson" },
+    { key: "qs", label: "Questions solved", value: questionsSolved, icon: "check_circle", tone: "amber" },
     { key: "marks", label: "Bookmarked", value: stats.bookmarkedCount, icon: "bookmark", tone: "teal", onClick: () => setBookmarksOpen(true) },
     { key: "goals", label: "Goals set", value: stats.goalsTotal, icon: "target", tone: "crimson" },
   ];

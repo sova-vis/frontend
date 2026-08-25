@@ -152,12 +152,12 @@ function sortYearDesc<T extends { year: string }>(items: T[]) {
 // Metadata: aggregate counts per subject -> per type -> years/variants/topics.
 // ---------------------------------------------------------------------------
 async function fetchMetaRows(supabase: SupabaseClient, level: string) {
-  const rows: Array<{ subject: string; type: QuestionType; exam_year: number; variant: string | null; topic: string | null }> = [];
-  let from = 0;
+  type MetaRow = { subject: string; type: QuestionType; exam_year: number; variant: string | null; topic: string | null };
+  const rows: MetaRow[] = [];
   const pageSize = 1000;
 
-  while (true) {
-    const { data, error } = await supabase
+  const page = (from: number) =>
+    supabase
       .from("questions")
       .select("subject,type,exam_year,variant,topic")
       .eq("level", level)
@@ -165,11 +165,26 @@ async function fetchMetaRows(supabase: SupabaseClient, level: string) {
       .order("question_id", { ascending: true })
       .range(from, from + pageSize - 1);
 
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    rows.push(...(data as typeof rows));
-    if (data.length < pageSize) break;
-    from += pageSize;
+  // Determine how many pages up front, then fetch them in parallel batches.
+  // A-Level has ~56k rows; sequential paging (56 round-trips) blew the API
+  // timeout and surfaced as "failed to fetch" in the client.
+  const { count, error: countError } = await supabase
+    .from("questions")
+    .select("question_id", { count: "exact", head: true })
+    .eq("level", level);
+  if (countError) throw countError;
+
+  const total = count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const CONC = 8;
+  for (let start = 0; start < pageCount; start += CONC) {
+    const batch: ReturnType<typeof page>[] = [];
+    for (let p = start; p < Math.min(start + CONC, pageCount); p += 1) batch.push(page(p * pageSize));
+    const results = await Promise.all(batch);
+    for (const { data, error } of results) {
+      if (error) throw error;
+      if (data) rows.push(...(data as MetaRow[]));
+    }
   }
 
   return rows;
