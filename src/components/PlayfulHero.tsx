@@ -83,22 +83,22 @@ export default function PlayfulHero({ user, profile, onSignUp }: PlayfulHeroProp
             <img src="/hero/plus.png" alt="" className="block h-auto w-full select-none" style={{ transform: "rotate(-6deg)", filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.18))" }} />
           </motion.div>
 
-          {/* ---- headline words (Fredoka), placed like the brief ---- */}
-          <Word cx={50}   cy={27}   size={9.9} delay={0.15}>Take&nbsp;it</Word>
-          <Word cx={51.5} cy={47}   size={9.9} delay={0.28}>to</Word>
-          {/* "the" in a dark chip + "next" */}
-          <div className="absolute" style={{ left: "40.5%", top: "56.5%", transform: "translate(-50%,-50%)", zIndex: 2, ...display }}>
+          {/* ---- headline words (Fredoka), placed like the brief — 4 clear rows ---- */}
+          <Word cx={50} cy={25}   size={7.8} delay={0.15}>Take&nbsp;it</Word>
+          <Word cx={52} cy={43.5} size={7.8} delay={0.28}>to</Word>
+          {/* "the" in a dark chip + "next" share the third row */}
+          <div className="absolute" style={{ left: "39%", top: "57%", transform: "translate(-50%,-50%)", zIndex: 2, ...display }}>
             <motion.span initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
-              className="inline-flex items-center rounded-[0.35em] bg-ink px-[0.32em] py-[0.02em] font-semibold leading-none text-paper"
-              style={{ fontSize: "8.8cqw", transform: "rotate(-2deg)", boxShadow: "0 0.14em 0.3em rgba(0,0,0,0.35)" }}>the</motion.span>
+              className="inline-flex items-center rounded-[0.35em] bg-ink px-[0.3em] py-[0.04em] font-semibold leading-none text-paper"
+              style={{ fontSize: "7cqw", transform: "rotate(-2deg)", boxShadow: "0 0.14em 0.3em rgba(0,0,0,0.35)" }}>the</motion.span>
           </div>
-          <Word cx={58.5} cy={58.5} size={9.9} delay={0.46}>next</Word>
+          <Word cx={60} cy={57} size={7.8} delay={0.46}>next</Word>
 
-          {/* "levels" with a hand-drawn crimson/gold ring */}
-          <div className="absolute" style={{ left: "55%", top: "80%", transform: "translate(-50%,-50%)", zIndex: 2 }}>
+          {/* "levels" with a hand-drawn gold ring */}
+          <div className="absolute" style={{ left: "55%", top: "78%", transform: "translate(-50%,-50%)", zIndex: 2 }}>
             <motion.div className="relative inline-block" style={{ ...display }}
               initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.56 }}>
-              <span className="font-semibold leading-none text-ink" style={{ fontSize: "9.9cqw" }}>levels</span>
+              <span className="font-semibold leading-none text-ink" style={{ fontSize: "7.8cqw" }}>levels</span>
               <svg aria-hidden viewBox="0 0 240 120" className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: "128%", height: "156%" }} fill="none">
                 <path d="M120 10 C56 10 14 33 14 60 C14 89 66 110 124 110 C184 110 228 86 226 57 C224 31 178 12 130 11"
                   stroke="rgb(var(--gold))" strokeWidth="4.5" strokeLinecap="round" />
@@ -108,11 +108,11 @@ export default function PlayfulHero({ user, profile, onSignUp }: PlayfulHeroProp
 
           {/* "Let's Chat" pill + cursor — the only call to action, like the brief */}
           {user ? (
-            <a href={primaryHref} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "61%", top: "43.8%" }}>
+            <a href={primaryHref} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "65%", top: "43%" }}>
               <ChatPill />
             </a>
           ) : (
-            <button type="button" onClick={go} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "61%", top: "43.8%" }}>
+            <button type="button" onClick={go} className="group absolute z-[3] -translate-x-1/2 -translate-y-1/2" style={{ left: "65%", top: "43%" }}>
               <ChatPill />
             </button>
           )}
