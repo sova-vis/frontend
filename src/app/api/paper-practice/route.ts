@@ -36,6 +36,7 @@ type TypeMeta = {
 };
 
 type DbPart = {
+  id: string;
   question_uid: string;
   label: string | null;
   order_index: number;
@@ -338,6 +339,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
       .slice()
       .sort((a, b) => a.order_index - b.order_index)
       .map((part) => ({
+        uid: part.id,
         label: cleanText(part.label),
         body: cleanText(part.body),
         marks: part.marks ?? null,
@@ -354,7 +356,7 @@ async function withParts(supabase: SupabaseClient, questions: DbQuestion[]) {
   if (structuredUids.length > 0) {
     const { data: partData, error: partError } = await supabase
       .from("question_parts")
-      .select("question_uid,label,order_index,body,marks,answer")
+      .select("id,question_uid,label,order_index,body,marks,answer")
       .in("question_uid", structuredUids)
       .order("order_index", { ascending: true });
     if (partError) throw partError;

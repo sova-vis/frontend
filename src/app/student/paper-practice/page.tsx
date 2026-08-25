@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Icon } from "@/components/propel/Icon";
+import DevQuestionEditor from "@/components/DevQuestionEditor";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
   PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
@@ -38,7 +39,7 @@ type PracticeImage = {
 };
 
 type PracticeOption = { label: string; text: string };
-type PracticePart = { label: string; body: string; marks: number | null; answer: string | null };
+type PracticePart = { uid?: string; label: string; body: string; marks: number | null; answer: string | null };
 type PracticeSource = {
   label: string | null;
   reference: string | null;
@@ -48,6 +49,7 @@ type PracticeSource = {
 
 type PracticeQuestion = {
   id: string;
+  uid?: string;
   subject: string;
   type: QuestionType;
   year: string;
@@ -776,6 +778,7 @@ function QuestionCard(props: {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
   const collapsed = Boolean(props.collapsed);
+  const [, devRev] = useState(0);   // force re-render after a dev edit saves
 
   // per-card status badge so a long list is scannable at a glance
   const isMcq = question.type === "mcq";
@@ -857,6 +860,8 @@ function QuestionCard(props: {
           {props.gradeResult && <QuestionResultRow q={props.gradeResult} parts={question.parts} />}
         </>
       )}
+      {/* Dev mode: in-place editor (self-hides unless dev is unlocked) */}
+      <DevQuestionEditor question={question} onSaved={() => devRev((n) => n + 1)} />
     </article>
   );
 }
