@@ -5,7 +5,6 @@ import Image from "next/image";
 import { User, CreditCard, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import DeleteAccountModal from "@/components/DeleteAccountModal";
-import DevModeCard from "@/components/DevModeCard";
 
 export default function SettingsPage() {
     const [name, setName] = useState("Student");
@@ -90,10 +89,6 @@ export default function SettingsPage() {
                         Save Changes
                     </button>
                 </div>
-
-                <Reveal delay={0.12}>
-                    <DevModeCard />
-                </Reveal>
 
                 <Reveal>
                     <div className="ed-card p-6 border border-crimson/30 mt-4">
