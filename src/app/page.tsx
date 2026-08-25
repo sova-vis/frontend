@@ -27,7 +27,7 @@ function GoogleG({ size = 18 }: { size?: number }) {
   );
 }
 
-const FloatingHero = dynamic(() => import('@/components/PlayfulHero'), {
+const FloatingHero = dynamic(() => import('@/components/ProductHero'), {
   loading: () => <div className="h-[70vh] animate-pulse bg-surface-soft" />,
   ssr: false,
 });
