@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Hanken_Grotesk, Roboto_Mono } from "next/font/google";
+import { Fraunces, Hanken_Grotesk, Roboto_Mono, Fredoka } from "next/font/google";
 import "./globals.css";
 import "../styles/propel-scoped.css";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -12,6 +12,8 @@ import AuthTransitionSplash from "@/components/AuthTransitionSplash";
 const fraunces = Fraunces({ subsets: ["latin"], variable: '--font-fraunces', display: 'swap' });
 const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: '--font-hanken', display: 'swap' });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: '--font-roboto-mono', display: 'swap' });
+// Rounded, playful display face — used by the marketing hero headline.
+const fredoka = Fredoka({ subsets: ["latin"], weight: ['400', '500', '600', '700'], variable: '--font-fredoka', display: 'swap' });
 
 export const metadata: Metadata = {
   title: "Propel — AI marking for Cambridge O & A Level",
@@ -47,7 +49,7 @@ export default function RootLayout({
     >
       <html
         lang="en"
-        className={`${fraunces.variable} ${hanken.variable} ${robotoMono.variable}`}
+        className={`${fraunces.variable} ${hanken.variable} ${robotoMono.variable} ${fredoka.variable}`}
         suppressHydrationWarning
       >
         <head>
