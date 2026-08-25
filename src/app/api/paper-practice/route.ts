@@ -152,42 +152,23 @@ function sortYearDesc<T extends { year: string }>(items: T[]) {
 // Metadata: aggregate counts per subject -> per type -> years/variants/topics.
 // ---------------------------------------------------------------------------
 async function fetchMetaRows(supabase: SupabaseClient, level: string) {
-  type MetaRow = { subject: string; type: QuestionType; exam_year: number; variant: string | null; topic: string | null };
-  const rows: MetaRow[] = [];
-  const pageSize = 1000;
-
-  const page = (from: number) =>
-    supabase
-      .from("questions")
-      .select("subject,type,exam_year,variant,topic")
-      .eq("level", level)
-      // order by a UNIQUE column so range pagination never overlaps/skips rows
-      .order("question_id", { ascending: true })
-      .range(from, from + pageSize - 1);
-
-  // Determine how many pages up front, then fetch them in parallel batches.
-  // A-Level has ~56k rows; sequential paging (56 round-trips) blew the API
-  // timeout and surfaced as "failed to fetch" in the client.
-  const { count, error: countError } = await supabase
-    .from("questions")
-    .select("question_id", { count: "exact", head: true })
-    .eq("level", level);
-  if (countError) throw countError;
-
-  const total = count ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const CONC = 8;
-  for (let start = 0; start < pageCount; start += CONC) {
-    const batch: ReturnType<typeof page>[] = [];
-    for (let p = start; p < Math.min(start + CONC, pageCount); p += 1) batch.push(page(p * pageSize));
-    const results = await Promise.all(batch);
-    for (const { data, error } of results) {
-      if (error) throw error;
-      if (data) rows.push(...(data as MetaRow[]));
-    }
-  }
-
-  return rows;
+  // Aggregate in the database (grouped counts) rather than streaming every row.
+  // The A-Level bank is ~56k rows — pulling them all to the API (even paged /
+  // parallelised) took ~10s and surfaced as "failed to fetch" / a practice page
+  // that never opened. The `paper_practice_meta` RPC (backed by an index on
+  // level,subject,type,exam_year,variant,topic) returns a few thousand grouped
+  // rows in <1s.
+  const { data, error } = await supabase.rpc("paper_practice_meta", { p_level: level });
+  if (error) throw error;
+  type RpcRow = { subject: string; qtype: string; exam_year: number; variant: string | null; topic: string | null; n: number };
+  return ((data as RpcRow[]) || []).map((r) => ({
+    subject: r.subject,
+    type: (r.qtype === "mcq" ? "mcq" : "structured") as QuestionType,
+    exam_year: r.exam_year,
+    variant: r.variant,
+    topic: r.topic,
+    count: Number(r.n) || 0,
+  }));
 }
 
 function buildSubjectMeta(rows: Awaited<ReturnType<typeof fetchMetaRows>>) {
@@ -212,11 +193,12 @@ function buildSubjectMeta(rows: Awaited<ReturnType<typeof fetchMetaRows>>) {
     const year = String(row.exam_year);
     const variant = cleanText(row.variant);
     const topic = cleanText(row.topic) || "Uncategorised";
+    const n = row.count;   // grouped count from the RPC
 
-    bucket.total += 1;
-    bucket.years.set(year, (bucket.years.get(year) ?? 0) + 1);
-    if (variant) bucket.variants.set(variant, (bucket.variants.get(variant) ?? 0) + 1);
-    bucket.topics.set(topic, (bucket.topics.get(topic) ?? 0) + 1);
+    bucket.total += n;
+    bucket.years.set(year, (bucket.years.get(year) ?? 0) + n);
+    if (variant) bucket.variants.set(variant, (bucket.variants.get(variant) ?? 0) + n);
+    bucket.topics.set(topic, (bucket.topics.get(topic) ?? 0) + n);
 
     subjects.set(row.subject, subject);
   }
