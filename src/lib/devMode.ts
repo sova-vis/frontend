@@ -69,21 +69,24 @@ export async function unlockDev(password: string): Promise<void> {
   if (data.token) setDevToken(data.token);
 }
 
-async function devPatch(path: string, patch: Record<string, unknown>): Promise<void> {
+async function devSend(path: string, method: string, body?: unknown): Promise<Record<string, unknown>> {
   const token = getDevToken();
   if (!token) throw new Error("Dev mode is locked");
   const res = await apiCall(path, {
-    method: "PATCH",
+    method,
     headers: { "Content-Type": "application/json", "x-dev-token": token },
-    body: JSON.stringify(patch),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
     clearDevToken();
     throw new Error("Dev session expired — unlock again");
   }
-  if (!res.ok) throw new Error(data.error || "Save failed");
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Save failed");
+  return data as Record<string, unknown>;
 }
+
+const devPatch = (path: string, patch: Record<string, unknown>) => devSend(path, "PATCH", patch);
 
 export type QuestionPatch = {
   question_text?: string;
@@ -94,8 +97,22 @@ export type QuestionPatch = {
 };
 
 export const patchQuestion = (uid: string, patch: QuestionPatch) => devPatch(`/dev/questions/${uid}`, patch);
-export const patchPart = (uid: string, patch: { body?: string; marks?: number | null; answer?: string }) =>
+export const patchPart = (uid: string, patch: { body?: string; marks?: number | null; answer?: string; label?: string; order_index?: number }) =>
   devPatch(`/dev/parts/${uid}`, patch);
+
+/** A part as sent to the bulk-replace endpoint. */
+export type DevPart = { label: string; body: string; marks: number | null; answer: string | null };
+/** Saved part echoed back with its new DB id + resolved order. */
+export type SavedPart = DevPart & { id: string; order_index: number };
+
+/** Replace a question's entire ordered part list (add / delete / rename / reorder in one save). */
+export async function replaceParts(questionUid: string, parts: DevPart[]): Promise<SavedPart[]> {
+  const data = await devSend(`/dev/questions/${questionUid}/parts`, "PUT", { parts });
+  return (data.parts as SavedPart[]) || [];
+}
+
+/** Permanently delete a whole question and its parts. */
+export const deleteQuestion = (uid: string) => devSend(`/dev/questions/${uid}`, "DELETE");
 
 /** Read a file input as a data URL for image add/replace. */
 export function fileToDataUrl(file: File): Promise<string> {

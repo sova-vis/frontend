@@ -773,7 +773,7 @@ function QuestionCard(props: {
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
   onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; schemeUnlocked?: boolean;
-  collapsed?: boolean; onToggleCollapsed?: () => void;
+  collapsed?: boolean; onToggleCollapsed?: () => void; onDeleted?: () => void;
 }) {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
@@ -861,7 +861,7 @@ function QuestionCard(props: {
         </>
       )}
       {/* Dev mode: in-place editor (self-hides unless dev is unlocked) */}
-      <DevQuestionEditor question={question} onSaved={() => devRev((n) => n + 1)} />
+      <DevQuestionEditor question={question} onSaved={() => devRev((n) => n + 1)} onDeleted={props.onDeleted} />
     </article>
   );
 }
@@ -2159,6 +2159,7 @@ function PracticeInner() {
               )}
               {displayQuestions.map((question) => (
                 <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
+                  onDeleted={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
                   mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
                   readOnly={practiceMode === "paper" && solveMode === "handwritten"}
                   onMcqAnswer={(value) => { interactedRef.current = true; markTouched(question.id); setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
