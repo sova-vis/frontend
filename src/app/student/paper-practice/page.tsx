@@ -1223,7 +1223,9 @@ function PracticeInner() {
       setPracticeMode("paper");
       setSelectedYear(link.year);
       try {
-        const params = new URLSearchParams({ subject: subjectName, year: link.year, papers: "1" });
+        // MUST scope to the active level — without it the API defaults to olevel
+        // and an A-Level paper is looked up in the O-Level bank => "not in bank".
+        const params = new URLSearchParams({ subject: subjectName, year: link.year, papers: "1", level: paperLevelParam() });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         const data = response.ok ? ((await response.json()) as { papers: AvailablePaper[] }) : { papers: [] };
         const pool = data.papers ?? [];
