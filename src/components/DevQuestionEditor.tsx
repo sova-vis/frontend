@@ -93,6 +93,8 @@ function PartCard({ part, first, last, onChange, onMove, onDelete }: {
   part: EditPart; first: boolean; last: boolean;
   onChange: (patch: Partial<EditPart>) => void; onMove: (dir: -1 | 1) => void; onDelete: () => void;
 }) {
+  // some parts are reference-only, so the answer field can be added or removed
+  const [answerShown, setAnswerShown] = useState<boolean>(Boolean((part.answer || "").trim()));
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 8, marginTop: 6, background: "#fff" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -113,7 +115,14 @@ function PartCard({ part, first, last, onChange, onMove, onDelete }: {
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted, #888)" }}>Part images ({part.images.length})</span>
         <ImageStrip images={part.images} onChange={(next) => onChange({ images: next })} compact />
       </div>
-      <textarea style={{ ...ta, minHeight: 44 }} value={part.answer || ""} onChange={(e) => onChange({ answer: e.target.value })} placeholder="Answer for this part" />
+      {answerShown ? (
+        <div>
+          <textarea style={{ ...ta, minHeight: 44 }} value={part.answer || ""} onChange={(e) => onChange({ answer: e.target.value })} placeholder="Answer for this part" />
+          <button style={{ ...iconBtn, color: "var(--crimson)", marginTop: 4 }} onClick={() => { onChange({ answer: null }); setAnswerShown(false); }}><Trash2 size={11} /> Remove answer</button>
+        </div>
+      ) : (
+        <button style={btn} onClick={() => setAnswerShown(true)}><Plus size={12} /> Add answer</button>
+      )}
     </div>
   );
 }
@@ -127,6 +136,9 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
   const [images, setImages] = useState<EditImage[]>(question.images || []);
   const [parts, setParts] = useState<EditPart[]>((question.parts || []).map((p) => ({ ...p, images: p.images || [] })));
   const [savingParts, setSavingParts] = useState(false);
+  // whether the whole-question answer field is shown (present). Some questions
+  // are reference-only and carry no answer, so it can be added or removed.
+  const [answerShown, setAnswerShown] = useState<boolean>(Boolean((question.markingScheme || "").trim()));
   const [danger, setDanger] = useState<null | "delete" | "rebuild">(null);
   const [gone, setGone] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -153,7 +165,17 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
       await patchQuestion(question.uid!, patch);
       if (question.type === "mcq") question.correctOption = correct || null;
       question.markingScheme = scheme;
+      setAnswerShown(true);
       onSaved?.(); flash("Answer saved.");
+    } catch (e) { fail(e); }
+  };
+  // remove the whole-question answer (reference-only questions have none)
+  const deleteAnswer = async () => {
+    if (!guardUid()) return;
+    try {
+      await patchQuestion(question.uid!, { marking_scheme: "" });
+      question.markingScheme = ""; setScheme(""); setAnswerShown(false);
+      onSaved?.(); flash("Answer removed.");
     } catch (e) { fail(e); }
   };
 
@@ -230,8 +252,21 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
                 </select>
               </div>
             )}
-            <textarea style={ta} value={scheme} onChange={(e) => setScheme(e.target.value)} placeholder="Mark scheme / model answer" />
-            <button style={{ ...btn, marginTop: 6 }} onClick={saveAnswer}><Save size={13} /> Save answer</button>
+            {answerShown ? (
+              <>
+                <textarea style={ta} value={scheme} onChange={(e) => setScheme(e.target.value)} placeholder="Mark scheme / model answer" />
+                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                  <button style={btn} onClick={saveAnswer}><Save size={13} /> Save answer</button>
+                  <button style={{ ...btn, color: "var(--crimson)" }} onClick={deleteAnswer}><Trash2 size={13} /> Delete answer</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
+                {question.type === "mcq" && <button style={btn} onClick={saveAnswer}><Save size={13} /> Save answer</button>}
+                <button style={btn} onClick={() => setAnswerShown(true)}><Plus size={13} /> Add answer</button>
+                <span style={{ fontSize: 11, color: "var(--ink-muted, #888)" }}>reference-only — no answer</span>
+              </div>
+            )}
           </div>
 
           <div>
