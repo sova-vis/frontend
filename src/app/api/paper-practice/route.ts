@@ -83,6 +83,7 @@ type DbQuestion = {
   sources: DbSource[] | null;
   source_note: string | null;
   dedup_group: string | null;
+  stem_answerable: boolean | null;
 };
 
 type DbSource = {
@@ -95,7 +96,7 @@ type DbSource = {
 };
 
 const QUESTION_COLUMNS =
-  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,sources,source_note,dedup_group";
+  "id,question_id,subject,type,exam_year,session,paper,variant,question_number,topic,theme,question_text,marks,options,correct_option,marking_scheme,requires_diagram,images,reference,sources,source_note,dedup_group,stem_answerable";
 
 function getSupabaseClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -336,6 +337,7 @@ function normalizeQuestion(question: DbQuestion, parts: DbPart[]) {
     sources: normalizeSources(question.sources),
     sourceNote: cleanText(question.source_note) || null,
     dedupGroup: question.dedup_group ?? null,
+    stemAnswerable: question.stem_answerable ?? null,
     parts: parts
       .slice()
       .sort((a, b) => a.order_index - b.order_index)

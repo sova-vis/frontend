@@ -15,6 +15,7 @@ type EditQuestion = {
   questionText: string;
   correctOption?: string | null;
   markingScheme?: string;
+  stemAnswerable?: boolean | null;
   images: EditImage[];
   parts: EditPartInput[];
 };
@@ -139,6 +140,9 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
   // whether the whole-question answer field is shown (present). Some questions
   // are reference-only and carry no answer, so it can be added or removed.
   const [answerShown, setAnswerShown] = useState<boolean>(Boolean((question.markingScheme || "").trim()));
+  // whether the STEM itself gets a student answer box (null = auto: only when
+  // there are no parts). true = force one even with parts; false = context-only.
+  const [stemAnswerable, setStemAnswerable] = useState<boolean | null>(question.stemAnswerable ?? null);
   const [danger, setDanger] = useState<null | "delete" | "rebuild">(null);
   const [gone, setGone] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -176,6 +180,15 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
       await patchQuestion(question.uid!, { marking_scheme: "" });
       question.markingScheme = ""; setScheme(""); setAnswerShown(false);
       onSaved?.(); flash("Answer removed.");
+    } catch (e) { fail(e); }
+  };
+  // add / remove the student answer box on the main question (the stem)
+  const setStemBox = async (val: boolean) => {
+    if (!guardUid()) return;
+    try {
+      await patchQuestion(question.uid!, { stem_answerable: val });
+      question.stemAnswerable = val; setStemAnswerable(val);
+      onSaved?.(); flash(val ? "Answer box added to the main question." : "Main question set to context-only.");
     } catch (e) { fail(e); }
   };
 
@@ -241,6 +254,25 @@ export default function DevQuestionEditor({ question, onSaved, onDeleted }: { qu
             <textarea style={ta} value={text} onChange={(e) => setText(e.target.value)} />
             <button style={{ ...btn, marginTop: 6 }} onClick={saveText}><Save size={13} /> Save text</button>
           </div>
+
+          {question.type === "structured" && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700 }}>Main-question answer box (for the student)</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+                {(stemAnswerable ?? (parts.length === 0)) ? (
+                  <>
+                    <span style={{ fontSize: 12, color: "#059669" }}>On — students get a box to answer the main question</span>
+                    <button style={{ ...btn, color: "var(--crimson)" }} onClick={() => setStemBox(false)}><Trash2 size={13} /> Remove box</button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 12, color: "var(--ink-muted, #888)" }}>Off — main question is context only</span>
+                    <button style={btn} onClick={() => setStemBox(true)}><Plus size={13} /> Add answer box</button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label style={{ fontSize: 12, fontWeight: 700 }}>{question.type === "mcq" ? "Correct answer + explanation" : "Answer / mark scheme"}</label>

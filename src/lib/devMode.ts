@@ -96,6 +96,7 @@ export type QuestionPatch = {
   correct_option?: string | null;
   options?: Record<string, string>;
   images?: DevImage[];
+  stem_answerable?: boolean | null;
 };
 
 export const patchQuestion = (uid: string, patch: QuestionPatch) => devPatch(`/dev/questions/${uid}`, patch);

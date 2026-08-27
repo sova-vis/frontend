@@ -70,6 +70,7 @@ type PracticeQuestion = {
   sources: PracticeSource[];
   sourceNote: string | null;
   dedupGroup: string | null;
+  stemAnswerable?: boolean | null;
   parts: PracticePart[];
 };
 
@@ -118,6 +119,9 @@ function matchesQuery(question: PracticeQuestion, trimmed: string) {
 
 const questionImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role !== "answer");
 const answerImagesOf = (images: PracticeImage[]) => images.filter((image) => image.role === "answer");
+// The stem itself gets a student answer box when stemAnswerable is explicitly
+// true, or (default) when the question has no parts. Explicit false = context-only.
+const stemHasBox = (q: PracticeQuestion) => q.stemAnswerable ?? (q.parts.length === 0);
 
 /* ---- deep-link helpers (past-papers → practice) -------------------------- */
 // Canonical session token from any naming ("May/Jun", "May_June", "Oct_Nov"…)
@@ -523,6 +527,15 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
       )}
       <Passages sources={question.sources} />
 
+      {/* the stem itself is answerable (dev-enabled) — its own box, above the parts */}
+      {stemHasBox(question) && question.parts.length > 0 && (
+        !readOnly ? (
+          <textarea value={answers[`${question.id}::stem`] ?? ""} onChange={(e) => onAnswer(`${question.id}::stem`, e.target.value)} placeholder="Write your answer…" className="textarea" />
+        ) : (answers[`${question.id}::stem`] ?? "").trim() ? (
+          <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--line)" }}>{answers[`${question.id}::stem`]}</p>
+        ) : null
+      )}
+
       {question.parts.length > 0 ? (
         <div className="flex-col gap-16" style={{ display: "flex" }}>
           {question.parts.map((part, index) => {
@@ -578,7 +591,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
             );
           })}
         </div>
-      ) : !readOnly ? (
+      ) : !stemHasBox(question) ? null : !readOnly ? (
         <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
       ) : (answers[`${question.id}::0`] ?? "").trim() ? (
         <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8,
@@ -803,7 +816,7 @@ function QuestionCard(props: {
   const isMcq = question.type === "mcq";
   const mcqPicked = Boolean(props.mcqAnswer?.trim());
   const anyPart = question.parts.length
-    ? question.parts.some((_, i) => Boolean(props.partAnswers[`${question.id}::${i}`]?.trim()))
+    ? (question.parts.some((_, i) => Boolean(props.partAnswers[`${question.id}::${i}`]?.trim())) || (stemHasBox(question) && Boolean(props.partAnswers[`${question.id}::stem`]?.trim())))
     : Boolean(props.partAnswers[`${question.id}::0`]?.trim());
   let statusLabel = "Unanswered", statusTone = "neutral";
   if (isMcq) {
@@ -817,13 +830,15 @@ function QuestionCard(props: {
   } else if (anyPart) { statusLabel = "Answered"; statusTone = "amber"; }
 
   // answerable sub-parts (excludes lead-in headers) — for the "Mark N of M" state
+  const stemUnit = stemHasBox(question) && question.parts.length > 0 ? 1 : 0;
   const answerableParts = question.parts.length
     ? question.parts.map((p, i) => i).filter((i) => !isHeaderPart(question.parts, question.parts[i].label))
-    : [0];
-  const totalParts = answerableParts.length || 1;
-  const answeredParts = question.parts.length
+    : (stemHasBox(question) ? [0] : []);
+  const totalParts = (answerableParts.length + stemUnit) || 1;
+  const answeredParts = (question.parts.length
     ? answerableParts.filter((i) => Boolean(props.partAnswers[`${question.id}::${i}`]?.trim())).length
-    : (Boolean(props.partAnswers[`${question.id}::0`]?.trim()) ? 1 : 0);
+    : (Boolean(props.partAnswers[`${question.id}::0`]?.trim()) ? 1 : 0))
+    + (stemUnit && Boolean(props.partAnswers[`${question.id}::stem`]?.trim()) ? 1 : 0);
 
   return (
     <article className="card card-pad flex-col gap-16">
@@ -1313,7 +1328,7 @@ function PracticeInner() {
     q.type === "mcq"
       ? Boolean(mcqAnswers[q.id]?.trim())
       : q.parts.length
-        ? q.parts.some((_, index) => Boolean(partAnswers[`${q.id}::${index}`]?.trim()))
+        ? (q.parts.some((_, index) => Boolean(partAnswers[`${q.id}::${index}`]?.trim())) || (stemHasBox(q) && Boolean(partAnswers[`${q.id}::stem`]?.trim())))
         : Boolean(partAnswers[`${q.id}::0`]?.trim()),
   ).length;
   const hasScheme = displayQuestions.some((q) => q.markingScheme || q.parts.some((p) => p.answer) || q.images.some((i) => i.role === "answer"));
@@ -1345,7 +1360,8 @@ function PracticeInner() {
           total += 1;
           if (partAnswers[`${q.id}::${index}`]?.trim()) answered += 1;
         });
-      } else {
+        if (stemHasBox(q)) { total += 1; if (partAnswers[`${q.id}::stem`]?.trim()) answered += 1; }
+      } else if (stemHasBox(q)) {
         total += 1;
         if (partAnswers[`${q.id}::0`]?.trim()) answered += 1;
       }
@@ -1693,6 +1709,10 @@ function PracticeInner() {
         const value = partAnswers[`${q.id}::${index}`];
         if (value && value.trim()) studentParts[part.label || `Part ${index + 1}`] = value.trim();
       });
+      if (stemHasBox(q)) {
+        const sv = partAnswers[`${q.id}::stem`];
+        if (sv && sv.trim()) studentParts["Main answer"] = sv.trim();
+      }
     } else {
       const value = partAnswers[`${q.id}::0`];
       if (value && value.trim()) studentParts["Answer"] = value.trim();
