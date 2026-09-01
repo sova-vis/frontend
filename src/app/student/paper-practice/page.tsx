@@ -750,6 +750,9 @@ function OpenPaperButton({ question }: { question: PracticeQuestion }) {
     setState("loading");
     try {
       const qs = new URLSearchParams();
+      // scope the lookup to the active level so O-Level and A-Level papers (which
+      // share filenames for common subjects) never resolve to each other
+      qs.set("level", paperLevelParam());
       if (refName) qs.set("name", refName);
       else {
         qs.set("subject", question.subject);
