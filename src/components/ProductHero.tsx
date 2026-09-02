@@ -32,9 +32,9 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
   return "/student/dashboard";
 }
 
-// Headline: `pre` renders plain, `accent` gets the crimson italic + underline
-// flourish. To swap the copy, change just these two strings.
-const HEAD = { pre: "Practice. See every mark. ", accent: "Improve." };
+// Headline: `pre` + `accent` (crimson italic + underline flourish) + `post`.
+// To swap the copy, change just these strings.
+const HEAD = { pre: "", accent: "Propel", post: " your A/O Levels game" };
 const BEAT_MS = 4900;
 
 // ---------------------------------------------------------------------------
@@ -454,31 +454,48 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
         @keyframes dcHeroFloat{0%,100%{transform:translateY(-6px)}50%{transform:translateY(6px)}}
         @keyframes dcHeroPulse{0%{box-shadow:0 0 0 0 rgb(var(--crimson) / .45)}70%{box-shadow:0 0 0 7px rgb(var(--crimson) / 0)}100%{box-shadow:0 0 0 0 rgb(var(--crimson) / 0)}}
         @keyframes dcHeroWeak{0%,100%{opacity:1}50%{opacity:.55}}
+        @keyframes dcRise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes dcDraw{to{stroke-dashoffset:0}}
+        @keyframes dcDrift{0%,100%{transform:translate(0,0)}50%{transform:translate(7px,-12px)}}
+        @keyframes dcSpin{to{transform:rotate(360deg)}}
+        @keyframes dcGlow{0%,100%{transform:translate(0,0) scale(1);opacity:.9}50%{transform:translate(14px,-10px) scale(1.08);opacity:1}}
         .dc-float{animation:dcHeroFloat 8s ease-in-out infinite}
         .dc-pulse{animation:dcHeroPulse 2.4s ease-out infinite}
         .dc-weak{animation:dcHeroWeak 1.6s ease-in-out 1.1s 1}
-        @media (prefers-reduced-motion: reduce){.dc-float,.dc-pulse,.dc-weak{animation:none !important}}
+        .dc-rise{opacity:0;animation:dcRise .8s cubic-bezier(.22,1,.36,1) both}
+        .dc-draw{stroke-dasharray:210;stroke-dashoffset:210;animation:dcDraw 1s cubic-bezier(.22,1,.36,1) .6s forwards}
+        .dc-drift{animation:dcDrift 9s ease-in-out infinite}
+        .dc-spin{animation:dcSpin 24s linear infinite}
+        .dc-glow{animation:dcGlow 11s ease-in-out infinite}
+        @media (prefers-reduced-motion: reduce){.dc-float,.dc-pulse,.dc-weak,.dc-rise,.dc-drift,.dc-spin,.dc-glow{animation:none !important}.dc-rise{opacity:1 !important}.dc-draw{animation:none !important;stroke-dashoffset:0 !important}}
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 1280, margin: "0 auto", display: "grid", alignItems: "center", gap: "clamp(40px,5vw,72px)" }} className="grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
 
         {/* LEFT: copy */}
-        <div className="flex max-w-[620px] flex-col items-start gap-[26px]">
-          <h1 className="font-display m-0 font-normal tracking-[-.022em] [text-wrap:balance]" style={{ fontSize: "clamp(42px,5.4vw,70px)", lineHeight: 1.03 }}>
+        <div className="relative flex max-w-[620px] flex-col items-start gap-[26px]">
+          {/* ambient accents floating around the headline */}
+          <span aria-hidden className="dc-glow pointer-events-none absolute -left-16 -top-10 -z-10 h-56 w-56 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgb(var(--crimson) / 0.14), transparent 68%)" }} />
+          <span aria-hidden className="dc-spin pointer-events-none absolute -top-3 right-6 h-8 w-8 rounded-full border-2" style={{ borderColor: "rgb(var(--gold) / 0.35)" }} />
+          <span aria-hidden className="dc-drift pointer-events-none absolute -left-7 top-24 h-2.5 w-2.5 rounded-full" style={{ background: "rgb(var(--crimson) / 0.55)" }} />
+          <span aria-hidden className="dc-drift pointer-events-none absolute right-16 top-16 h-2 w-2 rounded-full" style={{ background: "rgb(var(--gold) / 0.6)", animationDelay: "1.6s" }} />
+
+          <h1 className="dc-rise font-display m-0 font-normal tracking-[-.022em] [text-wrap:balance]" style={{ fontSize: "clamp(42px,5.4vw,70px)", lineHeight: 1.03, animationDelay: "0.05s" }}>
             {HEAD.pre}
             <span className="relative whitespace-nowrap italic" style={{ color: "rgb(var(--crimson))" }}>
               {HEAD.accent}
               <svg aria-hidden viewBox="0 0 200 18" preserveAspectRatio="none" fill="none" className="absolute left-0 w-full" style={{ bottom: "-0.14em", height: "0.4em" }}>
-                <path d="M3 12 C 55 4, 145 4, 197 10" stroke="rgb(var(--crimson) / 0.42)" strokeWidth="4" strokeLinecap="round" />
+                <path className="dc-draw" d="M3 12 C 55 4, 145 4, 197 10" stroke="rgb(var(--crimson) / 0.42)" strokeWidth="4" strokeLinecap="round" />
               </svg>
             </span>
+            {HEAD.post}
           </h1>
 
-          <p className="m-0 max-w-[47ch] text-ink-muted [text-wrap:pretty]" style={{ fontSize: "clamp(16px,1.25vw,18.5px)", lineHeight: 1.55 }}>
+          <p className="dc-rise m-0 max-w-[47ch] text-ink-muted [text-wrap:pretty]" style={{ fontSize: "clamp(16px,1.25vw,18.5px)", lineHeight: 1.55, animationDelay: "0.18s" }}>
             Real past papers, marked against the official Cambridge scheme — then a study plan that targets your weak topics.
           </p>
 
-          <div className="mt-0.5 flex flex-wrap gap-3">
+          <div className="dc-rise mt-0.5 flex flex-wrap gap-3" style={{ animationDelay: "0.32s" }}>
             {user ? (
               <Link href={primaryHref!}>
                 <Button size="lg" className="h-14 rounded-full px-8 text-base shadow-crimson">
@@ -497,7 +514,7 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-[10px] text-[13px] tracking-[.01em] text-ink-faint">
+          <div className="dc-rise flex flex-wrap items-center gap-[10px] text-[13px] tracking-[.01em] text-ink-faint" style={{ animationDelay: "0.44s" }}>
             <span><strong className="font-bold text-ink-muted">80k+</strong> questions</span>
             <span aria-hidden>·</span>
             <span><strong className="font-bold text-ink-muted">30+</strong> subjects</span>
