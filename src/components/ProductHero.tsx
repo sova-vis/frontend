@@ -32,7 +32,9 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
   return "/student/dashboard";
 }
 
-const HEADLINE = "Practice. See every mark. Improve.";
+// Headline: `pre` renders plain, `accent` gets the crimson italic + underline
+// flourish. To swap the copy, change just these two strings.
+const HEAD = { pre: "Practice. See every mark. ", accent: "Improve." };
 const BEAT_MS = 4900;
 
 // ---------------------------------------------------------------------------
@@ -463,7 +465,13 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
         {/* LEFT: copy */}
         <div className="flex max-w-[620px] flex-col items-start gap-[26px]">
           <h1 className="font-display m-0 font-normal tracking-[-.022em] [text-wrap:balance]" style={{ fontSize: "clamp(42px,5.4vw,70px)", lineHeight: 1.03 }}>
-            {HEADLINE}
+            {HEAD.pre}
+            <span className="relative whitespace-nowrap italic" style={{ color: "rgb(var(--crimson))" }}>
+              {HEAD.accent}
+              <svg aria-hidden viewBox="0 0 200 18" preserveAspectRatio="none" fill="none" className="absolute left-0 w-full" style={{ bottom: "-0.14em", height: "0.4em" }}>
+                <path d="M3 12 C 55 4, 145 4, 197 10" stroke="rgb(var(--crimson) / 0.42)" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            </span>
           </h1>
 
           <p className="m-0 max-w-[47ch] text-ink-muted [text-wrap:pretty]" style={{ fontSize: "clamp(16px,1.25vw,18.5px)", lineHeight: 1.55 }}>
