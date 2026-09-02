@@ -32,7 +32,7 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
   return "/student/dashboard";
 }
 
-const HEADLINE = "Know exactly where your marks go.";
+const HEADLINE = "Practice. See every mark. Improve.";
 const BEAT_MS = 3800;
 
 // ---------------------------------------------------------------------------
@@ -447,7 +447,7 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
   const primaryHref = user ? dashboardHref(user, profile) : undefined;
 
   return (
-    <section className="relative w-full overflow-hidden bg-paper text-ink" style={{ minHeight: "88vh", display: "flex", alignItems: "center", padding: "clamp(48px,7vh,96px) clamp(20px,5vw,72px)" }}>
+    <section className="relative w-full overflow-hidden bg-paper text-ink" style={{ minHeight: "100vh", boxSizing: "border-box", display: "flex", alignItems: "center", padding: "clamp(128px,17vh,184px) clamp(20px,5vw,72px) clamp(64px,9vh,104px)" }}>
       <style>{`
         @keyframes dcHeroFloat{0%,100%{transform:translateY(-6px)}50%{transform:translateY(6px)}}
         @keyframes dcHeroPulse{0%{box-shadow:0 0 0 0 rgb(var(--crimson) / .45)}70%{box-shadow:0 0 0 7px rgb(var(--crimson) / 0)}100%{box-shadow:0 0 0 0 rgb(var(--crimson) / 0)}}
