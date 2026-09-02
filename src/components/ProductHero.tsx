@@ -33,7 +33,7 @@ function dashboardHref(user: any, profile?: { role: string } | null) {
 }
 
 const HEADLINE = "Practice. See every mark. Improve.";
-const BEAT_MS = 3800;
+const BEAT_MS = 4900;
 
 // ---------------------------------------------------------------------------
 // Subject pool — one is chosen at random on each mount. Each carries the copy
@@ -452,7 +452,7 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
         @keyframes dcHeroFloat{0%,100%{transform:translateY(-6px)}50%{transform:translateY(6px)}}
         @keyframes dcHeroPulse{0%{box-shadow:0 0 0 0 rgb(var(--crimson) / .45)}70%{box-shadow:0 0 0 7px rgb(var(--crimson) / 0)}100%{box-shadow:0 0 0 0 rgb(var(--crimson) / 0)}}
         @keyframes dcHeroWeak{0%,100%{opacity:1}50%{opacity:.55}}
-        .dc-float{animation:dcHeroFloat 6s ease-in-out infinite}
+        .dc-float{animation:dcHeroFloat 8s ease-in-out infinite}
         .dc-pulse{animation:dcHeroPulse 2.4s ease-out infinite}
         .dc-weak{animation:dcHeroWeak 1.6s ease-in-out 1.1s 1}
         @media (prefers-reduced-motion: reduce){.dc-float,.dc-pulse,.dc-weak{animation:none !important}}
@@ -462,11 +462,6 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
 
         {/* LEFT: copy */}
         <div className="flex max-w-[620px] flex-col items-start gap-[26px]">
-          <div className="dc-pulse inline-flex items-center gap-[9px] rounded-full border border-line/[.14] bg-surface/70 py-[7px] pl-3 pr-[15px]">
-            <span className="h-[7px] w-[7px] rounded-full" style={{ background: "rgb(var(--crimson))" }} />
-            <span className="text-[12.5px] font-medium tracking-[.02em] text-ink-muted">Cambridge O &amp; A Level · marked to the scheme</span>
-          </div>
-
           <h1 className="font-display m-0 font-normal tracking-[-.022em] [text-wrap:balance]" style={{ fontSize: "clamp(42px,5.4vw,70px)", lineHeight: 1.03 }}>
             {HEADLINE}
           </h1>
