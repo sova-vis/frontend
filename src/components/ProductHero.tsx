@@ -391,7 +391,7 @@ function HeroStage({ subject }: { subject: Subject }) {
                 </div>
                 <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", gap: 12, border: "1px solid rgb(var(--crimson) / 0.22)", background: "rgb(var(--crimson) / 0.05)", borderRadius: 13, padding: "12px 15px", opacity: sumO, transform: `translateY(${(1 - sumO) * 10}px)`, transition: "opacity .5s ease,transform .5s cubic-bezier(.22,1,.36,1)" }}>
                   <span className="font-display" style={{ fontSize: 30, lineHeight: 1, color: "rgb(var(--crimson))" }}>2</span>
-                  <span style={{ flex: 1, font: "400 11px/1.4 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--ink-muted))" }}>topics below your target grade — folded into this week's plan</span>
+                  <span style={{ flex: 1, font: "400 11px/1.4 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--ink-muted))" }}>{"topics below your target grade — folded into this week's plan"}</span>
                   <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 6, font: "500 10.5px/1 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--crimson))" }}>Build plan <span aria-hidden>→</span></span>
                 </div>
               </div>
