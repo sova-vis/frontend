@@ -607,11 +607,11 @@ function HomePageContent() {
               <ul className="space-y-3 text-white/60">
                 <li className="flex items-center gap-2 text-sm md:text-[15px]">
                   <Mail size={18} className="text-pink flex-shrink-0" />
-                  <a href="mailto:sovavis2025@gmailcom" className="hover:text-pink transition-colors truncate">sovavis2025@gmailcom</a>
+                  <a href="mailto:sovavis2025@gmail.com" className="hover:text-pink transition-colors truncate">sovavis2025@gmail.com</a>
                 </li>
               </ul>
               <div className="flex items-center gap-3 mt-6">
-                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-crimson rounded-xl flex items-center justify-center transition-colors text-white">
+                <a href="https://www.instagram.com/propelcambridge/" target="_blank" rel="noopener noreferrer" aria-label="Propel on Instagram" className="w-10 h-10 bg-white/10 hover:bg-crimson rounded-xl flex items-center justify-center transition-colors text-white">
                   <Instagram size={16} />
                 </a>
               </div>
