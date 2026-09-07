@@ -942,7 +942,8 @@ function PracticeInner() {
 
   const [subjects, setSubjects] = useState<SubjectMeta[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [questionType, setQuestionType] = useState<QuestionType>("mcq");
+  // No pre-selected type: the student chooses Questions vs MCQs themselves ("" = not chosen yet).
+  const [questionType, setQuestionType] = useState<QuestionType | "">("");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("topic");
 
   // A deep link from Past Papers carries ?level=olevel|alevel; adopt it before any
@@ -1104,7 +1105,9 @@ function PracticeInner() {
   }, [getToken]);
 
   const currentSubject = useMemo(() => subjects.find((s) => s.name === selectedSubject) ?? null, [selectedSubject, subjects]);
-  const currentTypeMeta = currentSubject?.types[questionType] ?? null;
+  const currentTypeMeta = currentSubject && questionType ? currentSubject.types[questionType] : null;
+  // Some subjects have no MCQ papers at all — for those the MCQ option is hidden entirely.
+  const subjectHasMcqs = (currentSubject?.types.mcq.total ?? 0) > 0;
   const availableYears = currentTypeMeta?.years ?? [];
   // Hide the catch-all "Uncategorised" bucket — it isn't a real revision topic.
   // (Data uses the British spelling, so match the "uncategor" prefix.)
@@ -1634,10 +1637,18 @@ function PracticeInner() {
     }
   }
 
-  function handleSubjectChange(name: string) { setSelectedSubject(name); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function handleSubjectChange(name: string) {
+    setSelectedSubject(name); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions();
+    const meta = subjects.find((s) => s.name === name);
+    const hasMcqs = (meta?.types.mcq.total ?? 0) > 0;
+    // A subject with no MCQ papers has only one real choice, so pick it; if an MCQ
+    // selection carries over to such a subject it would dead-end, so correct it too.
+    if (!name) setQuestionType("");
+    else if (!hasMcqs) setQuestionType("structured");
+  }
   function handleTypeChange(type: QuestionType) { setQuestionType(type); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function handleModeChange(mode: PracticeMode) { setPracticeMode(mode); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
-  function resetFilters() { setSelectedSubject(""); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
+  function resetFilters() { setSelectedSubject(""); setQuestionType(""); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   // "Check" MCQs and log each as an attempt (Phase 1 backbone) — once per check
   function checkMcqs() {
     setChecked(true);
@@ -1989,8 +2000,12 @@ function PracticeInner() {
                 {/* Type */}
                 <div>
                   <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>Question type</span>
-                  <Segmented value={questionType} onChange={(v) => handleTypeChange(v)}
-                    options={[{ value: "structured", label: "Questions", icon: "file_text" }, { value: "mcq", label: "MCQs", icon: "list" }]} />
+                  <Segmented value={questionType as QuestionType} onChange={(v) => handleTypeChange(v)}
+                    options={[
+                      { value: "structured" as QuestionType, label: "Questions", icon: "file_text" },
+                      // hide the MCQ tab for subjects whose bank has no MCQ papers
+                      ...(!selectedSubject || subjectHasMcqs ? [{ value: "mcq" as QuestionType, label: "MCQs", icon: "list" }] : []),
+                    ]} />
                 </div>
 
                 {/* Mode */}
@@ -2006,8 +2021,8 @@ function PracticeInner() {
                 {practiceMode === "topic" ? (
                   <label style={{ flex: "1 1 240px", minWidth: 200 }}>
                     <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
-                    <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || loadingQuestions} style={selectStyle}>
-                      <option value="">{currentSubject ? "Select a topic" : "Select a subject first"}</option>
+                    <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || !questionType || loadingQuestions} style={selectStyle}>
+                      <option value="">{!currentSubject ? "Select a subject first" : !questionType ? "Choose a question type first" : "Select a topic"}</option>
                       {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
                     </select>
                   </label>
@@ -2015,7 +2030,7 @@ function PracticeInner() {
                   <>
                     <label style={{ flex: "0 0 130px" }}>
                       <span className="eyebrow" style={{ marginBottom: 6 }}>Year</span>
-                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject} style={selectStyle}>
+                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject || !questionType} style={selectStyle}>
                         <option value="">Year</option>
                         {availableYears.map((y) => <option key={y.year} value={y.year}>{y.year}</option>)}
                       </select>
