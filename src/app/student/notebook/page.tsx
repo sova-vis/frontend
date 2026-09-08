@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { Icon } from "@/components/propel/Icon";
 import { EmptyState, SubjGlyph } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";

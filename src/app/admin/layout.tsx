@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { hideAuthSplash } from "@/lib/authSplash";
 import { useInactivityLogout } from "@/lib/useInactivityLogout";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useUser } from "@/lib/auth";
 
 /**
  * Sign the user out after a stretch of inactivity WITHIN the current session.

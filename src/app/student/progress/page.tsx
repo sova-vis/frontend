@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Target, TrendingUp } from "lucide-react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { loadTrackedPapers, loadTrackedPapersForUser, TrackedPaper } from "@/lib/paperTracking";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 

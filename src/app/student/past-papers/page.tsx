@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { apiCall, getApiUrl } from "@/lib/api";
 import { LEVEL_LABEL, PaperLevel, usePaperLevel } from "@/lib/paperLevel";
 import {

@@ -9,7 +9,7 @@ import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/s
 import { hideAuthSplash } from '@/lib/authSplash';
 import { useInactivityLogout } from '@/lib/useInactivityLogout';
 import PropelLoader from '@/components/ui/PropelLoader';
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useAuth, useUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 

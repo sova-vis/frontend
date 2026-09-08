@@ -1,33 +1,14 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-// Routes anyone can hit without being signed in.
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/auth/callback(.*)",
-  "/sso-callback(.*)",
-  "/api/webhooks/(.*)",
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  const authState = typeof auth === "function" ? await auth() : (auth as any);
-  const userId = authState?.userId;
-
-  // Signed-out visitor on a protected route → send them to OUR landing page
-  // (which shows the Login popup). Never to Clerk's hosted Account Portal, which
-  // is what auth.protect() would do here. Any link → landing when logged out,
-  // dashboard when logged in (the app routes signed-in users by role).
-  if (!userId && !isPublicRoute(req)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
+/**
+ * Auth is handled by Supabase (session in the browser), and every protected
+ * route already guards client-side in its layout (`if (!user) router.replace("/")`).
+ * There's no server-readable session cookie to gate on here, so the middleware
+ * is a pass-through. (Kept as a file so the matcher/config stays documented.)
+ */
+export function middleware() {
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import PropelLoader from "@/components/ui/PropelLoader";
 

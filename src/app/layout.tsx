@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Hanken_Grotesk, Roboto_Mono, Fredoka } from "next/font/google";
 import "./globals.css";
 import "../styles/propel-scoped.css";
-import { ClerkProvider } from "@clerk/nextjs";
+import { AuthProvider } from "@/lib/auth";
 import ThemeScript from "@/components/ui/ThemeScript";
 import AuthTransitionSplash from "@/components/AuthTransitionSplash";
 
@@ -39,14 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      signInForceRedirectUrl="/"
-      signInFallbackRedirectUrl="/"
-      signUpForceRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-    >
+    <AuthProvider>
       <html
         lang="en"
         className={`${fraunces.variable} ${hanken.variable} ${robotoMono.variable} ${fredoka.variable}`}
@@ -60,6 +53,6 @@ export default function RootLayout({
           <AuthTransitionSplash />
         </body>
       </html>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { AlertTriangle, X } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";

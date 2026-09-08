@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Camera, Check, ClipboardCheck, School } from "lucide-react";
 import { apiCall } from "@/lib/api";

@@ -19,7 +19,7 @@ import {
     BookOpenCheck
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useClerk } from "@clerk/nextjs";
+import { useClerk } from "@/lib/auth";
 import { BrandLogo } from "@/components/ui/Logo";
 
 const navItems = [

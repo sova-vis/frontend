@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { CheckCircle2, Clock, School, XCircle } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { BrandLogo } from "@/components/ui/Logo";

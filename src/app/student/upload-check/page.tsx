@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState } from "@/components/propel/primitives";
 import { subjectStyle } from "@/components/propel/subjects";

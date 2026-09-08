@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { useAuth, useClerk, useUser } from "@/lib/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, Check, ClipboardCheck, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, Wrench, X } from "lucide-react";
 import DevModeCard from "@/components/DevModeCard";

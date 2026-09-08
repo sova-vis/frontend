@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth, useUser, useClerk } from "@clerk/nextjs";
+import { useAuth, useUser, useClerk } from "@/lib/auth";
 import { useEffect, useRef, useState } from "react";
 import { getApiUrl } from "./api";
 import { clerkFetch, resolveClerkToken } from "./clerkToken";

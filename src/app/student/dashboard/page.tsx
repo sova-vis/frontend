@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { useStudentStats, timeAgo } from "@/lib/useStudentStats";
 import { Icon } from "@/components/propel/Icon";

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { apiCall } from "@/lib/api";
 import { Icon } from "@/components/propel/Icon";

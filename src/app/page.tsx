@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, FileCheck2, ListChecks, Target, School } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'framer-motion';
-import { useUser, useSignIn } from '@clerk/nextjs';
+import { useUser, signInWithGoogle } from '@/lib/auth';
 import { useClerkAuth } from '@/lib/useClerkAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { BrandLogo } from '@/components/ui/Logo';
@@ -33,9 +33,7 @@ const FloatingHero = dynamic(() => import('@/components/ProductHero'), {
 });
 
 /** Preload the Clerk auth chunk so Google sign-in starts instantly on click. */
-function preloadClerk() {
-  import('@clerk/nextjs').catch(() => {});
-}
+function preloadClerk() { /* no-op: auth is Supabase (no client bundle to prefetch) */ }
 
 function destForUser(user: any, profile: { role?: string; onboarding_complete?: boolean } | null): string {
   const email = (user?.primaryEmailAddress?.emailAddress || "").toLowerCase();
@@ -60,7 +58,6 @@ function destForUser(user: any, profile: { role?: string; onboarding_complete?: 
 function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, loading: profileLoading } = useClerkAuth();
-  const { signIn, isLoaded: signInLoaded } = useSignIn();
   const [authOpen, setAuthOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -77,23 +74,18 @@ function HomePageContent() {
   // first-timers through the same OAuth flow, returning to /sso-callback → "/".
   const continueWithGoogle = useCallback(async () => {
     if (googleBusy) return;
-    preloadClerk();
-    if (!signInLoaded || !signIn) return;
     setGoogleBusy(true);
     setAuthError("");
     try {
-      await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        // Land on the neutral role-router (a splash-covered spinner), never the
-        // marketing landing — that "/" briefly rendered and caused the flicker.
-        redirectUrlComplete: "/dashboard",
-      });
+      // Redirects to Google, returns to /sso-callback → /dashboard. Requires the
+      // Google provider enabled on the self-hosted Supabase; until then this
+      // errors and the user can use email sign-in below.
+      await signInWithGoogle("/dashboard");
     } catch {
-      setAuthError("Couldn't start Google sign-in. Please try again.");
+      setAuthError("Google sign-in isn't set up yet — use email sign-in below.");
       setGoogleBusy(false);
     }
-  }, [signIn, signInLoaded, googleBusy]);
+  }, [googleBusy]);
 
   // Every old sign-in/sign-up entry point now opens the single "Login" popup.
   const openAuth = useCallback((_mode?: "sign-in" | "sign-up") => { preloadClerk(); setAuthError(""); setAuthOpen(true); }, []);
@@ -313,6 +305,12 @@ function HomePageContent() {
               className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 font-semibold text-ink shadow-card transition-colors hover:bg-surface-soft disabled:opacity-60"
             >
               <GoogleG size={18} /> {googleBusy ? "Connecting…" : "Continue with Google"}
+            </button>
+            <button
+              onClick={() => router.push("/login")}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-crimson px-5 py-3 font-semibold text-white shadow-crimson transition-colors hover:bg-crimson-deep"
+            >
+              <Mail size={18} /> Continue with email
             </button>
             {authError && <p className="mt-3 text-sm text-crimson">{authError}</p>}
             <p className="mt-4 text-xs text-ink-faint">By continuing you agree to our Terms &amp; Privacy Policy.</p>

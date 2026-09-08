@@ -12,7 +12,7 @@ import {
   getAdminUsers,
   updateAdminTeacherProfile,
 } from "@/lib/api";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Reveal } from "@/components/ui/Motion";

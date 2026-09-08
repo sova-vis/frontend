@@ -24,7 +24,7 @@ import {
     saveTrackedPapersForUser,
     toggleTrackedStatus,
 } from "@/lib/paperTracking";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { Reveal } from "@/components/ui/Motion";
 
 const STATUS_SECTIONS: Array<{

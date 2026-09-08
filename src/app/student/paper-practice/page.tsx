@@ -5,7 +5,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as Re
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import { Icon } from "@/components/propel/Icon";
 import DevQuestionEditor from "@/components/DevQuestionEditor";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";

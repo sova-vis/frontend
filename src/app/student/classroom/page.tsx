@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { ChevronRight, Clock, Plus, School, Target } from "lucide-react";
 import {
   AvailableAssignment,

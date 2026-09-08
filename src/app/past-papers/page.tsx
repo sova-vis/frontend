@@ -8,7 +8,7 @@ import {
     Calendar, FolderOpen, FileCheck, ClipboardList, BookMarked, Home
 } from "lucide-react";
 import { useClerkAuth } from "@/lib/useClerkAuth";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { apiCall } from "@/lib/api";
 import { BrandLogo } from "@/components/ui/Logo";
 import { Reveal } from "@/components/ui/Motion";

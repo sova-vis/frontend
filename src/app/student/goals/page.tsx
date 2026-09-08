@@ -28,7 +28,7 @@ import {
   TrackedPaper,
 } from "@/lib/paperTracking";
 import { hydrateSubjectsFromProfile, StudentSubject } from "@/lib/studentPersonalization";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import StudentPageLoading from "@/components/student/StudentPageLoading";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
