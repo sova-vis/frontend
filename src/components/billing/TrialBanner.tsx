@@ -8,14 +8,18 @@
 import { usePro } from '@/lib/usePro';
 
 export default function TrialBanner() {
-  const { enforced, status, daysLeft, openUpgrade } = usePro();
+  const { enforced, status, daysLeft, trialAvailable, openUpgrade, data } = usePro();
 
   if (!enforced) return null;
-  if (status !== 'trialing' && status !== 'past_due' && status !== 'expired') return null;
 
+  const trialDays = data?.trialDays ?? 10;
   let text = '';
   let cta = 'Upgrade';
-  if (status === 'trialing') {
+
+  if (status === 'free' && trialAvailable) {
+    text = `You're on the Free plan — start your ${trialDays}-day free trial for full access. No card needed.`;
+    cta = 'Start free trial';
+  } else if (status === 'trialing') {
     const d = daysLeft ?? 0;
     text = d <= 0 ? 'Your free trial ends today.' : `${d} day${d === 1 ? '' : 's'} left in your free trial.`;
     cta = 'Continue to Pro';
@@ -23,9 +27,12 @@ export default function TrialBanner() {
     const d = daysLeft ?? 0;
     text = `Your Pro month ended — renew to keep full access${d > 0 ? ` (${d} day${d === 1 ? '' : 's'} left)` : ''}.`;
     cta = 'Renew Pro';
-  } else if (status === 'expired') {
+  } else if (status === 'expired' || (status === 'free' && !trialAvailable)) {
     text = 'Your Pro access has ended. Past papers are still free.';
     cta = 'Go Pro';
+  } else {
+    // active / canceled (still within a paid period) → no banner needed
+    return null;
   }
 
   return (
