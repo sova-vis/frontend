@@ -21,6 +21,7 @@ import { useUser } from './auth';
 import {
   fetchBillingStatus,
   startTrial as apiStartTrial,
+  syncBilling,
   type BillingStatus,
   type StartTrialResult,
 } from './billing';
@@ -84,6 +85,24 @@ export function ProProvider({ children }: { children: ReactNode }) {
     window.addEventListener('propel:pro-required', onProRequired as EventListener);
     return () => window.removeEventListener('propel:pro-required', onProRequired as EventListener);
   }, []);
+
+  // Returning from Safepay checkout (?billing=success): reconcile immediately so Pro
+  // flips on without waiting for a webhook, then strip the query param.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let params: URLSearchParams;
+    try { params = new URLSearchParams(window.location.search); } catch { return; }
+    if (params.get('billing') !== 'success') return;
+    void (async () => {
+      await syncBilling();
+      await refresh();
+      try {
+        params.delete('billing');
+        const qs = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+      } catch { /* ignore */ }
+    })();
+  }, [isSignedIn, refresh]);
 
   const startTrialFlow = useCallback(async () => {
     const result = await apiStartTrial();

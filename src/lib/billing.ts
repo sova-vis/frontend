@@ -81,3 +81,13 @@ export async function cancelPro(): Promise<boolean> {
     return false;
   }
 }
+
+/** Reconcile after returning from checkout — activates Pro from the latest payment. */
+export async function syncBilling(): Promise<boolean> {
+  try {
+    const res = await apiCall('/billing/sync', { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { User, CreditCard, Trash2 } from "lucide-react";
+import { User, Trash2 } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import DeleteAccountModal from "@/components/DeleteAccountModal";
+import SubscriptionSettings from "@/components/billing/SubscriptionSettings";
 
 export default function SettingsPage() {
     const [name, setName] = useState("Student");
@@ -62,20 +63,9 @@ export default function SettingsPage() {
                     </div>
                 </Reveal>
 
-                {/* Subscription Section */}
+                {/* Subscription Section — live billing state */}
                 <Reveal delay={0.1}>
-                    <div className="ed-card p-5 md:p-6">
-                        <h2 className="font-display text-lg font-semibold tracking-tight text-ink mb-4 flex items-center gap-2">
-                            <CreditCard size={20} className="text-crimson" /> Subscription
-                        </h2>
-                        <div className="ed-card-soft p-4 flex justify-between items-center">
-                            <div>
-                                <p className="font-semibold text-ink">Pro Plan</p>
-                                <p className="text-sm text-ink-muted">Active until Dec 2026</p>
-                            </div>
-                            <span className="ed-pill-mint uppercase tracking-wide">Active</span>
-                        </div>
-                    </div>
+                    <SubscriptionSettings />
                 </Reveal>
 
                 <div className="flex justify-end pt-4">
