@@ -12,6 +12,7 @@ import PropelLoader from '@/components/ui/PropelLoader';
 import { ProProvider } from '@/lib/usePro';
 import TrialBanner from '@/components/billing/TrialBanner';
 import UpgradeModal from '@/components/billing/UpgradeModal';
+import ProRouteGate from '@/components/billing/ProRouteGate';
 import { useAuth, useUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -111,7 +112,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 					<StudentNavbar />
 					<TrialBanner />
 					<main className="flex-1 overflow-auto relative z-10">
-						{children}
+						<ProRouteGate>{children}</ProRouteGate>
 					</main>
 				</div>
 				<UpgradeModal />
