@@ -96,6 +96,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
     void (async () => {
       await syncBilling();
       await refresh();
+      try { window.dispatchEvent(new CustomEvent('propel:celebrate')); } catch { /* ignore */ }
       try {
         params.delete('billing');
         const qs = params.toString();

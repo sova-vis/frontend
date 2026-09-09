@@ -13,6 +13,7 @@ import { ProProvider } from '@/lib/usePro';
 import TrialBanner from '@/components/billing/TrialBanner';
 import UpgradeModal from '@/components/billing/UpgradeModal';
 import ProRouteGate from '@/components/billing/ProRouteGate';
+import ConfettiCelebration from '@/components/billing/ConfettiCelebration';
 import { useAuth, useUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -116,6 +117,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 					</main>
 				</div>
 				<UpgradeModal />
+				<ConfettiCelebration />
 			</PaperLevelProvider>
 		</ProProvider>
 	);
