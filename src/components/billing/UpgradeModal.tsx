@@ -98,6 +98,14 @@ export default function UpgradeModal() {
             >
               {busy ? 'Starting…' : `Start ${trialDays}-day free trial`}
             </button>
+            <button
+              type="button"
+              className="mt-2 w-full text-xs text-ink-muted underline underline-offset-2 hover:text-ink disabled:opacity-50"
+              onClick={onContinueToPro}
+              disabled={busy}
+            >
+              Skip the trial — go Pro now
+            </button>
           </>
         ) : (
           <>
