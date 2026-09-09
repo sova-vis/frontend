@@ -13,6 +13,26 @@ export function getApiUrl(): string {
 }
 
 /**
+ * When the backend blocks a Pro-only route it replies 402 { error:'pro_required' }.
+ * We broadcast a window event so the ProProvider can open the upgrade modal from
+ * anywhere — no need to handle 402 at every call site. Returns the response
+ * untouched so callers still read it normally.
+ */
+async function signalIfProRequired(res: Response): Promise<Response> {
+  if (typeof window !== "undefined" && res.status === 402) {
+    try {
+      const data = await res.clone().json();
+      if (data && data.error === "pro_required") {
+        window.dispatchEvent(new CustomEvent("propel:pro-required", { detail: data }));
+      }
+    } catch {
+      // non-JSON 402 — ignore, caller handles the response
+    }
+  }
+  return res;
+}
+
+/**
  * Fetch wrapper that uses the correct API URL and automatically attaches the
  * current Clerk session token (unless the caller already set Authorization).
  * This means every backend call is authenticated by default — required now
@@ -35,16 +55,16 @@ export async function apiCall(
     }
   }
   const first = await fetch(url, { ...options, headers });
-  if (first.status !== 401 || callerSetAuth || typeof window === "undefined") return first;
+  if (first.status !== 401 || callerSetAuth || typeof window === "undefined") return signalIfProRequired(first);
 
   const retryHeaders = new Headers(options?.headers || {});
   try {
     const token = await resolveClerkToken(undefined, { force: true });
     if (token) retryHeaders.set("Authorization", `Bearer ${token}`);
   } catch {
-    return first;
+    return signalIfProRequired(first);
   }
-  return fetch(url, { ...options, headers: retryHeaders });
+  return signalIfProRequired(await fetch(url, { ...options, headers: retryHeaders }));
 }
 
 export interface QaGradingRequest {

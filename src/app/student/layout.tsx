@@ -9,6 +9,9 @@ import { reconcilePersonalizationWithProfile, persistActiveLevel } from '@/lib/s
 import { hideAuthSplash } from '@/lib/authSplash';
 import { useInactivityLogout } from '@/lib/useInactivityLogout';
 import PropelLoader from '@/components/ui/PropelLoader';
+import { ProProvider } from '@/lib/usePro';
+import TrialBanner from '@/components/billing/TrialBanner';
+import UpgradeModal from '@/components/billing/UpgradeModal';
 import { useAuth, useUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -101,14 +104,18 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 	}
 
 	return (
-		<PaperLevelProvider>
-			<div className="flex flex-col h-screen bg-paper overflow-hidden relative">
-				<GeometricShapes />
-				<StudentNavbar />
-				<main className="flex-1 overflow-auto relative z-10">
-					{children}
-				</main>
-			</div>
-		</PaperLevelProvider>
+		<ProProvider>
+			<PaperLevelProvider>
+				<div className="flex flex-col h-screen bg-paper overflow-hidden relative">
+					<GeometricShapes />
+					<StudentNavbar />
+					<TrialBanner />
+					<main className="flex-1 overflow-auto relative z-10">
+						{children}
+					</main>
+				</div>
+				<UpgradeModal />
+			</PaperLevelProvider>
+		</ProProvider>
 	);
 }
