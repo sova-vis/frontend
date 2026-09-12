@@ -8,7 +8,7 @@
  * shapes the app already uses (`useUser`, `useAuth`, `useClerk`) on top of
  * `supabase.auth`. Files just swap `from "@/lib/auth"` → `from "@/lib/auth"`.
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User as SbUser } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { resolveClerkToken } from "./clerkToken";
@@ -90,20 +90,27 @@ export function useUser() {
 export function useAuth() {
   const { session, isLoaded } = useContext(AuthContext);
   const userId = session?.user?.id ?? null;
-  return {
-    isLoaded,
-    isSignedIn: !!userId,
-    userId,
-    // Signature matches Clerk's getToken(); resolves a fresh Supabase token.
-    getToken: (opts?: { skipCache?: boolean }) => resolveClerkToken(undefined, opts?.skipCache ? { force: true } : undefined),
-    signOut: (opts?: { redirectUrl?: string }) => signOutRedirect(opts?.redirectUrl),
-  };
+  // STABLE identities. Dozens of effects across the app list `getToken` in their
+  // dependency arrays; when this hook returned a fresh closure every render, each
+  // async setState re-triggered those effects → endless refetch loops (Notebook
+  // flicker, Planner churn, background network noise). Neither function closes
+  // over the session (resolveClerkToken reads it live), so [] is correct.
+  const getToken = useCallback(
+    (opts?: { skipCache?: boolean }) => resolveClerkToken(undefined, opts?.skipCache ? { force: true } : undefined),
+    [],
+  );
+  const signOut = useCallback((opts?: { redirectUrl?: string }) => signOutRedirect(opts?.redirectUrl), []);
+  return useMemo(
+    () => ({ isLoaded, isSignedIn: !!userId, userId, getToken, signOut }),
+    [isLoaded, userId, getToken, signOut],
+  );
 }
 
+const clerkCompat = {
+  signOut: (opts?: { redirectUrl?: string }) => signOutRedirect(opts?.redirectUrl),
+};
 export function useClerk() {
-  return {
-    signOut: (opts?: { redirectUrl?: string }) => signOutRedirect(opts?.redirectUrl),
-  };
+  return clerkCompat;
 }
 
 // ---- auth actions (used by the login/signup pages) ----------------------------

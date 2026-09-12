@@ -936,15 +936,13 @@ const selectStyle: React.CSSProperties = {
 };
 
 // ---------------------------------------------------------------------------
+// Snapshot of the Practice view that survives navigating away and back
+// (sessionStorage). Only UI selection state — answers/progress live server-side.
+type SavedView = { subject?: string; type?: QuestionType | ""; mode?: PracticeMode; topic?: string; year?: string; paperKey?: string };
+
 function PracticeInner() {
   const searchParams = useSearchParams();
   const { getToken } = useAuth();
-
-  const [subjects, setSubjects] = useState<SubjectMeta[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState("");
-  // No pre-selected type: the student chooses Questions vs MCQs themselves ("" = not chosen yet).
-  const [questionType, setQuestionType] = useState<QuestionType | "">("");
-  const [practiceMode, setPracticeMode] = useState<PracticeMode>("topic");
 
   // A deep link from Past Papers carries ?level=olevel|alevel; adopt it before any
   // data load so the whole page (subjects, this paper, and "view in paper") uses the
@@ -957,6 +955,27 @@ function PracticeInner() {
       try { window.localStorage.setItem("propel_paper_level", lvl); } catch { /* ignore */ }
     }
   }
+
+  // ---- view restore: switching tabs away and coming back keeps the filters and
+  // the open paper instead of resetting to the root picker. Deep links (?subject…)
+  // always win; otherwise the last view for this level is restored. sessionStorage:
+  // survives in-app navigation, clears when the browser tab closes.
+  const savedViewRef = useRef<SavedView | null | undefined>(undefined);
+  if (savedViewRef.current === undefined) {
+    savedViewRef.current = null;
+    if (typeof window !== "undefined" && !searchParams?.get("subject")) {
+      try {
+        savedViewRef.current = JSON.parse(window.sessionStorage.getItem(`pp:view:${paperLevelParam()}`) || "null") as SavedView | null;
+      } catch { /* ignore */ }
+    }
+  }
+  const savedView = savedViewRef.current;
+
+  const [subjects, setSubjects] = useState<SubjectMeta[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState(savedView?.subject || "");
+  // No pre-selected type: the student chooses Questions vs MCQs themselves ("" = not chosen yet).
+  const [questionType, setQuestionType] = useState<QuestionType | "">(savedView?.type || "");
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>(savedView?.mode || "topic");
 
   // ---- deep link (?subject&year&session&paper&variant) — consumed once ----
   const deepLinkRef = useRef<{ subject: string; year: string; session: string; paper: string; variant: string } | null>(null);
@@ -972,7 +991,9 @@ function PracticeInner() {
   const topicLinkDoneRef = useRef(false);
   if (!topicLinkDoneRef.current && topicLinkRef.current === null && !deepLinkRef.current) {
     const subject = searchParams?.get("subject"), topic = searchParams?.get("topic");
-    if (subject && topic) topicLinkRef.current = { subject, topic };
+    // topic is optional: a subject-only link (e.g. a planner session without a
+    // topic) still opens Practice on that subject instead of being ignored.
+    if (subject) topicLinkRef.current = { subject, topic: topic || "" };
     else topicLinkDoneRef.current = true;
   }
   const [openingLink, setOpeningLink] = useState(Boolean(deepLinkRef.current));
@@ -1007,11 +1028,23 @@ function PracticeInner() {
   const hasRowRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
 
-  const [selectedTopic, setSelectedTopic] = useState("");
-  const [selectedYear, setSelectedYear] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState(savedView?.topic || "");
+  const [selectedYear, setSelectedYear] = useState(savedView?.year || "");
   const [papers, setPapers] = useState<AvailablePaper[]>([]);
-  const [selectedPaperKey, setSelectedPaperKey] = useState("");
+  const [selectedPaperKey, setSelectedPaperKey] = useState(savedView?.paperKey || "");
   const [query, setQuery] = useState("");
+
+  // Persist the view (filters + open paper) so returning to Practice restores it
+  // exactly where the student left off (see the restore block above).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(`pp:view:${paperLevelParam()}`, JSON.stringify({
+        subject: selectedSubject, type: questionType, mode: practiceMode,
+        topic: selectedTopic, year: selectedYear, paperKey: selectedPaperKey,
+      } satisfies SavedView));
+    } catch { /* ignore */ }
+  }, [selectedSubject, questionType, practiceMode, selectedTopic, selectedYear, selectedPaperKey]);
 
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({});
@@ -1302,6 +1335,13 @@ function PracticeInner() {
     topicLinkDoneRef.current = true;
     const subjectName = resolveSubjectName(subjects, link.subject);
     if (!subjectName) return;
+    if (!link.topic) {
+      // Subject-only deep link: open the subject in topic mode; the student picks
+      // the topic (and question type) from there.
+      setPracticeMode("topic");
+      setSelectedSubject(subjectName);
+      return;
+    }
     const meta = subjects.find((s) => s.name === subjectName);
     const wanted = link.topic.toLowerCase();
     const findTopic = (list: { name: string }[]) =>

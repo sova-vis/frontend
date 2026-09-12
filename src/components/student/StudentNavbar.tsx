@@ -45,6 +45,12 @@ export default function StudentNavbar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<"account" | "profile" | "appearance">("account");
   const [transition, setTransition] = useState<Mode | null>(null);
+  // Optimistic tab highlight: heavy pages (Practice is a ~2.7k-line chunk) can take
+  // a moment to mount, during which the URL — and therefore the active pill — used
+  // to sit unchanged, so clicks felt dead and users clicked again. Highlight the
+  // clicked tab immediately; the real pathname confirms (and clears) it on arrival.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  useEffect(() => { setPendingHref(null); }, [pathname]);
 
   // Other pages can open Settings to a section (e.g. "Manage subjects").
   useEffect(() => {
@@ -101,12 +107,13 @@ export default function StudentNavbar() {
           <div className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto lg:justify-center">
             <div className="inline-flex shrink-0 gap-1 rounded-full border border-line bg-surface/70 p-1 shadow-sm backdrop-blur">
               {navItems.map((item) => {
-                const active = isActivePath(pathname, item.href);
+                const active = pendingHref ? item.href === pendingHref : isActivePath(pathname, item.href);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${active ? "bg-gradient-to-br from-crimson to-crimson-deep text-white shadow-crimson" : "text-ink-muted hover:bg-surface hover:text-ink"}`}
+                    onClick={() => { if (!isActivePath(pathname, item.href)) setPendingHref(item.href); }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${active ? "bg-gradient-to-br from-crimson to-crimson-deep text-white shadow-crimson" : "text-ink-muted hover:bg-surface hover:text-ink"} ${pendingHref === item.href ? "opacity-80" : ""}`}
                   >
                     {item.name}
                   </Link>
