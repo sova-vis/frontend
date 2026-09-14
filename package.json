@@ -11,7 +11,6 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.38.2",
     "@supabase/supabase-js": "^2.91.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

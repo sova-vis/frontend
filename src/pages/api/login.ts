@@ -7,6 +7,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   return res.status(410).json({
     error: 'Deprecated endpoint',
-    message: 'Login is handled by Clerk at /sign-in',
+    message: 'Login is handled by Supabase Auth on the landing page.',
   });
 }

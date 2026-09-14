@@ -6,7 +6,7 @@ const nextConfig = {
   // Tree-shake heavy, icon-and-motion packages so only the components actually
   // used ship to the browser — big win for first-load JS on every page.
   experimental: {
-    optimizePackageImports: ["lucide-react", "framer-motion", "@clerk/nextjs"],
+    optimizePackageImports: ["lucide-react", "framer-motion"],
   },
   // API calls are made directly to backend server via NEXT_PUBLIC_API_URL
   images: {
@@ -14,14 +14,6 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "api.dicebear.com",
-      },
-      {
-        protocol: "https",
-        hostname: "img.clerk.com",
-      },
-      {
-        protocol: "https",
-        hostname: "images.clerk.dev",
       },
       {
         protocol: "https",
