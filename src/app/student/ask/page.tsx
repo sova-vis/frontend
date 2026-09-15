@@ -259,7 +259,7 @@ function AskAIInner() {
         const res = await apiCall("/rag/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, limit: 5, history, mode, subject: scopeSubject || undefined }),
+          body: JSON.stringify({ question: trimmed, limit: 5, history, mode, subject: scopeSubject || undefined, level: profile?.active_level || undefined }),
         });
         if (!res.ok) throw new Error(String(res.status));
         data = await res.json();
