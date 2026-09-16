@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutGrid, School, Settings } from "lucide-react";
@@ -51,6 +51,14 @@ export default function StudentNavbar() {
   // clicked tab immediately; the real pathname confirms (and clears) it on arrival.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   useEffect(() => { setPendingHref(null); }, [pathname]);
+
+  // On phones the tab pills scroll horizontally — keep the active one in view.
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    navScrollRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [pathname, mode]);
 
   // Other pages can open Settings to a section (e.g. "Manage subjects").
   useEffect(() => {
@@ -104,7 +112,7 @@ export default function StudentNavbar() {
           </div>
 
           {/* Center nav */}
-          <div className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto lg:justify-center">
+          <div ref={navScrollRef} className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:justify-center">
             <div className="inline-flex shrink-0 gap-1 rounded-full border border-line bg-surface/70 p-1 shadow-sm backdrop-blur">
               {navItems.map((item) => {
                 const active = pendingHref ? item.href === pendingHref : isActivePath(pathname, item.href);
@@ -112,6 +120,7 @@ export default function StudentNavbar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    data-active={active ? "true" : undefined}
                     onClick={() => { if (!isActivePath(pathname, item.href)) setPendingHref(item.href); }}
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${active ? "bg-gradient-to-br from-crimson to-crimson-deep text-white shadow-crimson" : "text-ink-muted hover:bg-surface hover:text-ink"} ${pendingHref === item.href ? "opacity-80" : ""}`}
                   >

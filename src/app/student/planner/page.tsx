@@ -12,6 +12,15 @@ import { weekdayName } from "@/lib/studyPlanner";
 import { buildIntelligentPlan, PlanSession } from "@/lib/intelligentPlanner";
 
 const MINUTE_OPTS = [30, 45, 60, 90, 120];
+const MAX_MINUTES = 480; // custom timer cap: 8 hours
+
+const fmtMinutes = (t: number) =>
+  t >= 60 ? `${Math.floor(t / 60)}h${t % 60 ? ` ${t % 60}m` : ""}` : `${t} min`;
+const clampMinutes = (s: string): number | null => {
+  const n = Math.round(Number(s));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(MAX_MINUTES, Math.max(5, n));
+};
 const CONFIG_KEY = "propel_planner_config";
 
 interface TopicMeta { name: string; count: number }
@@ -51,6 +60,8 @@ export default function PlannerPage() {
   // Setup form state
   const [weekdays, setWeekdays] = useState<number[]>([1, 3, 5]);
   const [minutes, setMinutes] = useState(45);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customMin, setCustomMin] = useState("");
   const [weakSubjects, setWeakSubjects] = useState<string[]>([]);
 
   // Selected subjects + attempts
@@ -74,7 +85,11 @@ export default function PlannerPage() {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(CONFIG_KEY);
-      if (raw) { const c = JSON.parse(raw) as Config; setConfig(c); setWeekdays(c.weekdays); setMinutes(c.minutes); setWeakSubjects(c.weakSubjects || []); }
+      if (raw) {
+        const c = JSON.parse(raw) as Config;
+        setConfig(c); setWeekdays(c.weekdays); setMinutes(c.minutes); setWeakSubjects(c.weakSubjects || []);
+        if (!MINUTE_OPTS.includes(c.minutes)) { setCustomOpen(true); setCustomMin(String(c.minutes)); }
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -182,12 +197,35 @@ export default function PlannerPage() {
               <div className="faint" style={{ fontSize: 12.5, marginBottom: 10 }}>One focused session per study day.</div>
               <div className="flex gap-8 wrap">
                 {MINUTE_OPTS.map((t) => (
-                  <button key={t} onClick={() => setMinutes(t)} className="chip" style={{ cursor: "pointer", padding: "8px 16px",
+                  <button key={t} onClick={() => { setMinutes(t); setCustomOpen(false); }} className="chip" style={{ cursor: "pointer", padding: "8px 16px",
                     border: minutes === t ? "1.5px solid var(--crimson)" : "1px solid var(--line-strong)", background: minutes === t ? "var(--crimson-soft)" : "var(--surface)", color: minutes === t ? "var(--crimson)" : "var(--ink-soft)", fontWeight: minutes === t ? 600 : 500 }}>
-                    {t >= 60 ? `${t / 60}h${t % 60 ? ` ${t % 60}m` : ""}` : `${t} min`}
+                    {fmtMinutes(t)}
                   </button>
                 ))}
+                {(() => {
+                  const isCustom = !MINUTE_OPTS.includes(minutes);
+                  const active = isCustom || customOpen;
+                  return (
+                    <button onClick={() => { setCustomOpen(true); if (isCustom) setCustomMin(String(minutes)); }} className="chip" style={{ cursor: "pointer", padding: "8px 16px", gap: 6,
+                      border: active ? "1.5px solid var(--crimson)" : "1px solid var(--line-strong)", background: active ? "var(--crimson-soft)" : "var(--surface)", color: active ? "var(--crimson)" : "var(--ink-soft)", fontWeight: active ? 600 : 500 }}>
+                      <Icon name="clock" size={13} /> {isCustom ? fmtMinutes(minutes) : "Custom"}
+                    </button>
+                  );
+                })()}
               </div>
+              {customOpen && (
+                <div className="flex items-center gap-10 wrap" style={{ marginTop: 12 }}>
+                  <input type="number" min={5} max={MAX_MINUTES} step={5} inputMode="numeric" value={customMin} autoFocus
+                    onChange={(e) => { setCustomMin(e.target.value); const v = clampMinutes(e.target.value); if (v) setMinutes(v); }}
+                    onBlur={() => { const v = clampMinutes(customMin); if (v) { setMinutes(v); setCustomMin(String(v)); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    placeholder="e.g. 180"
+                    style={{ width: 104, padding: "9px 12px", borderRadius: 10, border: "1px solid var(--line-strong)", background: "var(--surface)", fontSize: 14, fontWeight: 600, color: "var(--ink)", outline: "none" }} />
+                  <span className="faint" style={{ fontSize: 12.5 }}>
+                    minutes — {customMin && clampMinutes(customMin) ? `= ${fmtMinutes(clampMinutes(customMin)!)}` : "any length, up to 8 hours"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Q2 — which days of the week */}
@@ -237,7 +275,7 @@ export default function PlannerPage() {
             {/* summary */}
             <div className="card card-pad row-between wrap" style={{ gap: 12 }}>
               <div className="flex gap-8 wrap" style={{ fontSize: 13 }}>
-                <span className="chip" style={{ padding: "6px 12px" }}><Icon name="clock" size={13} /> {config!.minutes} min/day</span>
+                <span className="chip" style={{ padding: "6px 12px" }}><Icon name="clock" size={13} /> {fmtMinutes(config!.minutes)}/day</span>
                 <span className="chip" style={{ padding: "6px 12px" }}><Icon name="calendar" size={13} /> {config!.weekdays.length} days/week</span>
                 {config!.weakSubjects.length > 0 && <span className="chip" style={{ padding: "6px 12px", color: "var(--coral-bright)" }}><Icon name="target" size={13} /> focus: {config!.weakSubjects.join(", ")}</span>}
               </div>
@@ -269,7 +307,7 @@ export default function PlannerPage() {
                               {s.subject}{s.weak && <span className="badge coral" style={{ fontSize: 10, marginLeft: 6 }}>weak</span>}
                             </div>
                             <div className="faint" style={{ fontSize: 11.5 }}>
-                              {s.topic ? s.topic : "Practice"} · {s.minutes} min{s.daysToExam != null ? ` · exam in ${s.daysToExam}d` : ""}
+                              {s.topic ? s.topic : "Practice"} · {fmtMinutes(s.minutes)}{s.daysToExam != null ? ` · exam in ${s.daysToExam}d` : ""}
                             </div>
                           </div>
                           <Icon name="chevron_right" size={15} style={{ color: "var(--ink-faint)", flex: "none" }} />

@@ -441,6 +441,73 @@ function SchemeList({ text, label }: { text: string; label?: string }) {
   );
 }
 
+// Inline "Ask AI why this MCQ is wrong" — a single backend call (/rag/explain-mcq)
+// that expands a box right under the question instead of navigating to Ask AI.
+function McqExplain({ question, correct, studentAnswer }: {
+  question: PracticeQuestion; correct: string; studentAnswer: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState(false);
+
+  const run = async () => {
+    setOpen(true);
+    if (text || loading) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await apiCall("/rag/explain-mcq", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionText: question.questionText,
+          options: question.options,
+          correctAnswer: correct,
+          studentAnswer,
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setText(String(data.answer || "").trim() || "No explanation available.");
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button className="btn btn-ghost btn-sm" onClick={run} style={{ alignSelf: "flex-start" }}>
+        <Icon name="sparkles" size={14} /> Ask AI why
+      </button>
+    );
+  }
+  return (
+    <div className="card card-pad" style={{ padding: 13, background: "var(--purple-soft)", border: "none", alignSelf: "stretch" }}>
+      <div className="flex items-center gap-8" style={{ marginBottom: text || loading || error ? 8 : 0 }}>
+        <Icon name="sparkles" size={15} style={{ color: "var(--purple)" }} />
+        <span className="eyebrow" style={{ color: "var(--purple)", flex: 1 }}>Why {correct} is correct</span>
+        <button className="icon-btn" aria-label="Close" onClick={() => setOpen(false)} style={{ width: 24, height: 24 }}>
+          <Icon name="x" size={13} />
+        </button>
+      </div>
+      {loading && <span className="faint" style={{ fontSize: 13 }}>Thinking…</span>}
+      {error && (
+        <span style={{ fontSize: 13, color: "var(--coral)" }}>
+          Couldn&apos;t load —{" "}
+          <button onClick={() => { setText(""); setError(false); run(); }}
+            style={{ color: "var(--crimson)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+            try again
+          </button>
+        </span>
+      )}
+      {!loading && !error && text && <div style={{ fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{text}</div>}
+    </div>
+  );
+}
+
 function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: {
   question: PracticeQuestion; answer?: string; checked: boolean; showScheme: boolean; onAnswer: (value: string) => void; readOnly?: boolean;
 }) {
@@ -496,12 +563,9 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
         </div>
       )}
 
-      {/* bridge a wrong answer into Ask AI */}
+      {/* inline "Ask AI why" — one quick call, answered right under the MCQ */}
       {checked && isAnswered && correct && answer !== correct && (
-        <Link href={`/student/ask?q=${encodeURIComponent(`Why is the correct answer "${correct}" for this question? ${question.questionText}`)}`}
-          className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start" }}>
-          <Icon name="message" size={14} /> Ask AI why {correct} is correct
-        </Link>
+        <McqExplain question={question} correct={correct} studentAnswer={answer || ""} />
       )}
 
       {/* mark scheme stays hidden until the question is checked/submitted */}
@@ -676,6 +740,46 @@ function PaperModal({ url, title, onClose }: { url: string; title: string; onClo
   const target = (typeof document !== "undefined" && document.querySelector(".pr")) || (typeof document !== "undefined" ? document.body : null);
   if (!target) return null;
 
+  const isMobile = window.innerWidth < 700;
+
+  const header = (
+    <>
+      <span style={{ fontWeight: 700, fontSize: 12.5, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {title}
+      </span>
+      <div className="flex gap-8 items-center" style={{ flex: "none" }} onPointerDown={(e) => e.stopPropagation()}>
+        <a className="icon-btn" href={url} target="_blank" rel="noopener noreferrer"
+          title="Open in a new tab" aria-label="Open in a new tab"
+          style={{ width: isMobile ? 36 : 26, height: isMobile ? 36 : 26, border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="file_text" size={isMobile ? 17 : 14} />
+        </a>
+        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close"
+          style={{ width: isMobile ? 36 : 26, height: isMobile ? 36 : 26, border: "1px solid var(--line)" }}>
+          <Icon name="x" size={isMobile ? 19 : 14} />
+        </button>
+      </div>
+    </>
+  );
+
+  const iframeEl = (
+    <iframe src={url} title={title} style={{ width: "100%", height: "100%", border: 0, background: "#525659", display: "block" }} />
+  );
+
+  // On phones the draggable/resizable panel is unusable (and the close button was
+  // hard to reach) — show a plain full-screen modal with a large close button.
+  if (isMobile) {
+    return createPortal(
+      <div role="dialog" aria-label={title}
+        style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--surface)", color: "var(--ink)", display: "flex", flexDirection: "column" }}>
+        <div className="row-between" style={{ gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--line)", flex: "none" }}>
+          {header}
+        </div>
+        <div style={{ flex: 1, minHeight: 0 }}>{iframeEl}</div>
+      </div>,
+      target,
+    );
+  }
+
   return createPortal(
     <div
       role="dialog"
@@ -700,24 +804,10 @@ function PaperModal({ url, title, onClose }: { url: string; title: string; onClo
           touchAction: "none",
         }}
       >
-        <span style={{ fontWeight: 700, fontSize: 12.5, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title}
-        </span>
-        <div className="flex gap-8 items-center" style={{ flex: "none" }} onPointerDown={(e) => e.stopPropagation()}>
-          <a className="icon-btn" href={url} target="_blank" rel="noopener noreferrer"
-            title="Open in a new tab" aria-label="Open in a new tab"
-            style={{ width: 26, height: 26, border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="file_text" size={14} />
-          </a>
-          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close"
-            style={{ width: 26, height: 26, border: "1px solid var(--line)" }}>
-            <Icon name="x" size={14} />
-          </button>
-        </div>
+        {header}
       </div>
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <iframe src={url} title={title} style={{ width: "100%", height: "100%", border: 0, background: "#525659", display: "block" }} />
-        {/* resize grip (bottom-right) */}
+        {iframeEl}
         <div
           onPointerDown={startResize}
           title="Drag to resize"
