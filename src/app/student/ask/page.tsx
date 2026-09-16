@@ -4,25 +4,35 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
-import { apiCall } from "@/lib/api";
+import { apiCall, getApiUrl } from "@/lib/api";
 import { Icon } from "@/components/propel/Icon";
 import { subjectStyle } from "@/components/propel/subjects";
+import PaperModal from "@/components/student/PaperModal";
 
+type Tier = "best" | "conceptual" | "related";
 interface Citation {
+  id?: string;
   subject?: string; year?: number | string; session?: string; paper?: string;
   variant?: string; questionNumber?: string | number; topicSyllabus?: string; topicGeneral?: string;
   preview?: string; pageImageUrl?: string;
+  // LLM-ranked match fields (Find: best / same-concept / related)
+  tier?: Tier; why?: string; reference?: string; text?: string; type?: string; level?: string;
 }
+interface Matches { best: Citation[]; conceptual: Citation[]; related: Citation[] }
 interface MarkingPoint { point: string; marks?: number }
 interface ChatMsg {
   role: "user" | "ai";
   text?: string;
   image?: string;         // data URL of an attached image (user bubble)
   citations?: Citation[];
+  matches?: Matches;      // ranked past-paper matches (new backend)
+  summary?: string;       // one-line lead for Find results
+  intent?: string;
   markingPoints?: MarkingPoint[];
   commonMistakes?: string[];
   mode?: "ask" | "find";
   error?: boolean;
+  errorText?: string;
 }
 type Mode = "ask" | "find";
 interface Session { id: string; title: string; updatedAt: string; messages: ChatMsg[] }
@@ -36,7 +46,16 @@ const DEFAULT_PROMPTS = [
 
 const MAX_STORED_SESSIONS = 10;
 
+const TIER_META: Record<Tier, { label: string; badge: string; title: string; color: string }> = {
+  best: { label: "Best match", badge: "crimson", title: "Best match", color: "var(--crimson)" },
+  conceptual: { label: "Same concept", badge: "purple", title: "Same concept, different framing", color: "var(--purple)" },
+  related: { label: "Related", badge: "neutral", title: "Related — same technique or syllabus area", color: "var(--ink-muted)" },
+};
+
+const matchCount = (m?: Matches) => (m ? (m.best?.length || 0) + (m.conceptual?.length || 0) + (m.related?.length || 0) : 0);
+
 function citationLabel(c: Citation): string {
+  if (c.reference) return c.reference;
   const parts: string[] = [];
   if (c.subject) parts.push(String(c.subject));
   const bits = [c.paper, c.variant].filter(Boolean).join("/");
@@ -67,14 +86,20 @@ function renderInline(text: string, keyPrefix = ""): ReactNode[] {
   });
 }
 
-// Block-level markdown: headings (###), bullet lists (- ), and paragraphs -
-// built for the chatbot's Ask-mode answers (worked examples + marking points).
+const isTableRow = (line: string) => /^\|.*\|$/.test(line);
+const isTableSeparator = (line: string) => /^\|(\s*:?-{2,}:?\s*\|)+$/.test(line);
+const splitCells = (line: string) => line.slice(1, -1).split("|").map((c) => c.trim());
+
+// Block-level markdown: headings (###), bullet/numbered lists, tables and
+// paragraphs — built for the chatbot's Ask-mode answers (worked examples,
+// marking points, and the occasional comparison table the model produces).
 function renderMarkdown(text: string): ReactNode[] {
   if (!text) return [];
   const lines = text.replace(/\r/g, "").split("\n");
   const nodes: ReactNode[] = [];
   let para: string[] = [];
   let bullets: string[] = [];
+  let table: string[] = [];
 
   const flushPara = () => {
     if (!para.length) return;
@@ -101,10 +126,38 @@ function renderMarkdown(text: string): ReactNode[] {
     );
     bullets = [];
   };
+  const flushTable = () => {
+    if (!table.length) return;
+    const rows = table.filter((r) => !isTableSeparator(r)).map(splitCells);
+    const [head, ...body] = rows;
+    nodes.push(
+      <div key={`t-${nodes.length}`} style={{ overflowX: "auto", margin: "0 0 12px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          {head && (
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                {head.map((h, i) => <th key={i} style={{ textAlign: "left", padding: "6px 10px", fontSize: 11.5, fontWeight: 600, color: "var(--ink-muted)", whiteSpace: "nowrap" }}>{renderInline(h, `th${i}-`)}</th>)}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {body.map((cells, r) => (
+              <tr key={r} style={{ borderBottom: "1px solid var(--line)" }}>
+                {cells.map((c, i) => <td key={i} style={{ padding: "7px 10px", verticalAlign: "top" }}>{renderInline(c, `td${r}-${i}-`)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    table = [];
+  };
 
   for (const raw of lines) {
     const line = raw.trim();
-    if (!line) { flushPara(); flushBullets(); continue; }
+    if (isTableRow(line)) { flushPara(); flushBullets(); table.push(line); continue; }
+    flushTable();
+    if (!line || line === "---") { flushPara(); flushBullets(); continue; }
 
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
@@ -113,25 +166,36 @@ function renderMarkdown(text: string): ReactNode[] {
       nodes.push(
         level <= 3 ? (
           <div key={`h-${nodes.length}`} className="eyebrow" style={{ fontSize: 12.5, color: "var(--purple)", marginTop: nodes.length ? 16 : 0, marginBottom: 8 }}>
-            {heading[2]}
+            {heading[2].replace(/\*\*/g, "")}
           </div>
         ) : (
           <div key={`h-${nodes.length}`} style={{ fontSize: 19, fontWeight: 700, color: "var(--ink)", marginTop: nodes.length ? 16 : 0, marginBottom: 6 }}>
-            {heading[2]}
+            {heading[2].replace(/\*\*/g, "")}
           </div>
         )
       );
       continue;
     }
 
-    const bullet = line.match(/^[-•*]\s+(.*)$/);
+    const bullet = line.match(/^[-•*]\s+(.*)$/) || line.match(/^(\d{1,2}[.)]\s+.*)$/);
     if (bullet) { flushPara(); bullets.push(bullet[1]); continue; }
 
     flushBullets();
     para.push(line);
   }
-  flushPara(); flushBullets();
+  flushPara(); flushBullets(); flushTable();
   return nodes;
+}
+
+// Turn a failed /rag response into a message the student can act on.
+async function describeHttpError(res: Response): Promise<string> {
+  let serverMsg = "";
+  try { const data = await res.clone().json(); if (typeof data?.error === "string") serverMsg = data.error; } catch { /* non-JSON */ }
+  if (res.status === 402) return "Ask AI is part of Pro — start your free trial to use it.";
+  if (res.status === 401) return "Your session expired — please sign in again.";
+  if (res.status === 429) return "That's a lot of questions in one minute — give it a moment and try again.";
+  if (serverMsg && serverMsg !== "pro_required") return serverMsg;
+  return res.status >= 500 ? "Ask AI hit a problem on our side. Please try again." : "Couldn't reach the AI — tap Try again.";
 }
 
 function AskAIInner() {
@@ -182,7 +246,7 @@ function AskAIInner() {
   // auto-dismiss the toast
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(""), 3400);
+    const t = setTimeout(() => setToast(""), 4200);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -215,6 +279,12 @@ function AskAIInner() {
   }, [profile?.selected_subjects]);
 
   const newChat = () => setActiveId(null);
+
+  // The index is strictly level-separated; always tell the backend which one.
+  const activeLevel = (): "olevel" | "alevel" => {
+    if (profile?.active_level === "alevel" || profile?.active_level === "olevel") return profile.active_level;
+    try { return window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel"; } catch { return "olevel"; }
+  };
 
   const send = async (text: string) => {
     const trimmed = text.trim();
@@ -253,20 +323,21 @@ function AskAIInner() {
         if (scopeSubject) fd.append("subject", scopeSubject);
         fd.append("image", image.file, image.file.name);
         const res = await apiCall("/rag/ask-image", { method: "POST", body: fd });
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) throw new Error(await describeHttpError(res));
         data = await res.json();
       } else {
         const res = await apiCall("/rag/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, limit: 5, history, mode, subject: scopeSubject || undefined, level: profile?.active_level || undefined }),
+          body: JSON.stringify({ question: trimmed, history, mode, subject: scopeSubject || undefined, level: activeLevel() }),
         });
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) throw new Error(await describeHttpError(res));
         data = await res.json();
       }
       const responseMode: Mode = data.mode === "find" ? "find" : "ask";
 
       const citations: Citation[] = (data.citations as Citation[]) || [];
+      const matches = data.matches as Matches | undefined;
       const aiMsg: ChatMsg = data.type === "smalltalk" || data.type === "image_answer"
         ? { role: "ai", text: (data.answer as string) || "" }
         : {
@@ -274,23 +345,27 @@ function AskAIInner() {
             text: (data.answer as string) || "",
             mode: responseMode,
             citations,
+            matches: matchCount(matches) ? matches : undefined,
+            summary: typeof data.summary === "string" ? data.summary : undefined,
+            intent: typeof data.intent === "string" ? data.intent : undefined,
             markingPoints: Array.isArray(data.marking_points) ? (data.marking_points as MarkingPoint[]) : undefined,
             commonMistakes: Array.isArray(data.common_mistakes) ? (data.common_mistakes as string[]) : undefined,
           };
 
       // Auto-title the session by subject/topic instead of the raw first message.
       const subj = String(scopeSubject || (data.subject as string) || citations[0]?.subject || "");
-      const topic = citations[0]?.topicSyllabus || citations[0]?.topicGeneral || "";
+      const topic = String((data.topic as string) || citations[0]?.topicSyllabus || citations[0]?.topicGeneral || "");
       const smartTitle = subj ? [subj, topic].filter(Boolean).join(" · ").slice(0, 48) : (trimmed || "Image question").slice(0, 48);
 
       persist(withUser.map((s) => s.id === sessionId
         ? { ...s, title: s.messages.length <= 1 ? smartTitle : s.title, updatedAt: new Date().toISOString(), messages: [...s.messages, aiMsg] }
         : s));
     } catch (err) {
-      setToast("Couldn't reach the AI — tap Try again.");
-      console.warn("Ask AI request failed:", err instanceof Error ? err.message : err);
+      const message = err instanceof Error && err.message ? err.message : "Couldn't reach the AI — tap Try again.";
+      setToast(message);
+      console.warn("Ask AI request failed:", message);
       persist(withUser.map((s) => s.id === sessionId
-        ? { ...s, messages: [...s.messages, { role: "ai", error: true }] }
+        ? { ...s, messages: [...s.messages, { role: "ai", error: true, errorText: message }] }
         : s));
     } finally {
       setLoading(false);
@@ -342,7 +417,7 @@ function AskAIInner() {
                     onClick={() => setMode(m)}
                     className={"btn btn-sm" + (mode === m ? " btn-primary" : "")}
                     style={mode === m ? { padding: "6px 14px" } : { padding: "6px 14px", background: "transparent", border: "none", color: "var(--ink-muted)" }}
-                    title={m === "ask" ? "Explain a concept, grounded in the papers and the web" : "Look up exactly which years/papers a topic was asked in"}
+                    title={m === "ask" ? "Explain, solve or practise — grounded in real past-paper questions" : "Find which past papers a topic or question appeared in — best, same-concept and related matches"}
                   >
                     {m === "ask" ? "Ask" : "Find"}
                   </button>
@@ -355,7 +430,11 @@ function AskAIInner() {
                 <div style={{ maxWidth: 600, margin: "24px auto", textAlign: "center" }}>
                   <div className="empty-art" style={{ background: "var(--purple-soft)", color: "var(--purple)" }}><Icon name="sparkles" size={40} stroke={1.8} /></div>
                   <h2 style={{ fontSize: 24 }}>Hey {name}, what should we tackle?</h2>
-                  <p className="muted mt-8">Ask anything — I&apos;ll explain it and show you the past-paper questions behind every answer.</p>
+                  <p className="muted mt-8">
+                    {mode === "find"
+                      ? "Type a topic or paste a question — I'll find where it appeared in past papers, ranked by how closely it matches."
+                      : "Ask anything — I'll explain it and show you the past-paper questions behind every answer."}
+                  </p>
                   <div className="grid mt-24" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", textAlign: "left" }}>
                     {promptCards.map((p, i) => {
                       const s = subjectStyle(p.subj);
@@ -371,7 +450,7 @@ function AskAIInner() {
               ) : (
                 <div className="flex-col gap-18" style={{ maxWidth: 720, margin: "0 auto" }}>
                   {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
-                  {loading && <Typing />}
+                  {loading && <Typing mode={mode} />}
                 </div>
               )}
             </div>
@@ -410,7 +489,7 @@ function AskAIInner() {
                 </button>
                 <textarea value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                  placeholder={attached ? "Add a question about the image (optional)…" : "Ask about any topic, or paste a question…"} rows={1}
+                  placeholder={attached ? "Add a question about the image (optional)…" : mode === "find" ? "Type a topic or paste a question to find where it appeared…" : "Ask about any topic, or paste a question…"} rows={1}
                   style={{ flex: 1, border: "none", background: "none", outline: "none", resize: "none", padding: "8px 6px", maxHeight: 120, fontFamily: "inherit" }} />
                 <button className="btn btn-primary" style={{ padding: 10, borderRadius: 11 }} onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
                   <Icon name="send" size={17} fill="#fff" stroke={0} />
@@ -426,7 +505,7 @@ function AskAIInner() {
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 9999,
           background: "var(--ink)", color: "var(--canvas)", padding: "10px 16px", borderRadius: 12, fontSize: 13.5,
-          boxShadow: "0 10px 30px rgba(0,0,0,.25)", display: "flex", alignItems: "center", gap: 8 }}>
+          boxShadow: "0 10px 30px rgba(0,0,0,.25)", display: "flex", alignItems: "center", gap: 8, maxWidth: "calc(100vw - 32px)" }}>
           <Icon name="alert" size={15} /> {toast}
         </div>
       )}
@@ -459,19 +538,34 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
       <div className="flex gap-12" style={{ maxWidth: "92%" }}>
         <AIAvatar />
         <div className="card card-pad" style={{ padding: 16, background: "var(--coral-soft)", border: "none" }}>
-          <div className="flex items-center gap-8" style={{ color: "var(--coral)", fontWeight: 600 }}><Icon name="zap_off" size={18} /> We couldn&apos;t reach the AI</div>
-          <p style={{ fontSize: 13.5, marginTop: 6 }}>Your connection or our model hiccuped — your question is safe. Give it another go.</p>
+          <div className="flex items-center gap-8" style={{ color: "var(--coral)", fontWeight: 600 }}><Icon name="zap_off" size={18} /> We couldn&apos;t answer that</div>
+          <p style={{ fontSize: 13.5, marginTop: 6 }}>{m.errorText || "Your connection or our model hiccuped — your question is safe. Give it another go."}</p>
           <button className="btn btn-secondary btn-sm mt-12" onClick={onRetry}><Icon name="refresh" size={15} /> Try again</button>
         </div>
       </div>
     );
   }
+  const isFind = m.mode === "find";
+  const hasMatches = matchCount(m.matches) > 0;
   return (
     <div className="flex gap-12" style={{ maxWidth: "92%" }}>
       <AIAvatar />
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div className="card card-pad" style={{ padding: 16 }}>
-          <div>{renderMarkdown(m.text || "")}</div>
+          {isFind && hasMatches ? (
+            <>
+              {m.summary && <p style={{ margin: "0 0 14px", fontSize: 14.5, lineHeight: 1.6 }}>{renderInline(m.summary)}</p>}
+              <MatchTiers matches={m.matches!} />
+            </>
+          ) : (
+            <div>{renderMarkdown(m.text || "")}</div>
+          )}
+
+          {!isFind && hasMatches && (
+            <div className="mt-16">
+              <MatchTiers matches={m.matches!} compact />
+            </div>
+          )}
 
           {m.markingPoints && m.markingPoints.length > 0 && (
             <div className="mt-16">
@@ -501,7 +595,8 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
             </div>
           )}
 
-          {m.citations && m.citations.length > 0 && (
+          {/* Legacy citations table — only for answers saved before ranked matches existed. */}
+          {!m.matches && m.citations && m.citations.length > 0 && (
             <div className="mt-16" style={{ overflowX: "auto" }}>
               <div className="eyebrow" style={{ marginBottom: 8 }}>
                 {m.mode === "find" ? `Matching questions (${m.citations.length})` : "Sources · from past papers"}
@@ -523,13 +618,7 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
                       <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.paper ?? "-"}</td>
                       <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.variant ?? "-"}</td>
                       <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{c.questionNumber ?? "-"}</td>
-                      <td style={{ padding: "8px 10px" }}>
-                        {c.pageImageUrl ? (
-                          <a href={c.pageImageUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--crimson)", textDecoration: "underline" }}>
-                            {c.preview || citationLabel(c)}
-                          </a>
-                        ) : (c.preview || citationLabel(c))}
-                      </td>
+                      <td style={{ padding: "8px 10px" }}>{c.preview || citationLabel(c)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -542,14 +631,142 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
   );
 }
 
+// Ranked past-paper matches. Full layout (Find) shows all three tiers with the
+// reason each one matched; compact (under an Ask answer) lists only the papers
+// the concept actually appeared in.
+function MatchTiers({ matches, compact }: { matches: Matches; compact?: boolean }) {
+  const tiers: Tier[] = compact ? ["best", "conceptual"] : ["best", "conceptual", "related"];
+  const shown = tiers.filter((t) => (matches[t] || []).length > 0);
+  if (!shown.length) return null;
+  return (
+    <div className="flex-col" style={{ gap: compact ? 8 : 16 }}>
+      {compact && <div className="eyebrow">Where this appears in past papers</div>}
+      {shown.map((t) => (
+        <div key={t}>
+          {!compact && (
+            <div className="eyebrow" style={{ marginBottom: 8, color: TIER_META[t].color }}>
+              {TIER_META[t].title}{t !== "best" ? ` · ${matches[t].length}` : ""}
+            </div>
+          )}
+          <div className="flex-col" style={{ gap: 8 }}>
+            {matches[t].map((c, i) => <MatchCard key={c.id || `${t}-${i}`} c={c} tier={t} compact={compact} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MatchCard({ c, tier, compact }: { c: Citation; tier: Tier; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const meta = TIER_META[tier];
+  const fullText = (c.text || "").trim();
+  const preview = c.preview || (fullText ? fullText.slice(0, 120) + (fullText.length > 120 ? "…" : "") : "");
+  const canExpand = fullText.length > 0 && fullText.length > preview.length;
+  return (
+    <div style={{
+      borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)",
+      borderLeft: `3px solid ${tier === "related" ? "var(--line-strong, var(--line))" : meta.color}`,
+      padding: compact ? "8px 10px" : "10px 12px",
+    }}>
+      <div className="flex items-center gap-8 wrap">
+        <span className={`badge ${meta.badge}`} style={{ padding: "2px 8px", fontSize: 11 }}>{meta.label}</span>
+        <span style={{ fontWeight: 700, fontSize: 13, minWidth: 0 }}>{citationLabel(c)}</span>
+        {c.type && <span className="faint" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.type}</span>}
+        <span style={{ flex: 1 }} />
+        <ViewInPaper c={c} />
+      </div>
+      {!compact && c.why && <div className="muted" style={{ fontSize: 12.5, marginTop: 5 }}>{c.why}</div>}
+      {(preview || fullText) && (
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 6, whiteSpace: open ? "pre-wrap" : undefined }}>
+          {open ? fullText : <span className="muted">“{preview}”</span>}
+          {canExpand && (
+            <button onClick={() => setOpen(!open)}
+              style={{ marginLeft: 8, border: "none", background: "none", color: "var(--crimson)", fontWeight: 600, fontSize: 12.5, cursor: "pointer", padding: 0 }}>
+              {open ? "Hide question" : "Show full question"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Opens the original past paper (jumped to the question's page) — same backend
+// lookup Practice uses; scoped to the match's level so O/A papers never mix.
+function ViewInPaper({ c }: { c: Citation }) {
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [panel, setPanel] = useState<{ url: string; title: string } | null>(null);
+  if (!(c.subject && c.year && c.session && c.paper)) return null;
+
+  const open = async () => {
+    if (state === "loading") return;
+    setState("loading");
+    try {
+      const qs = new URLSearchParams();
+      qs.set("level", c.level === "alevel" ? "alevel" : "olevel");
+      qs.set("subject", String(c.subject));
+      qs.set("year", String(c.year));
+      qs.set("session", String(c.session));
+      qs.set("paper", String(c.paper));
+      const variant = String(c.variant || "").trim();
+      if (variant) qs.set("variant", /^\d+$/.test(variant) ? `Variant_${variant}` : variant);
+      if (c.text) qs.set("text", c.text.slice(0, 400));
+      const res = await apiCall(`/papers/find-qp?${qs.toString()}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const data = (await res.json()) as { viewUrl?: string; page?: number | null; name?: string };
+      if (!data.viewUrl) throw new Error("no url");
+      setPanel({
+        url: `${getApiUrl()}${data.viewUrl}${data.page ? `#page=${data.page}` : ""}`,
+        title: `${data.name || "Past paper"}${data.page ? ` — p.${data.page}` : ""}`,
+      });
+      setState("idle");
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 2500);
+    }
+  };
+
+  return (
+    <>
+      <button onClick={open} disabled={state === "loading"}
+        title="See this question in the original past paper" aria-label="See this question in the original past paper"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5, flex: "none",
+          height: 26, padding: "0 9px", borderRadius: 999, cursor: "pointer",
+          fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", background: "var(--surface)",
+          border: "1px solid " + (state === "error" ? "var(--coral)" : "var(--line)"),
+          color: state === "error" ? "var(--coral)" : "var(--ink)",
+        }}>
+        <Icon name={state === "loading" ? "refresh" : "eye"} size={13} className={state === "loading" ? "spin" : undefined} />
+        {state === "loading" ? "Opening…" : state === "error" ? "Not found" : "View in paper"}
+      </button>
+      {panel && <PaperModal url={panel.url} title={panel.title} onClose={() => setPanel(null)} />}
+    </>
+  );
+}
+
 function AIAvatar() {
   return <div style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: "linear-gradient(140deg,var(--purple),#4b32a8)", color: "#fff" }}><Icon name="sparkles" size={17} fill="#fff" stroke={0} /></div>;
 }
-function Typing() {
+
+// Requests take a few seconds (plan → search → rank → answer); show what's happening.
+const ASK_STAGES = ["Reading your question…", "Searching past papers…", "Writing the answer…"];
+const FIND_STAGES = ["Reading your question…", "Searching past papers…", "Ranking the matches…"];
+function Typing({ mode }: { mode: Mode }) {
+  const stages = mode === "find" ? FIND_STAGES : ASK_STAGES;
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setStage((s) => Math.min(s + 1, stages.length - 1)), 3200);
+    return () => clearInterval(t);
+  }, [stages.length]);
   return (
     <div className="flex gap-12" style={{ maxWidth: 720, margin: "0 auto", width: "100%" }}><AIAvatar />
-      <div className="card card-pad" style={{ padding: "14px 16px", display: "flex", gap: 5 }}>
-        {[0, 1, 2].map((i) => <span key={i} style={{ width: 7, height: 7, borderRadius: 5, background: "var(--ink-faint)", animation: `floaty 1s ease-in-out ${i * 0.15}s infinite` }} />)}
+      <div className="card card-pad" style={{ padding: "14px 16px", display: "flex", gap: 10, alignItems: "center" }}>
+        <span style={{ display: "flex", gap: 5 }}>
+          {[0, 1, 2].map((i) => <span key={i} style={{ width: 7, height: 7, borderRadius: 5, background: "var(--ink-faint)", animation: `floaty 1s ease-in-out ${i * 0.15}s infinite` }} />)}
+        </span>
+        <span className="muted" style={{ fontSize: 12.5 }}>{stages[stage]}</span>
       </div>
     </div>
   );
