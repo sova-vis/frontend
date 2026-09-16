@@ -26,6 +26,8 @@ interface ChatMsg {
   image?: string;         // data URL of an attached image (user bubble)
   citations?: Citation[];
   matches?: Matches;      // ranked past-paper matches (new backend)
+  tierTitles?: Partial<Record<Tier, string>>;  // section titles (topic vs question search)
+  tierLabels?: Partial<Record<Tier, string>>;  // badge labels
   summary?: string;       // one-line lead for Find results
   intent?: string;
   markingPoints?: MarkingPoint[];
@@ -346,6 +348,8 @@ function AskAIInner() {
             mode: responseMode,
             citations,
             matches: matchCount(matches) ? matches : undefined,
+            tierTitles: data.tierTitles && typeof data.tierTitles === "object" ? (data.tierTitles as Partial<Record<Tier, string>>) : undefined,
+            tierLabels: data.tierLabels && typeof data.tierLabels === "object" ? (data.tierLabels as Partial<Record<Tier, string>>) : undefined,
             summary: typeof data.summary === "string" ? data.summary : undefined,
             intent: typeof data.intent === "string" ? data.intent : undefined,
             markingPoints: Array.isArray(data.marking_points) ? (data.marking_points as MarkingPoint[]) : undefined,
@@ -555,7 +559,7 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
           {isFind && hasMatches ? (
             <>
               {m.summary && <p style={{ margin: "0 0 14px", fontSize: 14.5, lineHeight: 1.6 }}>{renderInline(m.summary)}</p>}
-              <MatchTiers matches={m.matches!} />
+              <MatchTiers matches={m.matches!} titles={m.tierTitles} labels={m.tierLabels} />
             </>
           ) : (
             <div>{renderMarkdown(m.text || "")}</div>
@@ -563,7 +567,7 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
 
           {!isFind && hasMatches && (
             <div className="mt-16">
-              <MatchTiers matches={m.matches!} compact />
+              <MatchTiers matches={m.matches!} titles={m.tierTitles} labels={m.tierLabels} compact />
             </div>
           )}
 
@@ -634,7 +638,9 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
 // Ranked past-paper matches. Full layout (Find) shows all three tiers with the
 // reason each one matched; compact (under an Ask answer) lists only the papers
 // the concept actually appeared in.
-function MatchTiers({ matches, compact }: { matches: Matches; compact?: boolean }) {
+function MatchTiers({ matches, titles, labels, compact }: {
+  matches: Matches; titles?: Partial<Record<Tier, string>>; labels?: Partial<Record<Tier, string>>; compact?: boolean;
+}) {
   const tiers: Tier[] = compact ? ["best", "conceptual"] : ["best", "conceptual", "related"];
   const shown = tiers.filter((t) => (matches[t] || []).length > 0);
   if (!shown.length) return null;
@@ -645,11 +651,11 @@ function MatchTiers({ matches, compact }: { matches: Matches; compact?: boolean 
         <div key={t}>
           {!compact && (
             <div className="eyebrow" style={{ marginBottom: 8, color: TIER_META[t].color }}>
-              {TIER_META[t].title}{t !== "best" ? ` · ${matches[t].length}` : ""}
+              {titles?.[t] || TIER_META[t].title} · {matches[t].length}
             </div>
           )}
           <div className="flex-col" style={{ gap: 8 }}>
-            {matches[t].map((c, i) => <MatchCard key={c.id || `${t}-${i}`} c={c} tier={t} compact={compact} />)}
+            {matches[t].map((c, i) => <MatchCard key={c.id || `${t}-${i}`} c={c} tier={t} label={labels?.[t]} compact={compact} />)}
           </div>
         </div>
       ))}
@@ -657,7 +663,7 @@ function MatchTiers({ matches, compact }: { matches: Matches; compact?: boolean 
   );
 }
 
-function MatchCard({ c, tier, compact }: { c: Citation; tier: Tier; compact?: boolean }) {
+function MatchCard({ c, tier, label, compact }: { c: Citation; tier: Tier; label?: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const meta = TIER_META[tier];
   const fullText = (c.text || "").trim();
@@ -670,7 +676,7 @@ function MatchCard({ c, tier, compact }: { c: Citation; tier: Tier; compact?: bo
       padding: compact ? "8px 10px" : "10px 12px",
     }}>
       <div className="flex items-center gap-8 wrap">
-        <span className={`badge ${meta.badge}`} style={{ padding: "2px 8px", fontSize: 11 }}>{meta.label}</span>
+        <span className={`badge ${meta.badge}`} style={{ padding: "2px 8px", fontSize: 11 }}>{label || meta.label}</span>
         <span style={{ fontWeight: 700, fontSize: 13, minWidth: 0 }}>{citationLabel(c)}</span>
         {c.type && <span className="faint" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.type}</span>}
         <span style={{ flex: 1 }} />
