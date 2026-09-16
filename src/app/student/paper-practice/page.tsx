@@ -101,6 +101,11 @@ const preferredSubjects = ["Physics", "Chemistry", "Mathematics"];
 const paperLevelParam = () =>
   typeof window !== "undefined" && window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel";
 const TOPIC_PAGE = 24;
+// "How many to solve" presets for topic drills — the student caps the set instead
+// of always paging through everything. All values stay <= the API's limit cap (60)
+// so a chosen count loads in a single request; "all" keeps the load-more paging.
+const TOPIC_COUNTS = [5, 10, 15, 20, 30, 50] as const;
+type TopicCount = (typeof TOPIC_COUNTS)[number] | "all";
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -877,6 +882,32 @@ function QuestionUploadBox({ busy, graded, onFile }: { busy: boolean; graded: bo
   );
 }
 
+/* ---- MCQ check controls: "Check answered" (attempted only) + "Check all" ----
+   "Check answered" is offered only when it would differ from "Check all" (some, but
+   not all, questions attempted); otherwise a single "Check" button covers it. */
+function CheckControls({ total, answered, onCheck, size = "md" }: {
+  total: number; answered: number; onCheck: (scope: "all" | "answered") => void; size?: "sm" | "md";
+}) {
+  if (total === 0) return null;
+  const cls = size === "sm" ? "btn btn-sm" : "btn";
+  const iconSize = size === "sm" ? 14 : 16;
+  const showAnswered = answered > 0 && answered < total;
+  return (
+    <>
+      {showAnswered && (
+        <button onClick={() => onCheck("answered")} className={`${cls} btn-secondary`}
+          title="Mark only the questions you've answered — the rest stay open so you can keep going">
+          <Icon name="check_circle" size={iconSize} /> Check answered ({answered})
+        </button>
+      )}
+      <button onClick={() => onCheck("all")} className={`${cls} btn-primary`}
+        title="Mark every question, revealing the correct answer for any you skipped">
+        <Icon name="check_circle" size={iconSize} /> {showAnswered ? `Check all (${total})` : size === "sm" ? `Check (${total})` : "Check"}
+      </button>
+    </>
+  );
+}
+
 const selectStyle: React.CSSProperties = {
   height: 42, width: "100%", borderRadius: 12, border: "1px solid var(--line-strong)", background: "var(--surface)",
   padding: "0 12px", fontSize: 13.5, fontWeight: 500, color: "var(--ink)", outline: "none",
@@ -976,6 +1007,8 @@ function PracticeInner() {
   const tokenRef = useRef<string | null>(null);
 
   const [selectedTopic, setSelectedTopic] = useState(savedView?.topic || "");
+  // How many topic questions to load ("all" = page through them all, as before).
+  const [topicCount, setTopicCount] = useState<TopicCount>("all");
   const [selectedYear, setSelectedYear] = useState(savedView?.year || "");
   const [papers, setPapers] = useState<AvailablePaper[]>([]);
   const [selectedPaperKey, setSelectedPaperKey] = useState(savedView?.paperKey || "");
@@ -1005,8 +1038,11 @@ function PracticeInner() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [checked, setChecked] = useState(false);
-  const checkedLoggedRef = useRef(false); // ensures MCQ attempts log once per check
+  // MCQ checking is now per-question: "Check all" adds every MCQ, "Check answered"
+  // adds only the ones the student has attempted (so unanswered stay unrevealed and
+  // still editable). A question is "checked" iff its id is in this set.
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const loggedIdsRef = useRef<Set<string>>(new Set()); // MCQ attempts log once per question
   const [showScheme, setShowScheme] = useState(false);
 
   const [subjTick, setSubjTick] = useState(0); // bumped when the student edits their subjects
@@ -1097,8 +1133,8 @@ function PracticeInner() {
     setQuestions([]);
     setMcqAnswers({});
     setPartAnswers({});
-    setChecked(false);
-    checkedLoggedRef.current = false;
+    setCheckedIds(new Set());
+    loggedIdsRef.current = new Set();
     setShowScheme(false);
     // reset the per-paper session shell; the restore effect re-hydrates it
     setSolveMode("digital");
@@ -1143,7 +1179,7 @@ function PracticeInner() {
       clearQuestions();
       setTopicTotal(0);
       try {
-        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(TOPIC_PAGE), offset: "0", level: paperLevelParam() });
+        const params = new URLSearchParams({ subject: selectedSubject, type: questionType, topic: selectedTopic, mode: "topic", limit: String(topicCount === "all" ? TOPIC_PAGE : topicCount), offset: "0", level: paperLevelParam() });
         const response = await fetch(`/api/paper-practice?${params.toString()}`);
         if (!response.ok) throw new Error("Could not load topic questions.");
         const data = (await response.json()) as { questions: PracticeQuestion[]; total: number };
@@ -1155,7 +1191,7 @@ function PracticeInner() {
       }
     })();
     return () => { mounted = false; };
-  }, [practiceMode, selectedSubject, questionType, selectedTopic]);
+  }, [practiceMode, selectedSubject, questionType, selectedTopic, topicCount]);
 
   async function loadMoreTopic() {
     setLoadingMore(true);
@@ -1316,7 +1352,11 @@ function PracticeInner() {
   }, [questions, query, practiceMode]);
 
   const gradable = displayQuestions.filter((q) => q.type === "mcq" && q.correctOption);
-  const score = gradable.filter((q) => mcqAnswers[q.id] === q.correctOption).length;
+  const gradableAnswered = gradable.filter((q) => Boolean(mcqAnswers[q.id]?.trim()));
+  // "checked" (any MCQ revealed yet) gates the header score, scheme unlock, etc.
+  const checked = checkedIds.size > 0;
+  const checkedGradable = gradable.filter((q) => checkedIds.has(q.id));
+  const score = checkedGradable.filter((q) => mcqAnswers[q.id] === q.correctOption).length;
   const answeredCount = displayQuestions.filter((q) =>
     q.type === "mcq"
       ? Boolean(mcqAnswers[q.id]?.trim())
@@ -1329,7 +1369,7 @@ function PracticeInner() {
   const headerAnswered = reportStats ? reportStats.answered : solveMode === "handwritten" ? "—" : answeredCount;
   const headerScore = reportStats
     ? `${reportStats.earned}/${reportStats.max}`
-    : questionType === "mcq" && checked ? `${score}/${gradable.length}` : "—";
+    : questionType === "mcq" && checked ? `${score}/${checkedGradable.length}` : "—";
 
   const ready = practiceMode === "topic" ? Boolean(selectedSubject && selectedTopic) : Boolean(selectedSubject && selectedPaperKey);
   const selectedPaper = papers.find((p) => p.key === selectedPaperKey) ?? null;
@@ -1636,15 +1676,25 @@ function PracticeInner() {
   function handleTypeChange(type: QuestionType) { setQuestionType(type); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function handleModeChange(mode: PracticeMode) { setPracticeMode(mode); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
   function resetFilters() { setSelectedSubject(""); setQuestionType(""); setSelectedTopic(""); setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions(); }
-  // "Check" MCQs and log each as an attempt (Phase 1 backbone) — once per check
-  function checkMcqs() {
-    setChecked(true);
-    if (checkedLoggedRef.current) return;
-    checkedLoggedRef.current = true;
-    const records = displayQuestions
-      .filter((q) => q.type === "mcq" && q.correctOption)
-      .map((q) => attemptFromMcq(q, mcqAnswers[q.id], q.correctOption, mcqAnswerExtra(q, mcqAnswers[q.id], q.correctOption)));
-    void logAttempts(records, getToken);
+  // "Check" MCQs and log each as an attempt (Phase 1 backbone). Scope "all" reveals
+  // every MCQ (unanswered included); "answered" reveals only the attempted ones and
+  // leaves the rest editable. Each question logs its attempt at most once.
+  function checkMcqs(scope: "all" | "answered") {
+    const targets = displayQuestions.filter(
+      (q) => q.type === "mcq" && q.correctOption && (scope === "all" || Boolean(mcqAnswers[q.id]?.trim())),
+    );
+    if (targets.length === 0) return;
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      for (const q of targets) next.add(q.id);
+      return next;
+    });
+    const toLog = targets.filter((q) => !loggedIdsRef.current.has(q.id));
+    for (const q of toLog) loggedIdsRef.current.add(q.id);
+    if (toLog.length > 0) {
+      const records = toLog.map((q) => attemptFromMcq(q, mcqAnswers[q.id], q.correctOption, mcqAnswerExtra(q, mcqAnswers[q.id], q.correctOption)));
+      void logAttempts(records, getToken);
+    }
   }
   // one-click jump into a subject/type/mode, so the blank state isn't a dead end
   function quickStart(subject: string, type: QuestionType, mode: PracticeMode) {
@@ -1662,7 +1712,7 @@ function PracticeInner() {
   function resetPractice() {
     const wipesSaved = practiceMode === "paper" && currentPaperKey && hasRowRef.current;
     if (wipesSaved && !window.confirm("Clear your answers and saved progress for this paper?")) return;
-    setMcqAnswers({}); setPartAnswers({}); setChecked(false); setShowScheme(false);
+    setMcqAnswers({}); setPartAnswers({}); setCheckedIds(new Set()); loggedIdsRef.current = new Set(); setShowScheme(false);
     if (practiceMode === "paper" && currentPaperKey) {
       setPaperStatus("in_progress");
       setTimerDuration(paperDurationSeconds(selectedSubject, selectedPaper?.paper ?? "", selectedPaper?.isMcq ?? false));
@@ -2006,13 +2056,29 @@ function PracticeInner() {
               <div className="flex gap-12 wrap items-end">
                 {/* Mode-specific selectors */}
                 {practiceMode === "topic" ? (
-                  <label style={{ flex: "1 1 240px", minWidth: 200 }}>
-                    <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
-                    <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || !questionType || loadingQuestions} style={selectStyle}>
-                      <option value="">{!currentSubject ? "Select a subject first" : !questionType ? "Choose a question type first" : "Select a topic"}</option>
-                      {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
-                    </select>
-                  </label>
+                  <>
+                    <label style={{ flex: "1 1 240px", minWidth: 200 }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
+                      <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || !questionType || loadingQuestions} style={selectStyle}>
+                        <option value="">{!currentSubject ? "Select a subject first" : !questionType ? "Choose a question type first" : "Select a topic"}</option>
+                        {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
+                      </select>
+                    </label>
+                    {/* how many to solve — applies to both Questions and MCQs topic drills */}
+                    <label style={{ flex: "0 0 150px" }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>How many</span>
+                      <select
+                        value={String(topicCount)}
+                        onChange={(e) => setTopicCount(e.target.value === "all" ? "all" : (Number(e.target.value) as TopicCount))}
+                        disabled={!currentSubject || !questionType || loadingQuestions}
+                        style={selectStyle}
+                        title="How many questions to load for this topic"
+                      >
+                        {TOPIC_COUNTS.map((n) => <option key={n} value={n}>{n} questions</option>)}
+                        <option value="all">All questions</option>
+                      </select>
+                    </label>
+                  </>
                 ) : (
                   <>
                     <label style={{ flex: "0 0 130px" }}>
@@ -2062,9 +2128,7 @@ function PracticeInner() {
                         options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
                     )}
                     {questionType === "mcq" && (
-                      <button onClick={checkMcqs} disabled={gradable.length === 0} className="btn btn-primary">
-                        <Icon name="check_circle" size={16} /> Check
-                      </button>
+                      <CheckControls total={gradable.length} answered={gradableAnswered.length} onCheck={checkMcqs} />
                     )}
                     <button onClick={resetPractice} className="icon-btn" title="Reset answers" style={{ border: "1px solid var(--line-strong)" }}>
                       <Icon name="rotate" size={17} />
@@ -2152,9 +2216,7 @@ function PracticeInner() {
             </div>
             <div className="flex gap-8 wrap items-center">
               {questionType === "mcq" && (
-                <button onClick={checkMcqs} disabled={gradable.length === 0} className="btn btn-primary btn-sm">
-                  <Icon name="check_circle" size={14} /> Check {gradable.length > 0 ? `(${gradable.length})` : ""}
-                </button>
+                <CheckControls total={gradable.length} answered={gradableAnswered.length} onCheck={checkMcqs} size="sm" />
               )}
               {hasScheme && schemesUnlockable && (
                 <button onClick={() => setShowScheme((v) => !v)} className={"btn btn-sm " + (showScheme ? "btn-soft" : "btn-secondary")}>
@@ -2204,7 +2266,7 @@ function PracticeInner() {
               {displayQuestions.map((question) => (
                 <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
                   onDeleted={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
-                  mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checked} showScheme={showScheme}
+                  mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checkedIds.has(question.id)} showScheme={showScheme}
                   readOnly={practiceMode === "paper" && solveMode === "handwritten"}
                   onMcqAnswer={(value) => { interactedRef.current = true; markTouched(question.id); setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
                   onPartAnswer={(partKey, value) => { interactedRef.current = true; markTouched(question.id); setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
@@ -2220,9 +2282,16 @@ function PracticeInner() {
                   onToggleCollapsed={() => toggleQuestionOpen(question)} />
               ))}
 
-              {practiceMode === "topic" && questions.length < topicTotal && !query.trim() && (
+              {/* paging only in "All" mode — a chosen count loads exactly that many */}
+              {practiceMode === "topic" && topicCount === "all" && questions.length < topicTotal && !query.trim() && (
                 <button onClick={loadMoreTopic} disabled={loadingMore} className="btn btn-secondary btn-block" style={{ height: 48 }}>
                   {loadingMore ? <><Icon name="refresh" size={16} className="spin" /> Loading…</> : `Load more (${questions.length} of ${topicTotal})`}
+                </button>
+              )}
+              {/* chose a fixed count and more exist — offer to widen the set */}
+              {practiceMode === "topic" && topicCount !== "all" && questions.length < topicTotal && !query.trim() && (
+                <button onClick={() => setTopicCount("all")} className="btn btn-ghost btn-block" style={{ height: 44 }}>
+                  <Icon name="layers" size={15} /> Showing {questions.length} of {topicTotal} — load all for this topic
                 </button>
               )}
             </div>
