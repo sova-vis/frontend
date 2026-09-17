@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LegalShell, LegalSection, LegalList } from "@/components/legal/LegalShell";
+import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
   title: "Ownership Statement — Propel Cambridge",
-  description:
-    "Ownership and operation of propelcambridge.com and the Propel AI assessment platform.",
+  description: "Ownership and operation of Propel.",
 };
 
 const UPDATED = "17 September 2026";
@@ -15,11 +14,11 @@ export default function OwnershipPage() {
     <LegalShell
       title="Ownership Statement"
       updated={UPDATED}
-      intro="This statement confirms who owns and operates this website and the Propel service."
+      intro="This statement confirms who owns and operates this website and service."
     >
       <LegalSection heading="1. Owner and operator">
         <p>
-          The website <strong>propelcambridge.com</strong> and the Propel platform are owned and operated by{" "}
+          The website <strong>propelcambridge.com</strong> and the Propel service are owned and operated by{" "}
           <strong>Propel Cambridge</strong>, based in Pakistan. Propel Cambridge is the provider of the service and the
           recipient of any subscription payments made through this website.
         </p>
@@ -27,38 +26,32 @@ export default function OwnershipPage() {
 
       <LegalSection heading="2. Nature of the business">
         <p>
-          Propel Cambridge provides a subscription-based educational technology service: an AI-powered assessment and
-          revision platform for Cambridge O Level and A Level students. Subscriptions are billed in Pakistani Rupees
-          (PKR), and payments are processed securely by our payment partner, Safepay. Propel Cambridge does not store
-          customers’ card details.
+          Propel Cambridge provides a subscription-based online assessment and revision platform for Cambridge O Level
+          and A Level students. Subscriptions are billed in Pakistani Rupees (PKR).
         </p>
       </LegalSection>
 
-      <LegalSection heading="3. Ownership of content and brand">
-        <LegalList
-          items={[
-            <>The Propel software, website, user interface, and the “Propel” and “Propel Cambridge” names and logo are the property of Propel Cambridge.</>,
-            "Past-paper questions and mark schemes remain the property of their respective examination boards and are used for educational purposes only.",
-            "Users retain ownership of the answers and study content they create on the platform.",
-          ]}
-        />
+      <LegalSection heading="3. Ownership of content">
+        <p>
+          The Propel software, brand, and website are the property of Propel Cambridge. Past-paper questions remain the
+          property of their respective examination boards, and users keep ownership of their own answers.
+        </p>
       </LegalSection>
 
       <LegalSection heading="4. Independence from Cambridge">
         <p>
-          Propel Cambridge is an independent business and is <strong>not affiliated with, endorsed by, or connected to</strong>{" "}
-          Cambridge Assessment International Education (CAIE), the University of Cambridge, or any examination board. Any
-          reference to “Cambridge”, “O Level”, or “A Level” describes only the syllabuses the platform supports.
+          Propel Cambridge is independent and is <strong>not affiliated with or endorsed by</strong> Cambridge
+          Assessment International Education or any examination board.
         </p>
       </LegalSection>
 
       <LegalSection heading="5. Contact">
         <p>
-          For any question about ownership, this website, or the business, contact Propel Cambridge at{" "}
+          Contact us at{" "}
           <a href="mailto:sovavis2025@gmail.com" className="font-medium text-crimson hover:underline">
             sovavis2025@gmail.com
           </a>{" "}
-          or on Instagram{" "}
+          or{" "}
           <a
             href="https://www.instagram.com/propelcambridge/"
             target="_blank"
@@ -70,14 +63,10 @@ export default function OwnershipPage() {
           . See also our{" "}
           <Link href="/privacy-policy" className="font-medium text-crimson hover:underline">
             Privacy Policy
-          </Link>
-          ,{" "}
+          </Link>{" "}
+          and{" "}
           <Link href="/terms" className="font-medium text-crimson hover:underline">
             Terms &amp; Conditions
-          </Link>
-          , and{" "}
-          <Link href="/refund-policy" className="font-medium text-crimson hover:underline">
-            Cancellation &amp; Refund Policy
           </Link>
           .
         </p>
