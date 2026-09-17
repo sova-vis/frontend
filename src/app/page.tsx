@@ -61,7 +61,6 @@ function HomePageContent() {
   const [authOpen, setAuthOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | "cookies" | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
@@ -155,33 +154,6 @@ function HomePageContent() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const policyContent: Record<"privacy" | "terms" | "cookies", { title: string; body: string[] }> = {
-    privacy: {
-      title: "Privacy Policy",
-      body: [
-        "We collect only the information needed to provide learning features such as progress tracking, question answering, and account personalization.",
-        "Your profile and learning data are used to improve your study experience and are not sold to third parties.",
-        "If you need data access, correction, or deletion requests, contact us at sovavis2025@gmailcom.",
-      ],
-    },
-    terms: {
-      title: "Terms of Service",
-      body: [
-        "This platform is intended for educational support and exam preparation.",
-        "Users must avoid abuse, unauthorized access attempts, and content misuse.",
-        "Service features may evolve over time, and continued use means acceptance of updated terms.",
-      ],
-    },
-    cookies: {
-      title: "Cookie Policy",
-      body: [
-        "We use essential cookies and local storage to keep sessions stable and improve platform usability.",
-        "Performance and preference data may be stored to enhance speed, personalization, and reliability.",
-        "By using this website, you agree to this cookie usage for core platform functionality.",
-      ],
-    },
-  };
 
   // The four claims Propel leads with — assessment, not tutoring (brand book p4).
   const features = [
@@ -591,11 +563,14 @@ function HomePageContent() {
               </ul>
             </div>
 
-            {/* Resources */}
+            {/* Legal — distinct pages for payment-processor verification */}
             <div>
-              <h3 className="text-base font-bold mb-4 text-white">Resources</h3>
+              <h3 className="text-base font-bold mb-4 text-white">Legal</h3>
               <ul className="space-y-2.5 text-white/60 text-sm md:text-[15px]">
-                <li><Link href="/past-papers" className="hover:text-pink transition-colors">Past Papers</Link></li>
+                <li><Link href="/privacy-policy" className="hover:text-pink transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-pink transition-colors">Terms &amp; Conditions</Link></li>
+                <li><Link href="/refund-policy" className="hover:text-pink transition-colors">Cancellation &amp; Refund Policy</Link></li>
+                <li><Link href="/ownership" className="hover:text-pink transition-colors">Ownership Statement</Link></li>
               </ul>
             </div>
 
@@ -617,46 +592,16 @@ function HomePageContent() {
           </div>
 
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-white/40 text-sm">&copy; 2026 Propel. All rights reserved.</p>
+            <p className="text-white/40 text-sm">&copy; 2026 Propel Cambridge. All rights reserved.</p>
             <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6 text-sm text-white/40">
-              <button onClick={() => setPolicyModal("privacy")} className="hover:text-pink transition-colors">Privacy Policy</button>
-              <button onClick={() => setPolicyModal("terms")} className="hover:text-pink transition-colors">Terms of Service</button>
-              <button onClick={() => setPolicyModal("cookies")} className="hover:text-pink transition-colors">Cookie Policy</button>
+              <Link href="/privacy-policy" className="hover:text-pink transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-pink transition-colors">Terms &amp; Conditions</Link>
+              <Link href="/refund-policy" className="hover:text-pink transition-colors">Refund Policy</Link>
+              <Link href="/ownership" className="hover:text-pink transition-colors">Ownership</Link>
             </div>
           </div>
         </div>
       </footer>
-
-      {policyModal && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-          onClick={() => setPolicyModal(null)}
-        >
-          <div
-            className="relative w-full max-w-2xl rounded-[1.5rem] border border-line bg-surface shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setPolicyModal(null)}
-              className="absolute right-4 top-4 rounded-full p-2 text-ink-muted hover:bg-surface-soft hover:text-crimson"
-              aria-label="Close policy modal"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="px-6 py-6 md:px-8 md:py-8">
-              <h3 className="font-display text-2xl font-semibold text-crimson mb-4">
-                {policyContent[policyModal].title}
-              </h3>
-              <div className="space-y-3 text-ink-muted leading-relaxed">
-                {policyContent[policyModal].body.map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
