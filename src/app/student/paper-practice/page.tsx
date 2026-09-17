@@ -1047,11 +1047,29 @@ function PracticeInner() {
 
   const [subjTick, setSubjTick] = useState(0); // bumped when the student edits their subjects
   const [selectedCount, setSelectedCount] = useState(0);
+  // Active O/A level for the header label. Mirrors localStorage and updates on the
+  // same event the navbar level toggle fires (which also reloads the subject list).
+  const [paperLevel, setPaperLevel] = useState<"olevel" | "alevel">(paperLevelParam);
+  const prevLevelRef = useRef<string | null>(null);
   useEffect(() => {
-    const onChange = () => { setSubjTick((t) => t + 1); setSelectedCount(loadSelectedSubjects().length); };
+    const onChange = () => {
+      setSubjTick((t) => t + 1);
+      setSelectedCount(loadSelectedSubjects().length);
+      const lvl = paperLevelParam();
+      setPaperLevel(lvl);
+      // When the level actually changes (not on first mount, and not when the
+      // student merely edits subjects at the same level), clear the selection so
+      // the header label never sits above questions from the other level.
+      if (prevLevelRef.current !== null && prevLevelRef.current !== lvl) {
+        setSelectedSubject(""); setQuestionType(""); setSelectedTopic("");
+        setSelectedYear(""); setSelectedPaperKey(""); setQuery(""); clearQuestions();
+      }
+      prevLevelRef.current = lvl;
+    };
     onChange();
     window.addEventListener("propel:selected-subjects-change", onChange);
     return () => window.removeEventListener("propel:selected-subjects-change", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- subjects metadata (cached for instant paint, then revalidated) ----
@@ -1959,7 +1977,7 @@ function PracticeInner() {
         {/* Header */}
         <div className="row-between wrap" style={{ gap: 14, alignItems: "flex-end" }}>
           <div>
-            <div className="eyebrow" style={{ marginBottom: 12 }}>O-Level question bank</div>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>{paperLevel === "alevel" ? "A-Level" : "O-Level"} question bank</div>
             <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Practice</h1>
             <p className="muted mt-6" style={{ maxWidth: 560 }}>
               Drill every unique question across all years by topic, or load a complete past paper exactly as it was sat.
