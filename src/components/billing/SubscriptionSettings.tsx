@@ -22,7 +22,8 @@ export default function SubscriptionSettings() {
   };
 
   const d = daysLeft ?? 0;
-  const plan = data?.plan ? ` (${data.plan})` : '';
+  // 'manual' is an internal plan id — don't surface it as "(manual)".
+  const plan = data?.plan && data.plan !== 'manual' ? ` (${data.plan})` : '';
   let title = 'Free plan';
   let sub = 'Past papers are always free.';
   let pill = { label: 'Free', cls: 'ed-pill' };

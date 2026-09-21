@@ -34,6 +34,7 @@ interface ProContextValue {
   trialAvailable: boolean;
   daysLeft: number | null;
   status: string;
+  paymentsMode: 'manual' | 'safepay';
   refresh: () => Promise<void>;
   startTrialFlow: () => Promise<StartTrialResult | null>;
   // Upgrade modal control (owned here so any component / the 402 catcher can open it)
@@ -50,6 +51,7 @@ const ProContext = createContext<ProContextValue>({
   trialAvailable: false,
   daysLeft: null,
   status: 'free',
+  paymentsMode: 'manual',
   refresh: async () => {},
   startTrialFlow: async () => null,
   upgradeOpen: false,
@@ -123,6 +125,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       trialAvailable: data?.trialAvailable ?? false,
       daysLeft: data?.daysLeft ?? null,
       status: data?.status ?? 'free',
+      paymentsMode: data?.paymentsMode ?? 'manual',
       refresh,
       startTrialFlow,
       upgradeOpen,

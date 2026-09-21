@@ -10,11 +10,13 @@
  * checkout call returns a friendly "coming soon" message shown inline.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePro } from '@/lib/usePro';
 import { startCheckout } from '@/lib/billing';
 
 export default function UpgradeModal() {
-  const { upgradeOpen, closeUpgrade, trialAvailable, data, startTrialFlow } = usePro();
+  const router = useRouter();
+  const { upgradeOpen, closeUpgrade, trialAvailable, data, startTrialFlow, paymentsMode } = usePro();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -58,6 +60,12 @@ export default function UpgradeModal() {
   };
 
   const onContinueToPro = async () => {
+    // Manual mode (Safepay keys pending): send them to the secure QR payment page.
+    if (paymentsMode !== 'safepay') {
+      closeUpgrade();
+      router.push('/student/upgrade');
+      return;
+    }
     setBusy(true);
     setMessage(null);
     const result = await startCheckout('monthly');

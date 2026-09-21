@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Shield, Check, AlertCircle, LogOut, Users, UserCog } from "lucide-react";
+import { UserPlus, Shield, Check, AlertCircle, LogOut, UserCog } from "lucide-react";
 import {
   AdminUserRecord,
   MentoringMeeting,
@@ -16,9 +16,12 @@ import { useAuth } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Reveal } from "@/components/ui/Motion";
+import ProRequestsTab from "@/components/admin/ProRequestsTab";
+import PaymentsTab from "@/components/admin/PaymentsTab";
+import UsersBillingTab from "@/components/admin/UsersBillingTab";
 
 export default function AdminDashboard() {
-  type AdminView = "overview" | "teacher-accounts" | "users" | "meetings";
+  type AdminView = "overview" | "teacher-accounts" | "users" | "pro-requests" | "payments" | "meetings";
   const { getToken } = useAuth();
   const { signOut } = useClerkAuth();
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
@@ -228,7 +231,29 @@ export default function AdminDashboard() {
                   : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
               }`}
             >
-              Users
+              Users &amp; Plans
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("pro-requests")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "pro-requests"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
+              }`}
+            >
+              Pro Requests
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("payments")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${
+                activeView === "payments"
+                  ? "bg-ink text-paper border-ink"
+                  : "bg-surface text-ink-muted border-line hover:bg-surface-soft"
+              }`}
+            >
+              Payments &amp; QR
             </button>
             <button
               type="button"
@@ -479,53 +504,9 @@ export default function AdminDashboard() {
           </section>
         </div></Reveal>}
 
-        {activeView === "users" && <Reveal><section className="ed-card p-6">
-          <div>
-            <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1 inline-flex items-center gap-2"><Users size={18} /> Students</h3>
-            <p className="text-sm text-ink-muted mb-4">Student records only.</p>
-            {loadingData ? (
-              <p className="text-sm text-ink-muted">Loading students...</p>
-            ) : (
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto custom-scrollbar">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b border-line text-ink-faint">
-                      <th className="py-2 pr-3">Name</th>
-                      <th className="py-2 pr-3">Email</th>
-                      <th className="py-2 pr-3">Role</th>
-                      <th className="py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.map((user) => (
-                      <tr key={String(user.clerk_id || user.email || Math.random())} className="border-b border-line hover:bg-surface-soft">
-                        <td className="py-2 pr-3 text-ink">{String(user.full_name || "Student")}</td>
-                        <td className="py-2 pr-3 text-ink-muted">{String(user.email || "-")}</td>
-                        <td className="py-2 pr-3">
-                          <span className="ed-pill-crimson">
-                            student
-                          </span>
-                        </td>
-                        <td className="py-2">
-                          {user.onboarding_complete ? (
-                            <span className="ed-pill-mint">Onboarded</span>
-                          ) : (
-                            <span className="ed-pill-gold">Pending</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {students.length === 0 && (
-                      <tr>
-                        <td className="py-3 text-ink-muted" colSpan={4}>No students found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section></Reveal>}
+        {activeView === "users" && <Reveal><UsersBillingTab /></Reveal>}
+        {activeView === "pro-requests" && <Reveal><ProRequestsTab /></Reveal>}
+        {activeView === "payments" && <Reveal><PaymentsTab /></Reveal>}
 
         {activeView === "meetings" && <Reveal><section className="ed-card p-6">
           <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-1">All Meeting Records</h3>

@@ -17,7 +17,67 @@ export interface BillingStatus {
   trialEndsAt: string | null;
   trialDays: number;
   graceDays: number;
+  paymentsMode?: 'manual' | 'safepay';   // 'manual' hides Safepay, uses the QR flow
   price: { monthlyPkr: number; annualPkr: number | null };
+}
+
+/* ---- Manual payment flow (while Safepay live keys are pending) ---- */
+export interface PayInfo {
+  mode: 'manual' | 'safepay';
+  amountPkr: number;
+  qr: string | null;                 // base64 data URL of the QR to scan
+  configured: boolean;               // false → admin hasn't uploaded a QR yet
+  payee: { name: string | null; accountNumber: string | null; bankName: string | null; instructions: string | null };
+  promo: { applied: boolean; code: string; label: string | null; note: string | null } | null;
+}
+
+export interface ProRequest {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  cardholder_name: string | null;
+  promo_code: string | null;
+  amount_pkr: number | null;
+  created_at: string;
+}
+
+export async function fetchPayInfo(promo?: string): Promise<PayInfo | null> {
+  try {
+    const qs = promo ? `?promo=${encodeURIComponent(promo)}` : '';
+    const res = await apiCall(`/billing/pay-info${qs}`);
+    if (!res.ok) return null;
+    return (await res.json()) as PayInfo;
+  } catch {
+    return null;
+  }
+}
+
+export async function submitProRequest(body: { name: string; phone: string; cardholderName: string; promoCode?: string }): Promise<{ ok: boolean; request?: ProRequest; message?: string }> {
+  try {
+    const res = await apiCall('/billing/pro-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.ok) return { ok: true, request: data.request as ProRequest };
+    return { ok: false, message: (data?.message as string) || 'Could not submit your request. Please try again.' };
+  } catch {
+    return { ok: false, message: 'Could not reach the server. Please try again.' };
+  }
+}
+
+export async function fetchMyRequest(): Promise<ProRequest | null> {
+  try {
+    const res = await apiCall('/billing/my-request');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data?.request as ProRequest) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface StartTrialResult {
