@@ -138,6 +138,7 @@ export default function UpgradePage() {
             <Row k="Email" v={myRequest.email} />
             <Row k="Phone" v={myRequest.phone} />
             {myRequest.promo_code && <Row k="Promo" v={myRequest.promo_code} />}
+            <Row k="Submitted" v={myRequest.created_at ? new Date(myRequest.created_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null} />
             <Row k="Status" v="Pending review" />
           </div>
           <button className="ed-btn-ghost mt-5" onClick={() => { setMyRequest(null); }}>

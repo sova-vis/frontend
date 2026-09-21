@@ -111,7 +111,7 @@ export default function ProRequestsTab() {
                 <th className="py-2 pr-3">Paid as</th>
                 <th className="py-2 pr-3">Promo</th>
                 <th className="py-2 pr-3">Amount</th>
-                <th className="py-2 pr-3">Requested</th>
+                <th className="py-2 pr-3">Paid at</th>
                 <th className="py-2 pr-3">Current plan</th>
                 <th className="py-2 pr-3">Request</th>
                 <th className="py-2">Action</th>
@@ -126,7 +126,7 @@ export default function ProRequestsTab() {
                   <td className="py-2 pr-3 text-ink-muted">{r.cardholder_name || "—"}</td>
                   <td className="py-2 pr-3">{r.promo_code ? <span className="ed-pill-crimson">{r.promo_code}</span> : <span className="text-ink-faint">—</span>}</td>
                   <td className="py-2 pr-3 text-ink">{r.amount_pkr != null ? `Rs ${r.amount_pkr.toLocaleString()}` : "—"}</td>
-                  <td className="py-2 pr-3 text-ink-muted whitespace-nowrap">{new Date(r.created_at).toLocaleDateString()}</td>
+                  <td className="py-2 pr-3 text-ink-muted whitespace-nowrap">{new Date(r.created_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
                   <td className="py-2 pr-3">
                     {r.is_pro
                       ? <span className="ed-pill-mint">{r.billing_status}{typeof r.days_left === "number" ? ` · ${r.days_left}d` : ""}</span>

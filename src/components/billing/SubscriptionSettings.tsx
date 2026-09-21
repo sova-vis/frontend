@@ -5,14 +5,25 @@
  * usePro (trial/active/past_due/expired/canceled) with the right days-left and
  * renew / cancel actions. Renders sensibly even when billing isn't enforced.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CreditCard } from 'lucide-react';
 import { usePro } from '@/lib/usePro';
-import { cancelPro } from '@/lib/billing';
+import { cancelPro, fetchMyRequest, type ProRequest } from '@/lib/billing';
 
 export default function SubscriptionSettings() {
   const { enforced, status, daysLeft, trialAvailable, data, openUpgrade, refresh } = usePro();
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<ProRequest | null>(null);
+
+  // Surface a submitted-but-unapproved manual payment as a "pending" bar.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const r = await fetchMyRequest();
+      if (alive) setPending(r && r.status === 'pending' ? r : null);
+    })();
+    return () => { alive = false; };
+  }, [status]);
 
   const onCancel = async () => {
     setBusy(true);
@@ -64,6 +75,18 @@ export default function SubscriptionSettings() {
     title = 'Free plan';
     sub = trialAvailable ? 'Start your free trial to unlock Pro features.' : 'Go Pro to unlock everything.';
     primary = { label: trialAvailable ? 'Start free trial' : 'Go Pro', onClick: openUpgrade };
+  }
+
+  // A submitted-but-unapproved manual payment takes over the bar until an admin approves it.
+  if (pending && status !== 'active') {
+    const when = pending.created_at
+      ? new Date(pending.created_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '';
+    title = 'Pro — pending approval';
+    sub = `We're verifying your payment${when ? ` from ${when}` : ''}. Pro activates as soon as it's approved.`;
+    pill = { label: 'Pending', cls: 'ed-pill-gold' };
+    primary = null;
+    showCancel = false;
   }
 
   return (
