@@ -2,7 +2,7 @@
 
 /** Admin tab: every signed-in user with role + trial/Pro status and days left. */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search, Users as UsersIcon } from "lucide-react";
+import { RefreshCw, Search, Users as UsersIcon, Ban, Loader2 } from "lucide-react";
 import { apiCall } from "@/lib/api";
 
 interface UserRow {
@@ -27,6 +27,7 @@ export default function UsersBillingTab() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +40,21 @@ export default function UsersBillingTab() {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
+
+  const revoke = async (r: UserRow) => {
+    const what = r.billing_status === "trialing" ? "end the free trial for" : "cancel Pro for";
+    if (!window.confirm(`Are you sure you want to ${what} ${r.email || r.full_name || "this user"}? Their access ends immediately.`)) return;
+    setBusyId(r.clerk_id);
+    try {
+      const res = await apiCall(`/admin/users/${encodeURIComponent(r.clerk_id)}/revoke-pro`, { method: "POST" });
+      if (!res.ok) throw new Error("failed");
+      await load();
+    } catch {
+      window.alert("Could not cancel. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const stats = useMemo(() => ({
     total: rows.length,
@@ -104,7 +120,8 @@ export default function UsersBillingTab() {
                 <th className="py-2 pr-3">Role</th>
                 <th className="py-2 pr-3">Plan</th>
                 <th className="py-2 pr-3">Days left</th>
-                <th className="py-2">Joined</th>
+                <th className="py-2 pr-3">Joined</th>
+                <th className="py-2">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -119,10 +136,25 @@ export default function UsersBillingTab() {
                       : <span className="ed-pill-clay">{planLabel(r)}</span>}
                   </td>
                   <td className="py-2 pr-3 text-ink">{typeof r.days_left === "number" ? `${r.days_left}d` : "—"}</td>
-                  <td className="py-2 text-ink-muted whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
+                  <td className="py-2 pr-3 text-ink-muted whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
+                  <td className="py-2">
+                    {r.is_pro ? (
+                      <button
+                        onClick={() => void revoke(r)}
+                        disabled={busyId === r.clerk_id}
+                        title={r.billing_status === "trialing" ? "End this user's free trial now" : "Cancel this user's Pro now"}
+                        className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-crimson-ink hover:bg-crimson-soft disabled:opacity-50"
+                      >
+                        {busyId === r.clerk_id ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
+                        {r.billing_status === "trialing" ? "End trial" : "Cancel Pro"}
+                      </button>
+                    ) : (
+                      <span className="text-ink-faint">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
-              {shown.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-sm text-ink-muted">No users match.</td></tr>}
+              {shown.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-sm text-ink-muted">No users match.</td></tr>}
             </tbody>
           </table>
         </div>
