@@ -37,7 +37,7 @@ export default function UpgradeModal() {
 
   if (!upgradeOpen) return null;
 
-  const monthly = data?.price?.monthlyPkr ?? 999;
+  const monthly = data?.price?.monthlyPkr ?? 6000;
   const annual = data?.price?.annualPkr ?? null;
   const trialDays = data?.trialDays ?? 10;
 

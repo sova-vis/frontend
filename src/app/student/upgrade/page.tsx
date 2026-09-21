@@ -71,7 +71,7 @@ export default function UpgradePage() {
     setPromoBusy(false);
   };
 
-  const amount = payInfo?.amountPkr ?? 999;
+  const amount = payInfo?.amountPkr ?? 6000;
   const canSubmit = Boolean(name.trim() && phone.trim() && email);
   const promoApplied = payInfo?.promo?.applied;
   const promoInvalid = Boolean(appliedPromo) && payInfo?.promo && !payInfo.promo.applied;
