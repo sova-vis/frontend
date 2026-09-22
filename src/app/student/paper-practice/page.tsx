@@ -2551,15 +2551,23 @@ const normPartLabel = (value: string) => (value || "").trim().toLowerCase().repl
 function AnswerRow({ part, score, hideLabel }: { part: PracticePart; score?: PartScore; hideLabel?: boolean }) {
   const text = (part.answer || "").trim();
   const label = hideLabel ? "" : (part.label || "Answer");
+  // A-Level parts have no model answer on file, so a row may be just its label +
+  // the marks scored. When the marker returned no score for a part, show the
+  // marks available instead so the row is never blank.
+  const marksNode = score
+    ? <span style={{ flex: "none", fontWeight: 700 }}>{score.earned} / {score.max}</span>
+    : (part.marks != null && part.marks > 0)
+      ? <span style={{ flex: "none", fontWeight: 700, opacity: 0.6 }}>{part.marks} mark{part.marks === 1 ? "" : "s"}</span>
+      : null;
   return (
     <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--amber-deep)" }}>
-      {(label || score) && (
+      {(label || marksNode) && (
         <div className="flex items-baseline" style={{ justifyContent: "space-between", gap: 8 }}>
           {label ? <span style={{ fontWeight: 700 }}>{label}</span> : <span />}
-          {score && <span style={{ flex: "none", fontWeight: 700 }}>{score.earned} / {score.max}</span>}
+          {marksNode}
         </div>
       )}
-      {text && <p style={{ margin: label || score ? "2px 0 0" : 0, whiteSpace: "pre-wrap" }}>{text}</p>}
+      {text && <p style={{ margin: label || marksNode ? "2px 0 0" : 0, whiteSpace: "pre-wrap" }}>{text}</p>}
     </div>
   );
 }
@@ -2572,34 +2580,67 @@ function ModelAnswers({ parts = [], partScores, fallbackPoints, fallbackScore }:
   fallbackScore?: PartScore;
 }) {
   const [open, setOpen] = useState(true);
+  const scoreList = useMemo(() => partScores ?? [], [partScores]);
   const scoreByLabel = useMemo(() => {
     const map = new Map<string, PartScore>();
-    for (const s of partScores ?? []) map.set(normPartLabel(s.label), s);
+    for (const s of scoreList) map.set(normPartLabel(s.label), s);
     return map;
-  }, [partScores]);
-  const fromBank = useMemo(
+  }, [scoreList]);
+
+  // Parts worth their own line: any answerable (non-header) part that carries
+  // marks, has a model answer on file, or the marker scored. The "carries marks"
+  // case is what keeps the per-part breakdown alive for A-Level questions, whose
+  // bank parts have labels + marks but no answer text — without it, an A-Level
+  // result collapsed to a single flat points paragraph.
+  const shown = useMemo(
     () => parts.filter((p) => {
       if (isHeaderPart(parts, p.label)) return false;
-      return Boolean((p.answer || "").trim()) || scoreByLabel.has(normPartLabel(p.label));
+      return (p.marks ?? 0) > 0 || Boolean((p.answer || "").trim()) || scoreByLabel.has(normPartLabel(p.label));
     }),
     [parts, scoreByLabel],
   );
-  const rows: PracticePart[] = fromBank.length
-    ? fromBank
+
+  // Pair each shown part with its score: exact label first, then positionally
+  // among the parts and scores the labels didn't already pair up. The marker
+  // sometimes drops a nesting level (returns "(ii)" for "(a)(ii)") or reformats
+  // labels; positional recovery keeps every part's marks visible.
+  const paired = useMemo(() => {
+    const used = new Set<string>();
+    const list = shown.map((part) => {
+      const key = normPartLabel(part.label);
+      const score = scoreByLabel.get(key);
+      if (score) used.add(key);
+      return { part, score: score as PartScore | undefined };
+    });
+    const leftover = scoreList.filter((s) => !used.has(normPartLabel(s.label)));
+    const unscored = list.filter((r) => !r.score);
+    if (leftover.length > 0 && leftover.length === unscored.length) {
+      let i = 0;
+      for (const r of list) if (!r.score) r.score = leftover[i++];
+    }
+    return list;
+  }, [shown, scoreByLabel, scoreList]);
+
+  // Nothing structured to show → fall back to the examiner's model-answer points.
+  const rows: { part: PracticePart; score?: PartScore }[] = paired.length
+    ? paired
     : (fallbackPoints?.length
-      ? [{ label: "", body: "", marks: fallbackScore?.max ?? null, answer: fallbackPoints.join("\n") }]
+      ? [{ part: { label: "", body: "", marks: fallbackScore?.max ?? null, answer: fallbackPoints.join("\n") }, score: fallbackScore }]
       : []);
   if (rows.length === 0) return null;
+
+  const hasText = rows.some((r) => (r.part.answer || "").trim());
+  const eyebrow = hasText ? "Answers" : "Marks by part";
   const toggleLabel = open
     ? "Hide"
-    : rows.length === 1
-      ? "Show answer"
-      : `Show answers · ${rows.length} parts`;
+    : hasText
+      ? (rows.length === 1 ? "Show answer" : `Show answers · ${rows.length} parts`)
+      : `Show · ${rows.length} part${rows.length === 1 ? "" : "s"}`;
   return (
     <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--amber-soft)", background: "var(--amber-soft)", padding: "9px 11px" }}>
       <div className="row-between" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}
         onClick={() => setOpen((v) => !v)}>
-        <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>Answers</span>
+        <span className="eyebrow" style={{ color: "var(--amber-deep)" }}>{eyebrow}</span>
         <button type="button" onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} className="btn btn-ghost btn-sm"
           aria-expanded={open} style={{ padding: "2px 8px", fontSize: 11.5, color: "var(--amber-deep)", whiteSpace: "nowrap" }}>
           <Icon name={open ? "chevron_down" : "chevron_right"} size={13} /> {toggleLabel}
@@ -2607,16 +2648,26 @@ function ModelAnswers({ parts = [], partScores, fallbackPoints, fallbackScore }:
       </div>
       {open && (
         <div className="flex-col" style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          {rows.map((part, index) => (
-            <AnswerRow
-              key={index}
-              part={part}
-              hideLabel={!part.label}
-              score={scoreByLabel.get(normPartLabel(part.label)) || (fromBank.length === 0 ? fallbackScore : undefined)}
-            />
+          {rows.map(({ part, score }, index) => (
+            <AnswerRow key={index} part={part} hideLabel={!part.label} score={score} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The examiner's credit-worthy points — shown for banks (A-Level) that carry
+ *  no per-part model answer text, so a marked question still lists what earned
+ *  marks rather than only the per-part scores. */
+function KeyPoints({ points }: { points: string[] }) {
+  if (!points.length) return null;
+  return (
+    <div style={{ marginTop: 8, borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface-2)", padding: "9px 11px" }}>
+      <div className="eyebrow" style={{ marginBottom: 6 }}>Key points</div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-soft)" }}>
+        {points.map((point, index) => <li key={index} style={{ marginTop: index ? 3 : 0 }}>{point}</li>)}
+      </ul>
     </div>
   );
 }
@@ -2674,6 +2725,17 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
         fallbackPoints={q.expectedPoints}
         fallbackScore={{ label: "Answer", earned: q.earned, max: q.max }}
       />
+      {/* A-Level banks carry no per-part answer text, so ModelAnswers shows only
+          the marks — surface the examiner's key points too so the student still
+          sees what earned the marks. (O-Level already shows its scheme answers.) */}
+      {(() => {
+        const list = parts ?? [];
+        const hasBankAnswers = list.some((p) => (p.answer || "").trim());
+        const hasMarkParts = list.some((p) => (p.marks ?? 0) > 0 && !isHeaderPart(list, p.label));
+        return !hasBankAnswers && hasMarkParts && (q.expectedPoints?.length ?? 0) > 0
+          ? <KeyPoints points={q.expectedPoints} />
+          : null;
+      })()}
       {/* Phase 3 — command-word coach */}
       {q.commandWordNote && (
         <div className="flex gap-8 items-start" style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, background: "var(--purple-soft)" }}>
