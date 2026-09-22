@@ -1130,11 +1130,21 @@ function PracticeInner() {
     loadPracticeProgressList(getToken).then((items) => {
       if (mounted) setProgressMap(new Map(items.map((item) => [item.paperKey, item])));
     });
+    // Keep a currently-valid access token cached so the keepalive save on
+    // tab-hide (see the visibility flush below) can attach a bearer token
+    // synchronously — you can't await getToken() during an unload event.
+    // IMPORTANT: do NOT pass { skipCache: true } here. That forces a full
+    // refreshSession() — rotating the refresh token — on every tick. Rotating
+    // every 25s hammered GoTrue (~140 rotations/hour) and, because the server
+    // rotates with no reuse grace, raced other refreshers and revoked the whole
+    // session family → users were silently logged out and had to sign in again
+    // the next day. Plain getToken() returns the live token and only refreshes
+    // when it's actually near expiry (~once/hour), which is all we need.
     const refreshToken = () => {
-      void getToken({ skipCache: true }).then((token) => { if (token) tokenRef.current = token; }).catch(() => {});
+      void getToken().then((token) => { if (token) tokenRef.current = token; }).catch(() => {});
     };
     refreshToken();
-    const tokenTimer = window.setInterval(refreshToken, 25_000);
+    const tokenTimer = window.setInterval(refreshToken, 5 * 60_000);
     return () => { mounted = false; window.clearInterval(tokenTimer); };
   }, [getToken]);
 
