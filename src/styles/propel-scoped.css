@@ -723,6 +723,17 @@
 
 .pr .askai-layout { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 20px; align-items: start; }
 
+/* per-chat delete in the Ask AI history rail — quiet until the row is hovered */
+.pr .chat-del {
+  width: 26px; height: 26px; flex: none;
+  display: grid; place-items: center;
+  border: none; border-radius: 8px; background: transparent;
+  color: var(--ink-faint); cursor: pointer; opacity: .45;
+  transition: opacity .14s, color .14s, background .14s;
+}
+.pr .drawer-link:hover .chat-del, .pr .chat-del:focus-visible { opacity: 1; }
+.pr .chat-del:hover { color: var(--coral); background: var(--coral-soft); opacity: 1; }
+
 /* spin + caret */
 
 .pr .spin { animation: spin 1s linear infinite; }

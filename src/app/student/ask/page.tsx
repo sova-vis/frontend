@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { apiCall, getApiUrl } from "@/lib/api";
@@ -68,24 +70,64 @@ function citationLabel(c: Citation): string {
   return parts.join(" · ") || "Past paper";
 }
 
-// Inline markdown: **bold** and [text](url) links.
+// A piece of LaTeX from the model ($...$ inline, $$...$$ display), rendered
+// with KaTeX. Falls back to the raw text if KaTeX can't parse it.
+function MathTex({ tex, display }: { tex: string; display?: boolean }) {
+  const html = useMemo(() => {
+    try {
+      return katex.renderToString(tex, { throwOnError: false, strict: false, displayMode: !!display });
+    } catch {
+      return null;
+    }
+  }, [tex, display]);
+  if (html === null) return <span>{tex}</span>;
+  return (
+    <span
+      style={display
+        ? { display: "block", textAlign: "center", margin: "8px 0", overflowX: "auto", overflowY: "hidden", padding: "2px 0" }
+        : { padding: "0 1px" }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+// Inline markdown: $...$/$$...$$ math (KaTeX), **bold** and [text](url) links.
+// Math is split out FIRST so bold/link parsing never cuts through a formula.
+const MATH_SEG_RE = /(\$\$[^$]+\$\$|\$[^\s$][^$\n]*\$)/g;
 function renderInline(text: string, keyPrefix = ""): ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={`${keyPrefix}${i}`} style={{ fontSize: "1.08em", color: "var(--crimson)" }}>{part.slice(2, -2)}</strong>;
+  const out: ReactNode[] = [];
+  // "**$2.5$**" (a bolded result) → the math alone; rendered math reads as
+  // emphasis already, and bold markers must not cut through the $ pair below.
+  const cleaned = text.replace(/\*\*(\s*\$[^$\n]+\$\s*)\*\*/g, "$1");
+  cleaned.split(MATH_SEG_RE).forEach((seg, si) => {
+    if (/^\$\$[^$]+\$\$$/.test(seg)) {
+      out.push(<MathTex key={`${keyPrefix}m${si}`} tex={seg.slice(2, -2)} display />);
+      return;
     }
-    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (linkMatch) {
-      return (
-        <a key={`${keyPrefix}${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
-          style={{ color: "var(--crimson)", textDecoration: "underline" }}>
-          {linkMatch[1]}
-        </a>
-      );
+    if (/^\$[^\s$][^$\n]*\$$/.test(seg) && !/\s$/.test(seg.slice(1, -1))) {
+      out.push(<MathTex key={`${keyPrefix}m${si}`} tex={seg.slice(1, -1)} />);
+      return;
     }
-    return <span key={`${keyPrefix}${i}`}>{part}</span>;
+    const parts = seg.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
+    parts.forEach((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        out.push(<strong key={`${keyPrefix}${si}-${i}`} style={{ fontSize: "1.08em", color: "var(--crimson)" }}>{part.slice(2, -2)}</strong>);
+        return;
+      }
+      const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        out.push(
+          <a key={`${keyPrefix}${si}-${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+            style={{ color: "var(--crimson)", textDecoration: "underline" }}>
+            {linkMatch[1]}
+          </a>
+        );
+        return;
+      }
+      if (part) out.push(<span key={`${keyPrefix}${si}-${i}`}>{part}</span>);
+    });
   });
+  return out;
 }
 
 const isTableRow = (line: string) => /^\|.*\|$/.test(line);
@@ -282,6 +324,19 @@ function AskAIInner() {
 
   const newChat = () => setActiveId(null);
 
+  // Chats live only in this browser's localStorage — deleting is instant and final.
+  const deleteChat = (id: string) => {
+    if (!window.confirm("Delete this chat?")) return;
+    persist(sessions.filter((s) => s.id !== id));
+    if (activeId === id) setActiveId(null);
+  };
+  const clearChats = () => {
+    if (!sessions.length) return;
+    if (!window.confirm(`Delete all ${sessions.length} ${mode === "find" ? "Find" : "Ask"} chats?`)) return;
+    persist([]);
+    setActiveId(null);
+  };
+
   // The index is strictly level-separated; always tell the backend which one.
   const activeLevel = (): "olevel" | "alevel" => {
     if (profile?.active_level === "alevel" || profile?.active_level === "olevel") return profile.active_level;
@@ -394,14 +449,30 @@ function AskAIInner() {
           {/* history sidebar */}
           <aside className="card card-pad askai-rail" style={{ padding: 14, alignSelf: "start" }}>
             <button className="btn btn-primary btn-block btn-sm" onClick={newChat}><Icon name="plus" size={15} /> New chat</button>
-            <div className="eyebrow" style={{ padding: "16px 8px 8px" }}>Recent</div>
+            <div className="flex items-center" style={{ padding: "16px 8px 8px", gap: 8 }}>
+              <div className="eyebrow" style={{ padding: 0, flex: 1 }}>Recent</div>
+              {sessions.length > 0 && (
+                <button onClick={clearChats} title="Delete all chats in this list"
+                  style={{ border: "none", background: "none", color: "var(--ink-faint)", fontSize: 11.5, fontWeight: 600, cursor: "pointer", padding: "2px 4px" }}>
+                  Clear all
+                </button>
+              )}
+            </div>
             <div className="flex-col" style={{ gap: 2 }}>
               {sessions.length === 0 && <div className="faint" style={{ fontSize: 12.5, padding: "4px 8px" }}>No chats yet.</div>}
               {sessions.map((h) => (
-                <button key={h.id} className={"drawer-link" + (h.id === activeId ? " active" : "")} style={{ padding: "9px 11px", fontSize: 13.5 }} onClick={() => setActiveId(h.id)}>
+                <div key={h.id} role="button" tabIndex={0}
+                  className={"drawer-link" + (h.id === activeId ? " active" : "")}
+                  style={{ padding: "6px 6px 6px 11px", fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center" }}
+                  onClick={() => setActiveId(h.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveId(h.id); } }}>
                   <Icon name="message" size={16} className="ic" />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.title}</span>
-                </button>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.title}</span>
+                  <button className="chat-del" aria-label="Delete chat" title="Delete chat"
+                    onClick={(e) => { e.stopPropagation(); deleteChat(h.id); }}>
+                    <Icon name="trash" size={14} />
+                  </button>
+                </div>
               ))}
             </div>
           </aside>
@@ -414,6 +485,12 @@ function AskAIInner() {
                 <div style={{ fontWeight: 600 }}>Ask AI</div>
                 <div className="faint" style={{ fontSize: 12 }}>Powered by past papers</div>
               </div>
+              {active && (
+                <button className="icon-btn" aria-label="Delete this chat" title="Delete this chat"
+                  onClick={() => deleteChat(active.id)} style={{ width: 34, height: 34, color: "var(--ink-muted)" }}>
+                  <Icon name="trash" size={16} />
+                </button>
+              )}
               <div className="flex" style={{ background: "var(--surface-2)", borderRadius: 10, padding: 3, gap: 2 }}>
                 {(["ask", "find"] as Mode[]).map((m) => (
                   <button
