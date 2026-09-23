@@ -313,10 +313,26 @@ function AskAIInner() {
   const imageInput = useRef<HTMLInputElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
 
-  const subjectOptions = useMemo(
-    () => (profile?.selected_subjects?.filter(Boolean) ?? []) as string[],
-    [profile?.selected_subjects],
-  );
+  // The index is strictly level-separated; always tell the backend which one.
+  const activeLevel = (): "olevel" | "alevel" => {
+    if (profile?.active_level === "alevel" || profile?.active_level === "olevel") return profile.active_level;
+    try { return window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel"; } catch { return "olevel"; }
+  };
+  const level = activeLevel();
+
+  // Scope options = the subjects the student picked for their ACTIVE level
+  // (subjects_by_level is the server source of truth; the flat
+  // selected_subjects is the O+A union and only serves older profiles).
+  const subjectOptions = useMemo(() => {
+    const byLevel = (profile?.subjects_by_level?.[level] ?? []).filter(Boolean) as string[];
+    if (byLevel.length) return byLevel;
+    return (profile?.selected_subjects?.filter(Boolean) ?? []) as string[];
+  }, [profile?.subjects_by_level, profile?.selected_subjects, level]);
+
+  // A scope picked on the other level (or removed in Subjects) must not stick.
+  useEffect(() => {
+    if (scopeSubject && !subjectOptions.includes(scopeSubject)) setScopeSubject("");
+  }, [scopeSubject, subjectOptions]);
 
   useEffect(() => {
     try {
@@ -359,11 +375,10 @@ function AskAIInner() {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [msgs, loading]);
 
-  // Three equal suggestion cards: subject tile + question + subject tag.
+  // Three equal suggestion cards from the student's own (level-scoped) subjects.
   const promptCards = useMemo(() => {
-    const subs = profile?.selected_subjects?.filter(Boolean) ?? [];
-    if (subs.length >= 2) {
-      return subs.slice(0, 3).map((s) => ({
+    if (subjectOptions.length >= 2) {
+      return subjectOptions.slice(0, 3).map((s) => ({
         t: `Give me 3 exam-style questions on ${s}`,
         icon: subjectStyle(s).icon,
         subj: s,
@@ -371,7 +386,7 @@ function AskAIInner() {
       }));
     }
     return DEFAULT_PROMPTS.slice(0, 3).map((p) => ({ ...p, tag: p.subj }));
-  }, [profile?.selected_subjects]);
+  }, [subjectOptions]);
 
   const newChat = () => setActiveId(null);
 
@@ -386,12 +401,6 @@ function AskAIInner() {
     if (!window.confirm(`Delete all ${sessions.length} ${mode === "find" ? "Find" : "Ask"} chats?`)) return;
     persist([]);
     setActiveId(null);
-  };
-
-  // The index is strictly level-separated; always tell the backend which one.
-  const activeLevel = (): "olevel" | "alevel" => {
-    if (profile?.active_level === "alevel" || profile?.active_level === "olevel") return profile.active_level;
-    try { return window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel"; } catch { return "olevel"; }
   };
 
   const send = async (text: string) => {
