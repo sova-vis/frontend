@@ -340,6 +340,10 @@
 
 .pr .main { flex: 1; width: 100%; max-width: 1240px; margin: 0 auto; padding: 30px 24px 120px; }
 
+/* Ask AI page goes full-bleed: the history rail hugs the left edge of the
+   screen and the chat card takes all the remaining width. */
+.pr .main.askai-main { max-width: none; padding-bottom: 48px; }
+
 .pr .page-pad { padding: 30px 24px 120px; }
 
 /* ---------- BUTTONS ---------- */
@@ -721,7 +725,8 @@
 
 .pr .solve-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 20px; align-items: start; }
 
-.pr .askai-layout { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 20px; align-items: start; }
+.pr .askai-layout { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 20px; align-items: start; }
+.pr .askai-rail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
 
 /* per-chat delete in the Ask AI history rail — quiet until the row is hovered */
 .pr .chat-del {
@@ -774,6 +779,7 @@
 .pr .nav-pill, .pr .hide-md { display: none !important; }
 .pr .tabbar { display: flex; }
 .pr .main { padding: 22px 16px 100px; }
+.pr .main.askai-main { padding-bottom: 100px; }
 .pr .user-chip .name { display: none; }
 }
 

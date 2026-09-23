@@ -50,6 +50,10 @@ const DEFAULT_PROMPTS = [
 
 const MAX_STORED_SESSIONS = 10;
 
+// Width of the conversation column inside the (full-bleed) chat card —
+// messages, composer and typing indicator all share it.
+const CHAT_MAX = 920;
+
 const TIER_META: Record<Tier, { label: string; badge: string; title: string; color: string }> = {
   best: { label: "Best match", badge: "crimson", title: "Best match", color: "var(--crimson)" },
   conceptual: { label: "Same concept", badge: "purple", title: "Same concept, different framing", color: "var(--purple)" },
@@ -459,7 +463,7 @@ function AskAIInner() {
 
   return (
     <div className="pr">
-      <div className="main">
+      <div className="main askai-main">
         <div className="askai-layout">
           {/* history sidebar */}
           <aside className="card card-pad askai-rail" style={{ padding: 14, alignSelf: "start" }}>
@@ -523,7 +527,7 @@ function AskAIInner() {
 
             <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: 18 }}>
               {empty ? (
-                <div style={{ maxWidth: 600, margin: "24px auto", textAlign: "center" }}>
+                <div style={{ maxWidth: 700, margin: "24px auto", textAlign: "center" }}>
                   <div className="empty-art" style={{ background: "var(--purple-soft)", color: "var(--purple)" }}><Icon name="sparkles" size={40} stroke={1.8} /></div>
                   <h2 style={{ fontSize: 24 }}>Hey {name}, what should we tackle?</h2>
                   <p className="muted mt-8">
@@ -544,7 +548,7 @@ function AskAIInner() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-col gap-18" style={{ maxWidth: 720, margin: "0 auto" }}>
+                <div className="flex-col gap-18" style={{ maxWidth: CHAT_MAX, margin: "0 auto" }}>
                   {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
                   {loading && <Typing mode={mode} />}
                 </div>
@@ -555,7 +559,7 @@ function AskAIInner() {
             <div style={{ padding: 14, borderTop: "1px solid var(--line)" }}>
               {/* optional syllabus scope */}
               {subjectOptions.length > 0 && (
-                <div className="flex items-center gap-8 wrap" style={{ maxWidth: 720, margin: "0 auto 8px" }}>
+                <div className="flex items-center gap-8 wrap" style={{ maxWidth: CHAT_MAX, margin: "0 auto 8px" }}>
                   <span className="faint" style={{ fontSize: 12 }}>Scope:</span>
                   <label className="chip" style={{ padding: "0 6px 0 12px", gap: 4, cursor: "pointer" }}>
                     <Icon name="filter" size={13} className="faint" />
@@ -569,14 +573,14 @@ function AskAIInner() {
               )}
               {/* attached-image preview */}
               {attached && (
-                <div className="flex items-center gap-10" style={{ maxWidth: 720, margin: "0 auto 8px", padding: "6px 10px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
+                <div className="flex items-center gap-10" style={{ maxWidth: CHAT_MAX, margin: "0 auto 8px", padding: "6px 10px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
                   <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
                   <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
                 </div>
               )}
-              <div className="search" style={{ height: "auto", padding: 8, alignItems: "flex-end", maxWidth: 720, margin: "0 auto" }}>
+              <div className="search" style={{ height: "auto", padding: 8, alignItems: "flex-end", maxWidth: CHAT_MAX, margin: "0 auto" }}>
                 <input ref={imageInput} type="file" accept="image/*" style={{ display: "none" }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 12 * 1024 * 1024) { setToast("Image is larger than 12 MB."); } else setAttached({ file: f, url: URL.createObjectURL(f) }); } e.currentTarget.value = ""; }} />
                 <button className="icon-btn" onClick={() => imageInput.current?.click()} disabled={loading} aria-label="Attach image"
@@ -859,7 +863,7 @@ function Typing({ mode }: { mode: Mode }) {
     return () => clearInterval(t);
   }, [stages.length]);
   return (
-    <div className="flex gap-12" style={{ maxWidth: 720, margin: "0 auto", width: "100%" }}><AIAvatar />
+    <div className="flex gap-12" style={{ maxWidth: CHAT_MAX, margin: "0 auto", width: "100%" }}><AIAvatar />
       <div className="card card-pad" style={{ padding: "14px 16px", display: "flex", gap: 10, alignItems: "center" }}>
         <span style={{ display: "flex", gap: 5 }}>
           {[0, 1, 2].map((i) => <span key={i} style={{ width: 7, height: 7, borderRadius: 5, background: "var(--ink-faint)", animation: `floaty 1s ease-in-out ${i * 0.15}s infinite` }} />)}
