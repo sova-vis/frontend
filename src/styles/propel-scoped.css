@@ -340,10 +340,6 @@
 
 .pr .main { flex: 1; width: 100%; max-width: 1240px; margin: 0 auto; padding: 30px 24px 120px; }
 
-/* Ask AI page goes full-bleed: the history rail hugs the left edge of the
-   screen and the chat card takes all the remaining width. */
-.pr .main.askai-main { max-width: none; padding-bottom: 48px; }
-
 .pr .page-pad { padding: 30px 24px 120px; }
 
 /* ---------- BUTTONS ---------- */
@@ -725,19 +721,167 @@
 
 .pr .solve-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 20px; align-items: start; }
 
-.pr .askai-layout { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 20px; align-items: start; }
-.pr .askai-rail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+/* ---------- ASK AI (flat shell: rail · canvas · pinned composer) ---------- */
 
-/* per-chat delete in the Ask AI history rail — quiet until the row is hovered */
-.pr .chat-del {
-  width: 26px; height: 26px; flex: none;
-  display: grid; place-items: center;
-  border: none; border-radius: 8px; background: transparent;
-  color: var(--ink-faint); cursor: pointer; opacity: .45;
-  transition: opacity .14s, color .14s, background .14s;
+.pr.aai-page { height: 100%; }
+.pr .aai-shell { display: flex; height: 100%; min-height: 0; }
+
+/* rail */
+.pr .aai-rail {
+  width: 280px; flex: none; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 16px 12px 16px 16px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
 }
-.pr .drawer-link:hover .chat-del, .pr .chat-del:focus-visible { opacity: 1; }
-.pr .chat-del:hover { color: var(--coral); background: var(--coral-soft); opacity: 1; }
+.pr .aai-newchat {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; width: 100%; border: 0; border-radius: 10px;
+  background: var(--crimson); color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  box-shadow: var(--shadow-sm); flex: none;
+  transition: background .16s;
+}
+.pr .aai-newchat:hover { background: var(--crimson-deep); }
+.pr .aai-search {
+  display: flex; align-items: center; gap: 8px; margin-top: 12px; flex: none;
+  height: 36px; padding: 0 12px;
+  background: var(--surface-2); border-radius: 14px; color: var(--ink-faint);
+  cursor: text;
+}
+.pr .aai-search input {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  font-family: inherit; font-size: 13px; color: var(--ink);
+}
+.pr .aai-search input::placeholder { color: var(--ink-faint); }
+.pr .aai-group-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 4px 8px; }
+.pr .aai-meta { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.pr .aai-clear { border: 0; background: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+.pr .aai-clear:hover { color: var(--crimson); }
+.pr .aai-chat {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 6px 0 10px; border-radius: 10px;
+  color: var(--ink-muted); font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.pr .aai-chat:hover { background: var(--surface-2); color: var(--ink); }
+.pr .aai-chat .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--line-strong); flex: none; }
+.pr .aai-chat .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr .aai-chat .when { font-size: 12px; color: var(--ink-faint); flex: none; }
+.pr .aai-chat.is-active { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.pr .aai-chat.is-active .dot { background: var(--crimson); }
+/* delete is a row-hover action: the timestamp swaps for the bin */
+.pr .aai-del {
+  width: 26px; height: 26px; flex: none; display: none; place-items: center;
+  border: 0; border-radius: 8px; background: transparent;
+  color: var(--ink-faint); cursor: pointer;
+}
+.pr .aai-chat:hover .aai-del, .pr .aai-del:focus-visible { display: grid; }
+.pr .aai-chat:hover .when { display: none; }
+.pr .aai-del:hover { color: var(--coral); background: var(--coral-soft); }
+.pr .aai-rail-foot {
+  margin-top: auto; padding: 12px 10px 0; flex: none;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px;
+}
+.pr .aai-avatar {
+  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  background: var(--crimson-soft); color: var(--crimson);
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+}
+.pr .aai-rail-foot .who { font-size: 13px; font-weight: 600; line-height: 16px; }
+.pr .aai-rail-foot .plan { font-size: 11px; color: var(--ink-faint); line-height: 14px; margin-top: 1px; }
+
+/* main column */
+.pr .aai-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0 32px; position: relative; }
+.pr .aai-mobile-del { display: none; position: absolute; top: 10px; right: 14px; z-index: 5; width: 34px; height: 34px; }
+.pr .aai-canvas {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 24px; padding: 24px 0;
+}
+.pr .aai-measure { width: 100%; max-width: 720px; }
+.pr .aai-badge {
+  display: inline-flex; align-items: center; gap: 7px; margin: 0 auto;
+  height: 28px; padding: 0 12px 0 9px; border-radius: 999px;
+  background: var(--purple-soft); color: var(--purple);
+  font-size: 12px; font-weight: 600; line-height: 16px;
+}
+.pr .aai-hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.pr .aai-hero h1 { margin: 0; font-size: 40px; line-height: 46px; letter-spacing: -.01em; }
+.pr .aai-hero p { margin: 0; max-width: 460px; font-size: 15px; line-height: 24px; color: var(--ink-muted); }
+.pr .aai-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.pr .aai-card {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-sm); cursor: pointer; font-family: inherit; color: var(--ink);
+  transition: box-shadow .16s, transform .16s;
+}
+.pr .aai-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.pr .aai-card-top { display: flex; align-items: center; justify-content: space-between; }
+.pr .aai-tile { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+.pr .aai-card .q { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink); }
+.pr .aai-card .tag { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.pr .aai-card .arrow { color: var(--ink-faint); transform: rotate(45deg); }
+
+/* thread */
+.pr .aai-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 0 12px; }
+.pr .aai-thread { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+/* composer, pinned to the bottom of the main column */
+.pr .aai-composer-zone { flex: none; padding: 8px 0 20px; display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.pr .aai-attachrow {
+  width: 100%; max-width: 720px; display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface-2);
+}
+.pr .aai-composer {
+  width: 100%; max-width: 720px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 20px;
+  box-shadow: var(--shadow-md); overflow: hidden;
+  transition: box-shadow .18s;
+}
+.pr .aai-composer:focus-within { box-shadow: var(--shadow-lg); }
+.pr .aai-well {
+  width: 100%; display: block; border: 0; background: none; outline: none; resize: none;
+  padding: 15px 20px 8px; min-height: 52px; max-height: 160px;
+  font-family: inherit; font-size: 15px; line-height: 24px; color: var(--ink);
+}
+.pr .aai-well::placeholder { color: var(--ink-faint); }
+.pr .aai-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line); }
+.pr .aai-seg { display: flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: 999px; flex: none; }
+.pr .aai-seg button {
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 13px;
+  border: 0; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600; line-height: 18px;
+  color: var(--ink-muted); background: transparent;
+  transition: background .14s, color .14s;
+}
+.pr .aai-seg button.on { background: var(--purple); color: #fff; }
+.pr .aai-chip {
+  display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 8px 0 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink); cursor: pointer; flex: none; min-width: 0;
+}
+.pr .aai-chip:hover { background: var(--surface-2); }
+.pr .aai-chip .swatch { width: 7px; height: 7px; border-radius: 999px; background: var(--purple); flex: none; }
+.pr .aai-chip select {
+  border: 0; background: none; outline: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+  max-width: 150px;
+}
+.pr .aai-send {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: none;
+  border: 0; border-radius: 999px;
+  background: var(--crimson); color: #fff; cursor: pointer;
+  transition: background .16s, opacity .16s;
+}
+.pr .aai-send:hover { background: var(--crimson-deep); }
+.pr .aai-send:disabled { opacity: .45; cursor: default; }
+.pr .aai-note { margin: 0; font-size: 12.5px; line-height: 20px; color: var(--ink-faint); text-align: center; }
+.pr .aai-note b { color: var(--ink-muted); font-weight: 600; }
+@keyframes aaiPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.86); opacity: .65; } }
+.pr .aai-pulse { animation: aaiPulse 1.5s ease-in-out infinite; }
 
 /* spin + caret */
 
@@ -770,16 +914,22 @@
 }
 
 @media (max-width: 860px) {
-.pr .papers-layout, .pr .askai-layout { grid-template-columns: minmax(0,1fr); }
+.pr .papers-layout { grid-template-columns: minmax(0,1fr); }
 .pr .papers-rail { order: -1; position: static; max-height: none; overflow: visible; }
-.pr .askai-rail { display: none; }
 }
 
 @media (max-width: 900px) {
 .pr .nav-pill, .pr .hide-md { display: none !important; }
 .pr .tabbar { display: flex; }
 .pr .main { padding: 22px 16px 100px; }
-.pr .main.askai-main { padding-bottom: 100px; }
+/* Ask AI flat shell on mobile: no rail, tighter hero, composer clears the tabbar */
+.pr .aai-rail { display: none; }
+.pr .aai-main { padding: 0 16px; }
+.pr .aai-grid { grid-template-columns: 1fr; }
+.pr .aai-hero h1 { font-size: 28px; line-height: 34px; }
+.pr .aai-canvas { justify-content: flex-start; padding-top: 34px; }
+.pr .aai-composer-zone { padding-bottom: 86px; }
+.pr .aai-mobile-del { display: grid; }
 .pr .user-chip .name { display: none; }
 }
 

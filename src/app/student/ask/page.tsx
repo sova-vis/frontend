@@ -50,9 +50,20 @@ const DEFAULT_PROMPTS = [
 
 const MAX_STORED_SESSIONS = 10;
 
-// Width of the conversation column inside the (full-bleed) chat card —
-// messages, composer and typing indicator all share it.
-const CHAT_MAX = 920;
+// "now", "2m", "1h", "Mon", "12 Sep" — the rail's relative timestamps.
+function relTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const mins = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  if (mins < 24 * 60) return `${Math.floor(mins / 60)}h`;
+  if (mins < 7 * 24 * 60) return d.toLocaleDateString(undefined, { weekday: "short" });
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+const initials = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("") || "S";
 
 const TIER_META: Record<Tier, { label: string; badge: string; title: string; color: string }> = {
   best: { label: "Best match", badge: "crimson", title: "Best match", color: "var(--crimson)" },
@@ -273,6 +284,7 @@ function AskAIInner() {
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [railQuery, setRailQuery] = useState("");   // rail "Search chats" filter
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [scopeSubject, setScopeSubject] = useState("");   // syllabus scope filter
@@ -329,16 +341,18 @@ function AskAIInner() {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [msgs, loading]);
 
+  // Three equal suggestion cards: subject tile + question + subject tag.
   const promptCards = useMemo(() => {
     const subs = profile?.selected_subjects?.filter(Boolean) ?? [];
     if (subs.length >= 2) {
-      return subs.slice(0, 4).map((s) => ({
+      return subs.slice(0, 3).map((s) => ({
         t: `Give me 3 exam-style questions on ${s}`,
         icon: subjectStyle(s).icon,
         subj: s,
+        tag: s,
       }));
     }
-    return DEFAULT_PROMPTS;
+    return DEFAULT_PROMPTS.slice(0, 3).map((p) => ({ ...p, tag: p.subj }));
   }, [profile?.selected_subjects]);
 
   const newChat = () => setActiveId(null);
@@ -461,144 +475,163 @@ function AskAIInner() {
   const lastUser = [...msgs].reverse().find((m) => m.role === "user")?.text;
   const empty = msgs.length === 0;
 
+  // Rail data: search filter, then grouped Today / Earlier with relative times.
+  const fullName = profile?.full_name || user?.firstName || "Student";
+  const levelName = activeLevel() === "alevel" ? "A Level" : "O Level";
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const railList = sessions.filter((s) => !railQuery.trim() || s.title.toLowerCase().includes(railQuery.trim().toLowerCase()));
+  const groups = [
+    { label: "Today", list: railList.filter((s) => new Date(s.updatedAt) >= startOfToday) },
+    { label: "Earlier", list: railList.filter((s) => new Date(s.updatedAt) < startOfToday) },
+  ].filter((g) => g.list.length > 0);
+
   return (
-    <div className="pr">
-      <div className="main askai-main">
-        <div className="askai-layout">
-          {/* history sidebar */}
-          <aside className="card card-pad askai-rail" style={{ padding: 14, alignSelf: "start" }}>
-            <button className="btn btn-primary btn-block btn-sm" onClick={newChat}><Icon name="plus" size={15} /> New chat</button>
-            <div className="flex items-center" style={{ padding: "16px 8px 8px", gap: 8 }}>
-              <div className="eyebrow" style={{ padding: 0, flex: 1 }}>Recent</div>
-              {sessions.length > 0 && (
-                <button onClick={clearChats} title="Delete all chats in this list"
-                  style={{ border: "none", background: "none", color: "var(--ink-faint)", fontSize: 11.5, fontWeight: 600, cursor: "pointer", padding: "2px 4px" }}>
-                  Clear all
-                </button>
-              )}
+    <div className="pr aai-page">
+      <div className="aai-shell">
+
+        {/* history rail — full height, flush against the left edge */}
+        <aside className="aai-rail">
+          <button className="aai-newchat" onClick={newChat}><Icon name="plus" size={16} /> New chat</button>
+          <label className="aai-search">
+            <Icon name="search" size={15} />
+            <input value={railQuery} onChange={(e) => setRailQuery(e.target.value)} placeholder="Search chats" aria-label="Search chats" />
+          </label>
+
+          {railList.length === 0 && (
+            <div className="faint" style={{ fontSize: 12.5, padding: "18px 6px 0" }}>
+              {sessions.length === 0 ? "No chats yet." : "No chats match."}
             </div>
-            <div className="flex-col" style={{ gap: 2 }}>
-              {sessions.length === 0 && <div className="faint" style={{ fontSize: 12.5, padding: "4px 8px" }}>No chats yet.</div>}
-              {sessions.map((h) => (
+          )}
+          {groups.map((g, gi) => (
+            <div key={g.label}>
+              <div className="aai-group-head">
+                <span className="aai-meta">{g.label}</span>
+                {gi === 0 && <button className="aai-clear" onClick={clearChats} title="Delete all chats in this list">Clear all</button>}
+              </div>
+              {g.list.map((h) => (
                 <div key={h.id} role="button" tabIndex={0}
-                  className={"drawer-link" + (h.id === activeId ? " active" : "")}
-                  style={{ padding: "6px 6px 6px 11px", fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center" }}
+                  className={"aai-chat" + (h.id === activeId ? " is-active" : "")}
                   onClick={() => setActiveId(h.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveId(h.id); } }}>
-                  <Icon name="message" size={16} className="ic" />
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.title}</span>
-                  <button className="chat-del" aria-label="Delete chat" title="Delete chat"
+                  <span className="dot" />
+                  <span className="title">{h.title}</span>
+                  <span className="when">{relTime(h.updatedAt)}</span>
+                  <button className="aai-del" aria-label="Delete chat" title="Delete chat"
                     onClick={(e) => { e.stopPropagation(); deleteChat(h.id); }}>
                     <Icon name="trash" size={14} />
                   </button>
                 </div>
               ))}
             </div>
-          </aside>
+          ))}
 
-          {/* chat */}
-          <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden", minHeight: "calc(100vh - 200px)" }}>
-            <div className="flex items-center gap-10" style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
-              <div className="brand-mark" style={{ background: "linear-gradient(140deg,var(--purple),#4b32a8)", boxShadow: "none" }}><Icon name="sparkles" size={16} fill="#fff" stroke={0} /></div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>Ask AI</div>
-                <div className="faint" style={{ fontSize: 12 }}>Powered by past papers</div>
+          <div className="aai-rail-foot">
+            <span className="aai-avatar">{initials(fullName)}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="who" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fullName}</div>
+              <div className="plan">{levelName}{subjectOptions.length ? ` · ${subjectOptions.length} subjects` : ""}</div>
+            </div>
+          </div>
+        </aside>
+
+        {/* main column: flat canvas, composer pinned at the bottom */}
+        <main className="aai-main">
+          {active && !empty && (
+            <button className="icon-btn aai-mobile-del" aria-label="Delete this chat" title="Delete this chat"
+              onClick={() => deleteChat(active.id)}>
+              <Icon name="trash" size={16} />
+            </button>
+          )}
+
+          {empty ? (
+            <div className="aai-canvas">
+              <div className="aai-hero aai-measure">
+                <span className="aai-badge">
+                  <Icon name="sparkles" size={14} fill="currentColor" stroke={0} />
+                  Powered by past papers
+                </span>
+                <h1>Hey {name}, what should we tackle?</h1>
+                <p>
+                  {mode === "find"
+                    ? "Type a topic or paste a question — I'll show you every past paper it appeared in, ranked by how closely it matches."
+                    : "Ask anything and I'll explain it — then show you the exam questions the answer came from."}
+                </p>
               </div>
-              {active && (
-                <button className="icon-btn" aria-label="Delete this chat" title="Delete this chat"
-                  onClick={() => deleteChat(active.id)} style={{ width: 34, height: 34, color: "var(--ink-muted)" }}>
-                  <Icon name="trash" size={16} />
-                </button>
-              )}
-              <div className="flex" style={{ background: "var(--surface-2)", borderRadius: 10, padding: 3, gap: 2 }}>
-                {(["ask", "find"] as Mode[]).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    className={"btn btn-sm" + (mode === m ? " btn-primary" : "")}
-                    style={mode === m ? { padding: "6px 14px" } : { padding: "6px 14px", background: "transparent", border: "none", color: "var(--ink-muted)" }}
-                    title={m === "ask" ? "Explain, solve or practise — grounded in real past-paper questions" : "Find which past papers a topic or question appeared in — best, same-concept and related matches"}
-                  >
-                    {m === "ask" ? "Ask" : "Find"}
+              <div className="aai-grid aai-measure">
+                {promptCards.map((p, i) => {
+                  const s = subjectStyle(p.subj);
+                  return (
+                    <button key={i} className="aai-card" onClick={() => send(p.t)}>
+                      <div className="aai-card-top">
+                        <span className="aai-tile" style={{ background: s.color + "1c", color: s.color }}><Icon name={p.icon} size={16} /></span>
+                        <Icon name="arrow_up" size={16} className="arrow" />
+                      </div>
+                      <span className="q">{p.t}</span>
+                      <span className="tag">{p.tag} · past papers</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div ref={scroller} className="aai-scroll">
+              <div className="aai-thread">
+                {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
+                {loading && <Typing mode={mode} />}
+              </div>
+            </div>
+          )}
+
+          <div className="aai-composer-zone">
+            {attached && (
+              <div className="aai-attachrow">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
+                <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
+              </div>
+            )}
+            <div className="aai-composer">
+              <textarea className="aai-well" value={input} onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                placeholder={attached ? "Add a question about the image (optional)…" : mode === "find" ? "Type a topic or paste a question to find where it appeared…" : "Ask about any topic, or paste a question…"}
+                rows={1} />
+              <div className="aai-bar">
+                <div className="aai-seg" role="tablist" aria-label="Mode">
+                  <button className={mode === "ask" ? "on" : ""} onClick={() => setMode("ask")}
+                    title="Explain, solve or practise — grounded in real past-paper questions">
+                    <Icon name="sparkles" size={14} fill="currentColor" stroke={0} /> Ask
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: 18 }}>
-              {empty ? (
-                <div style={{ maxWidth: 700, margin: "24px auto", textAlign: "center" }}>
-                  <div className="empty-art" style={{ background: "var(--purple-soft)", color: "var(--purple)" }}><Icon name="sparkles" size={40} stroke={1.8} /></div>
-                  <h2 style={{ fontSize: 24 }}>Hey {name}, what should we tackle?</h2>
-                  <p className="muted mt-8">
-                    {mode === "find"
-                      ? "Type a topic or paste a question — I'll find where it appeared in past papers, ranked by how closely it matches."
-                      : "Ask anything — I'll explain it and show you the past-paper questions behind every answer."}
-                  </p>
-                  <div className="grid mt-24" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", textAlign: "left" }}>
-                    {promptCards.map((p, i) => {
-                      const s = subjectStyle(p.subj);
-                      return (
-                        <button key={i} className="card card-pad card-hover" style={{ padding: 14, display: "flex", gap: 11, alignItems: "center", textAlign: "left" }} onClick={() => send(p.t)}>
-                          <div style={{ width: 36, height: 36, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: s.color + "1c", color: s.color }}><Icon name={p.icon} size={18} /></div>
-                          <span style={{ fontSize: 13.5, fontWeight: 500 }}>{p.t}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <button className={mode === "find" ? "on" : ""} onClick={() => setMode("find")}
+                    title="Find which past papers a topic or question appeared in — best, same-concept and related matches">
+                    <Icon name="search" size={14} /> Find
+                  </button>
                 </div>
-              ) : (
-                <div className="flex-col gap-18" style={{ maxWidth: CHAT_MAX, margin: "0 auto" }}>
-                  {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
-                  {loading && <Typing mode={mode} />}
-                </div>
-              )}
-            </div>
-
-            {/* composer */}
-            <div style={{ padding: 14, borderTop: "1px solid var(--line)" }}>
-              {/* optional syllabus scope */}
-              {subjectOptions.length > 0 && (
-                <div className="flex items-center gap-8 wrap" style={{ maxWidth: CHAT_MAX, margin: "0 auto 8px" }}>
-                  <span className="faint" style={{ fontSize: 12 }}>Scope:</span>
-                  <label className="chip" style={{ padding: "0 6px 0 12px", gap: 4, cursor: "pointer" }}>
-                    <Icon name="filter" size={13} className="faint" />
-                    <select value={scopeSubject} onChange={(e) => setScopeSubject(e.target.value)}
-                      style={{ border: "none", background: "transparent", padding: "6px 4px", fontWeight: 500, cursor: "pointer", outline: "none", color: "var(--ink)", fontSize: 12.5 }}>
+                {subjectOptions.length > 0 && (
+                  <label className="aai-chip" title="Limit answers to one subject">
+                    <span className="swatch" />
+                    <select value={scopeSubject} onChange={(e) => setScopeSubject(e.target.value)} aria-label="Subject scope">
                       <option value="">All subjects</option>
                       {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </label>
-                </div>
-              )}
-              {/* attached-image preview */}
-              {attached && (
-                <div className="flex items-center gap-10" style={{ maxWidth: CHAT_MAX, margin: "0 auto 8px", padding: "6px 10px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
-                  <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
-                </div>
-              )}
-              <div className="search" style={{ height: "auto", padding: 8, alignItems: "flex-end", maxWidth: CHAT_MAX, margin: "0 auto" }}>
+                )}
                 <input ref={imageInput} type="file" accept="image/*" style={{ display: "none" }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 12 * 1024 * 1024) { setToast("Image is larger than 12 MB."); } else setAttached({ file: f, url: URL.createObjectURL(f) }); } e.currentTarget.value = ""; }} />
                 <button className="icon-btn" onClick={() => imageInput.current?.click()} disabled={loading} aria-label="Attach image"
-                  title="Attach a diagram, graph or photo of a question" style={{ width: 38, height: 38, flex: "none", border: "1px solid var(--line-strong)" }}>
+                  title="Attach a diagram, graph or photo of a question" style={{ width: 34, height: 34, flex: "none" }}>
                   <Icon name="camera" size={17} />
                 </button>
-                <textarea value={input} onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                  placeholder={attached ? "Add a question about the image (optional)…" : mode === "find" ? "Type a topic or paste a question to find where it appeared…" : "Ask about any topic, or paste a question…"} rows={1}
-                  style={{ flex: 1, border: "none", background: "none", outline: "none", resize: "none", padding: "8px 6px", maxHeight: 120, fontFamily: "inherit" }} />
-                <button className="btn btn-primary" style={{ padding: 10, borderRadius: 11 }} onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
-                  <Icon name="send" size={17} fill="#fff" stroke={0} />
+                <span style={{ flex: 1 }} />
+                <button className="aai-send" onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
+                  <Icon name="send" size={16} fill="#fff" stroke={0} />
                 </button>
               </div>
-              <div className="faint" style={{ fontSize: 11, textAlign: "center", marginTop: 8 }}>Answers cite real past-paper questions · attach a diagram or photo to ask about it.</div>
             </div>
+            <p className="aai-note"><b>Ask</b> explains and cites · <b>Find</b> jumps straight to matching past-paper questions</p>
           </div>
-        </div>
+        </main>
+
       </div>
 
       {/* non-intrusive transient error toast (thread is preserved) */}
@@ -863,7 +896,7 @@ function Typing({ mode }: { mode: Mode }) {
     return () => clearInterval(t);
   }, [stages.length]);
   return (
-    <div className="flex gap-12" style={{ maxWidth: CHAT_MAX, margin: "0 auto", width: "100%" }}><AIAvatar />
+    <div className="flex gap-12" style={{ width: "100%" }}><span className="aai-pulse" style={{ display: "inline-flex", flex: "none" }}><AIAvatar /></span>
       <div className="card card-pad" style={{ padding: "14px 16px", display: "flex", gap: 10, alignItems: "center" }}>
         <span style={{ display: "flex", gap: 5 }}>
           {[0, 1, 2].map((i) => <span key={i} style={{ width: 7, height: 7, borderRadius: 5, background: "var(--ink-faint)", animation: `floaty 1s ease-in-out ${i * 0.15}s infinite` }} />)}
