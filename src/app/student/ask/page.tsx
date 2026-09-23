@@ -91,15 +91,11 @@ function MathTex({ tex, display }: { tex: string; display?: boolean }) {
   );
 }
 
-// Inline markdown: $...$/$$...$$ math (KaTeX), **bold** and [text](url) links.
-// Math is split out FIRST so bold/link parsing never cuts through a formula.
+// Text with $...$/$$...$$ pieces rendered as KaTeX; everything else verbatim.
 const MATH_SEG_RE = /(\$\$[^$]+\$\$|\$[^\s$][^$\n]*\$)/g;
-function renderInline(text: string, keyPrefix = ""): ReactNode[] {
+function mathSegs(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
-  // "**$2.5$**" (a bolded result) → the math alone; rendered math reads as
-  // emphasis already, and bold markers must not cut through the $ pair below.
-  const cleaned = text.replace(/\*\*(\s*\$[^$\n]+\$\s*)\*\*/g, "$1");
-  cleaned.split(MATH_SEG_RE).forEach((seg, si) => {
+  text.split(MATH_SEG_RE).forEach((seg, si) => {
     if (/^\$\$[^$]+\$\$$/.test(seg)) {
       out.push(<MathTex key={`${keyPrefix}m${si}`} tex={seg.slice(2, -2)} display />);
       return;
@@ -108,24 +104,43 @@ function renderInline(text: string, keyPrefix = ""): ReactNode[] {
       out.push(<MathTex key={`${keyPrefix}m${si}`} tex={seg.slice(1, -1)} />);
       return;
     }
-    const parts = seg.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
-    parts.forEach((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        out.push(<strong key={`${keyPrefix}${si}-${i}`} style={{ fontSize: "1.08em", color: "var(--crimson)" }}>{part.slice(2, -2)}</strong>);
-        return;
-      }
-      const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      if (linkMatch) {
-        out.push(
-          <a key={`${keyPrefix}${si}-${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
-            style={{ color: "var(--crimson)", textDecoration: "underline" }}>
-            {linkMatch[1]}
-          </a>
-        );
-        return;
-      }
-      if (part) out.push(<span key={`${keyPrefix}${si}-${i}`}>{part}</span>);
-    });
+    if (seg) out.push(<span key={`${keyPrefix}t${si}`}>{seg}</span>);
+  });
+  return out;
+}
+
+// Inline markdown: **bold** and [text](url) links, with LaTeX math rendered
+// inside every piece — including inside bold, so "**Using $s = ut$**" works.
+function renderInline(text: string, keyPrefix = ""): ReactNode[] {
+  // "**$2.5$**" (a bolded bare formula) → the math alone; rendered math
+  // already reads as emphasis.
+  const cleaned = text.replace(/\*\*(\s*\$[^$\n]+\$\s*)\*\*/g, "$1");
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|\*[^*\s][^*\n]*\*|\[[^\]]+\]\([^)]+\))/g);
+  const out: ReactNode[] = [];
+  parts.forEach((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      out.push(
+        <strong key={`${keyPrefix}${i}`} style={{ fontSize: "1.08em", color: "var(--crimson)" }}>
+          {mathSegs(part.slice(2, -2), `${keyPrefix}b${i}-`)}
+        </strong>
+      );
+      return;
+    }
+    if (part.length > 2 && part.startsWith("*") && part.endsWith("*") && !/\s$/.test(part.slice(1, -1))) {
+      out.push(<em key={`${keyPrefix}${i}`}>{mathSegs(part.slice(1, -1), `${keyPrefix}i${i}-`)}</em>);
+      return;
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      out.push(
+        <a key={`${keyPrefix}${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+          style={{ color: "var(--crimson)", textDecoration: "underline" }}>
+          {linkMatch[1]}
+        </a>
+      );
+      return;
+    }
+    if (part) out.push(...mathSegs(part, `${keyPrefix}${i}-`));
   });
   return out;
 }
