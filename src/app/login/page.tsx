@@ -33,9 +33,12 @@ function LoginInner() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Honour ?next= so the landing's "Past Papers" / "Get Pro" flows land where
+  // the user intended after signing in (falls back to the role dashboard).
+  const next = params?.get("next") || "/dashboard";
 
   // Already signed in → let the role-router send them on.
-  useEffect(() => { if (isLoaded && isSignedIn) router.replace("/dashboard"); }, [isLoaded, isSignedIn, router]);
+  useEffect(() => { if (isLoaded && isSignedIn) router.replace(next); }, [isLoaded, isSignedIn, router, next]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +51,7 @@ function LoginInner() {
       } else {
         await signInWithPassword(email, password);
       }
-      router.replace("/dashboard");
+      router.replace(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setBusy(false);
@@ -57,7 +60,7 @@ function LoginInner() {
 
   async function google() {
     setError("");
-    try { await signInWithGoogle("/dashboard"); }
+    try { await signInWithGoogle(next); }
     catch { setError("Google sign-in isn't set up yet — use email instead."); }
   }
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, FileCheck2, ListChecks, Target, School } from 'lucide-react';
+import { CheckCircle, ArrowRight, Mail, Instagram, X, Menu, Atom, Sigma, FlaskConical, Calculator, PenTool, FileCheck2, ListChecks, Target, School, Sparkles } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import { useUser, signInWithGoogle } from '@/lib/auth';
 import { useClerkAuth } from '@/lib/useClerkAuth';
@@ -61,6 +61,9 @@ function HomePageContent() {
   const [authOpen, setAuthOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
+  // Where to land AFTER sign-in — set when the user was trying to reach a
+  // specific place (Past Papers, Get Pro). Null = the usual role dashboard.
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const lastScrollY = useRef(0);
@@ -76,18 +79,33 @@ function HomePageContent() {
     setGoogleBusy(true);
     setAuthError("");
     try {
-      // Redirects to Google, returns to /sso-callback → /dashboard. Requires the
-      // Google provider enabled on the self-hosted Supabase; until then this
-      // errors and the user can use email sign-in below.
-      await signInWithGoogle("/dashboard");
+      // Returns to /sso-callback → the pending destination (or /dashboard).
+      // Requires the Google provider enabled on the self-hosted Supabase; until
+      // then this errors and the user can use email sign-in below.
+      await signInWithGoogle(pendingRedirect || "/dashboard");
     } catch {
       setAuthError("Google sign-in isn't set up yet — use email sign-in below.");
       setGoogleBusy(false);
     }
-  }, [googleBusy]);
+  }, [googleBusy, pendingRedirect]);
 
-  // Every old sign-in/sign-up entry point now opens the single "Login" popup.
-  const openAuth = useCallback((_mode?: "sign-in" | "sign-up") => { preloadClerk(); setAuthError(""); setAuthOpen(true); }, []);
+  // Open the single "Login" popup. Pass a path to land there after sign-in
+  // (e.g. Past Papers or the upgrade page); omit it for the usual dashboard.
+  const openAuth = useCallback((redirect?: string) => {
+    preloadClerk(); setAuthError(""); setPendingRedirect(redirect ?? null); setAuthOpen(true);
+  }, []);
+
+  // "Get Pro": signed-in → upgrade page (it self-handles already-Pro); signed-out
+  // → sign in first, then land on the upgrade/payment page.
+  const goPro = useCallback(() => {
+    if (user) router.push("/student/upgrade"); else openAuth("/student/upgrade");
+  }, [user, router, openAuth]);
+
+  // "Past Papers": the user wants past papers — sign in first, then go straight
+  // there (not the dashboard); signed-in users go directly.
+  const goPastPapers = useCallback(() => {
+    if (user) router.push("/student/past-papers"); else openAuth("/student/past-papers");
+  }, [user, router, openAuth]);
 
   // Instant redirect the moment auth is confirmed — no lingering on the landing
   // page. Returning users are routed from their cached profile immediately; a
@@ -215,7 +233,8 @@ function HomePageContent() {
               <a href="#features" className="cursor-pointer hover:text-crimson transition-colors">Features</a>
               <a href="#levels" className="cursor-pointer hover:text-crimson transition-colors">Levels</a>
               <a href="#how-it-works" className="cursor-pointer hover:text-crimson transition-colors">How It Works</a>
-              <Link href="/past-papers" className="cursor-pointer hover:text-crimson transition-colors">Past Papers</Link>
+              <a href="#pricing" className="cursor-pointer hover:text-crimson transition-colors">Pricing</a>
+              <button onClick={goPastPapers} className="cursor-pointer hover:text-crimson transition-colors">Past Papers</button>
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
@@ -229,7 +248,7 @@ function HomePageContent() {
               </button>
               {isLoaded ? (
                 <Button
-                  onClick={() => { setAuthError(""); setAuthOpen(true); }}
+                  onClick={() => openAuth()}
                   onMouseEnter={preloadClerk}
                   className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
                 >
@@ -249,8 +268,9 @@ function HomePageContent() {
             <a href="#features" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Features</a>
             <a href="#levels" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Levels</a>
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
-            <Link href="/past-papers" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Past Papers</Link>
-            <button onClick={() => { setIsMobileNavOpen(false); setAuthError(""); setAuthOpen(true); }} className="mt-1 w-full rounded-full bg-crimson py-2 font-semibold text-white">
+            <a href="#pricing" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Pricing</a>
+            <button onClick={() => { setIsMobileNavOpen(false); goPastPapers(); }} className="block w-full py-1 text-left">Past Papers</button>
+            <button onClick={() => { setIsMobileNavOpen(false); openAuth(); }} className="mt-1 w-full rounded-full bg-crimson py-2 font-semibold text-white">
               Login
             </button>
           </div>
@@ -279,7 +299,7 @@ function HomePageContent() {
               <GoogleG size={18} /> {googleBusy ? "Connecting…" : "Continue with Google"}
             </button>
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => router.push(pendingRedirect ? `/login?next=${encodeURIComponent(pendingRedirect)}` : "/login")}
               className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-crimson px-5 py-3 font-semibold text-white shadow-crimson transition-colors hover:bg-crimson-deep"
             >
               <Mail size={18} /> Continue with email
@@ -294,7 +314,7 @@ function HomePageContent() {
       <FloatingHero
         user={user}
         profile={profile}
-        onSignUp={() => openAuth("sign-up")}
+        onSignUp={() => openAuth()}
         onExplore={() => {
           document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
         }}
@@ -340,6 +360,89 @@ function HomePageContent() {
                 </motion.div>
               </StaggerItem>
             ))}
+          </Stagger>
+        </div>
+      </section>
+
+      {/* Pricing — Free vs Pro */}
+      <section id="pricing" className="relative py-20 md:py-28 px-5 md:px-12 bg-surface-soft">
+        <div className="max-w-[1100px] mx-auto">
+          <Reveal className="text-center mb-12 md:mb-16">
+            <span className="ed-eyebrow justify-center">Plans</span>
+            <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
+              Start free, go <span className="italic text-crimson">Pro</span> when you&apos;re ready
+            </h2>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">
+              Past papers are free forever. Everything that marks and explains your work lives on Pro — with a 10-day free trial, no card.
+            </p>
+          </Reveal>
+
+          <Stagger className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-7 items-stretch max-w-[880px] mx-auto">
+            {/* Free */}
+            <StaggerItem>
+              <div className="ed-card flex h-full flex-col p-7 md:p-8">
+                <div className="flex items-center justify-between">
+                  <span className="ed-eyebrow">Free</span>
+                  <span className="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 text-xs font-bold text-ink-muted">Forever</span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-2">
+                  <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Rs&nbsp;0</span>
+                  <span className="text-sm text-ink-faint">/ always</span>
+                </div>
+                <p className="mt-2 text-[15px] text-ink-muted">Browse every past paper — no account limits.</p>
+                <ul className="mt-6 flex-1 space-y-3">
+                  {[
+                    "Full past-paper library — 20+ subjects, 15+ years",
+                    "Question papers, mark schemes & examiner reports",
+                    "View or download any paper",
+                    "Browse by subject, year and session",
+                  ].map((f) => (
+                    <li key={f} className="flex items-start gap-3 text-[15px] text-ink">
+                      <CheckCircle size={18} className="mt-0.5 shrink-0 text-ink-muted" /> <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button onClick={goPastPapers} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 py-3 font-bold text-ink transition-colors hover:bg-surface-soft">
+                  Browse past papers <ArrowRight size={18} />
+                </button>
+              </div>
+            </StaggerItem>
+
+            {/* Pro */}
+            <StaggerItem>
+              <div className="ed-card relative flex h-full flex-col border-crimson/30 p-7 shadow-card-hover ring-1 ring-crimson/20 md:p-8">
+                <span className="absolute -top-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-crimson px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.1em] text-white shadow-crimson">
+                  <Sparkles size={13} /> Most popular
+                </span>
+                <div className="flex items-center justify-between">
+                  <span className="ed-eyebrow text-crimson">Pro</span>
+                  <span className="inline-flex items-center rounded-full bg-mint-soft px-3 py-1 text-xs font-bold text-mint-ink">10-day free trial</span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-2">
+                  <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Free</span>
+                  <span className="text-sm text-ink-faint">for 10 days · no card</span>
+                </div>
+                <p className="mt-2 text-[15px] text-ink-muted">Everything that marks, explains and tracks your work.</p>
+                <ul className="mt-6 flex-1 space-y-3">
+                  {[
+                    "Everything in Free, plus:",
+                    "AI marking — typed or handwritten, against the CAIE scheme",
+                    "Every mark explained, traced to the exact scheme point",
+                    "Ask AI — answers grounded in real past papers",
+                    "Weak-topic analytics that track your marks over time",
+                    "Study planner, exam datesheet & unlimited practice",
+                  ].map((f, i) => (
+                    <li key={f} className={`flex items-start gap-3 text-[15px] text-ink ${i === 0 ? "font-semibold" : ""}`}>
+                      <CheckCircle size={18} className="mt-0.5 shrink-0 text-crimson" /> <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button onClick={goPro} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full bg-crimson px-6 py-3 font-bold text-white shadow-crimson transition-colors hover:bg-crimson-deep active:scale-[0.99]">
+                  Get Pro <ArrowRight size={18} />
+                </button>
+                <p className="mt-3 text-center text-xs text-ink-faint">Sign in, then start your trial or upgrade — cancel anytime.</p>
+              </div>
+            </StaggerItem>
           </Stagger>
         </div>
       </section>
@@ -531,14 +634,12 @@ function HomePageContent() {
           <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-pink">propel</span> your success?</h2>
           <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">See exactly where your marks went — marked against the official Cambridge scheme.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button onClick={() => openAuth("sign-up")} onMouseEnter={preloadClerk} size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
+            <Button onClick={() => openAuth()} onMouseEnter={preloadClerk} size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
               Get started free <ArrowRight className="ml-1" size={20} />
             </Button>
-            <Link href="/past-papers">
-              <Button variant="ghost" size="lg" className="h-14 rounded-full border border-white/20 bg-white/5 px-10 text-base md:text-lg text-white hover:bg-white/10">
-                Explore past papers
-              </Button>
-            </Link>
+            <Button onClick={goPastPapers} variant="ghost" size="lg" className="h-14 rounded-full border border-white/20 bg-white/5 px-10 text-base md:text-lg text-white hover:bg-white/10">
+              Explore past papers
+            </Button>
           </div>
         </Reveal>
       </section>
@@ -559,7 +660,7 @@ function HomePageContent() {
               <ul className="space-y-2.5 text-white/60 text-sm md:text-[15px]">
                 <li><a href="#features" className="hover:text-pink transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-pink transition-colors">How It Works</a></li>
-                <li><Link href="/past-papers" className="hover:text-pink transition-colors">Past Papers</Link></li>
+                <li><button onClick={goPastPapers} className="hover:text-pink transition-colors">Past Papers</button></li>
               </ul>
             </div>
 
