@@ -6,6 +6,8 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import { useUser } from "@/lib/auth";
 import { useClerkAuth } from "@/lib/useClerkAuth";
+import { usePaperLevel } from "@/lib/paperLevel";
+import { loadSelectedSubjects, selectedSubjectNames } from "@/lib/studentPersonalization";
 import { apiCall, getApiUrl } from "@/lib/api";
 import { Icon } from "@/components/propel/Icon";
 import { subjectStyle } from "@/components/propel/subjects";
@@ -313,21 +315,31 @@ function AskAIInner() {
   const imageInput = useRef<HTMLInputElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
 
-  // The index is strictly level-separated; always tell the backend which one.
-  const activeLevel = (): "olevel" | "alevel" => {
-    if (profile?.active_level === "alevel" || profile?.active_level === "olevel") return profile.active_level;
-    try { return window.localStorage.getItem("propel_paper_level") === "alevel" ? "alevel" : "olevel"; } catch { return "olevel"; }
-  };
-  const level = activeLevel();
+  // The LIVE O/A level — the same context the navbar toggle drives, so a
+  // switch anywhere in the app re-renders Ask AI immediately (the question
+  // index is strictly level-separated; every query sends this level).
+  const { level } = usePaperLevel();
 
-  // Scope options = the subjects the student picked for their ACTIVE level
-  // (subjects_by_level is the server source of truth; the flat
-  // selected_subjects is the O+A union and only serves older profiles).
+  // The student's subjects for the active level, kept live: the local mirror
+  // plus the same change event every other tab listens to (fires on subject
+  // edits AND on O↔A toggles, which swap the per-level list).
+  const [mySubjects, setMySubjects] = useState<string[]>([]);
+  useEffect(() => {
+    const read = () => setMySubjects(selectedSubjectNames(loadSelectedSubjects()));
+    read();
+    window.addEventListener("propel:selected-subjects-change", read);
+    return () => window.removeEventListener("propel:selected-subjects-change", read);
+  }, [level]);
+
+  // Scope options = the student's own subjects for the ACTIVE level; the
+  // profile (subjects_by_level, then the legacy flat union) covers a fresh
+  // browser whose mirror hasn't hydrated yet.
   const subjectOptions = useMemo(() => {
+    if (mySubjects.length) return mySubjects;
     const byLevel = (profile?.subjects_by_level?.[level] ?? []).filter(Boolean) as string[];
     if (byLevel.length) return byLevel;
     return (profile?.selected_subjects?.filter(Boolean) ?? []) as string[];
-  }, [profile?.subjects_by_level, profile?.selected_subjects, level]);
+  }, [mySubjects, profile?.subjects_by_level, profile?.selected_subjects, level]);
 
   // A scope picked on the other level (or removed in Subjects) must not stick.
   useEffect(() => {
@@ -446,7 +458,7 @@ function AskAIInner() {
         const res = await apiCall("/rag/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, history, mode, subject: scopeSubject || undefined, level: activeLevel() }),
+          body: JSON.stringify({ question: trimmed, history, mode, subject: scopeSubject || undefined, level }),
         });
         if (!res.ok) throw new Error(await describeHttpError(res));
         data = await res.json();
@@ -504,7 +516,7 @@ function AskAIInner() {
 
   // Rail data: search filter, then grouped Today / Earlier with relative times.
   const fullName = profile?.full_name || user?.firstName || "Student";
-  const levelName = activeLevel() === "alevel" ? "A Level" : "O Level";
+  const levelName = level === "alevel" ? "A Level" : "O Level";
   const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
   const railList = sessions.filter((s) => !railQuery.trim() || s.title.toLowerCase().includes(railQuery.trim().toLowerCase()));
   const groups = [
