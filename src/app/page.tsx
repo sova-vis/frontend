@@ -419,10 +419,10 @@ function HomePageContent() {
                   <span className="inline-flex items-center rounded-full bg-mint-soft px-3 py-1 text-xs font-bold text-mint-ink">10-day free trial</span>
                 </div>
                 <div className="mt-4 flex items-baseline gap-2">
-                  <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Free</span>
-                  <span className="text-sm text-ink-faint">for 10 days · no card</span>
+                  <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Rs&nbsp;6,000</span>
+                  <span className="text-sm text-ink-faint">/ month</span>
                 </div>
-                <p className="mt-2 text-[15px] text-ink-muted">Everything that marks, explains and tracks your work.</p>
+                <p className="mt-2 text-[15px] text-ink-muted">Everything that marks, explains and tracks your work — start with a 10-day free trial, no card.</p>
                 <ul className="mt-6 flex-1 space-y-3">
                   {[
                     "Everything in Free, plus:",
