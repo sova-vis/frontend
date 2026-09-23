@@ -164,10 +164,25 @@ const isTableRow = (line: string) => /^\|.*\|$/.test(line);
 const isTableSeparator = (line: string) => /^\|(\s*:?-{2,}:?\s*\|)+$/.test(line);
 const splitCells = (line: string) => line.slice(1, -1).split("|").map((c) => c.trim());
 
+// A level-4 heading in an answer is a paper reference ("#### Accounting 2021
+// May/June Paper 1 Variant 1 Q1") — find the citation it names so the heading
+// can carry a "View in paper" link to the original paper.
+const normRef = (s: string) => s.replace(/\*\*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+function citationForHeading(heading: string, citations?: Citation[]): Citation | undefined {
+  if (!citations?.length) return undefined;
+  const h = normRef(heading);
+  if (!h) return undefined;
+  return (
+    citations.find((c) => c.reference && normRef(c.reference) === h) ||
+    citations.find((c) => c.reference && (h.includes(normRef(c.reference)) || normRef(c.reference).includes(h)))
+  );
+}
+
 // Block-level markdown: headings (###), bullet/numbered lists, tables and
 // paragraphs — built for the chatbot's Ask-mode answers (worked examples,
 // marking points, and the occasional comparison table the model produces).
-function renderMarkdown(text: string): ReactNode[] {
+// `citations` lets reference headings link out to the original paper.
+function renderMarkdown(text: string, citations?: Citation[]): ReactNode[] {
   if (!text) return [];
   const lines = text.replace(/\r/g, "").split("\n");
   const nodes: ReactNode[] = [];
@@ -237,14 +252,17 @@ function renderMarkdown(text: string): ReactNode[] {
     if (heading) {
       flushPara(); flushBullets();
       const level = heading[1].length;
+      const headText = heading[2].replace(/\*\*/g, "");
+      const cite = level >= 4 ? citationForHeading(headText, citations) : undefined;
       nodes.push(
         level <= 3 ? (
           <div key={`h-${nodes.length}`} className="eyebrow" style={{ fontSize: 12.5, color: "var(--purple)", marginTop: nodes.length ? 16 : 0, marginBottom: 8 }}>
-            {heading[2].replace(/\*\*/g, "")}
+            {headText}
           </div>
         ) : (
-          <div key={`h-${nodes.length}`} style={{ fontSize: 19, fontWeight: 700, color: "var(--ink)", marginTop: nodes.length ? 16 : 0, marginBottom: 6 }}>
-            {heading[2].replace(/\*\*/g, "")}
+          <div key={`h-${nodes.length}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: nodes.length ? 16 : 0, marginBottom: 6 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color: "var(--ink)" }}>{headText}</span>
+            {cite && <ViewInPaper c={cite} />}
           </div>
         )
       );
@@ -691,7 +709,7 @@ function ChatBubble({ m, onRetry }: { m: ChatMsg; onRetry: () => void }) {
               <MatchTiers matches={m.matches!} titles={m.tierTitles} labels={m.tierLabels} />
             </>
           ) : (
-            <div>{renderMarkdown(m.text || "")}</div>
+            <div>{renderMarkdown(m.text || "", m.citations)}</div>
           )}
 
           {!isFind && hasMatches && (
