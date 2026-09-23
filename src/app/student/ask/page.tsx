@@ -561,93 +561,103 @@ function AskAIInner() {
             </button>
           )}
 
-          {empty ? (
-            <div className="aai-canvas">
-              <div className="aai-hero aai-measure">
-                <span className="aai-badge">
-                  <Icon name="sparkles" size={14} fill="currentColor" stroke={0} />
-                  Powered by past papers
-                </span>
-                <h1>Hey {name}, what should we tackle?</h1>
-                <p>
-                  {mode === "find"
-                    ? "Type a topic or paste a question — I'll show you every past paper it appeared in, ranked by how closely it matches."
-                    : "Ask anything and I'll explain it — then show you the exam questions the answer came from."}
-                </p>
-              </div>
-              <div className="aai-grid aai-measure">
-                {promptCards.map((p, i) => {
-                  const s = subjectStyle(p.subj);
-                  return (
-                    <button key={i} className="aai-card" onClick={() => send(p.t)}>
-                      <div className="aai-card-top">
-                        <span className="aai-tile" style={{ background: s.color + "1c", color: s.color }}><Icon name={p.icon} size={16} /></span>
-                        <Icon name="arrow_up" size={16} className="arrow" />
-                      </div>
-                      <span className="q">{p.t}</span>
-                      <span className="tag">{p.tag} · past papers</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div ref={scroller} className="aai-scroll">
-              <div className="aai-thread">
-                {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
-                {loading && <Typing mode={mode} />}
-              </div>
-            </div>
-          )}
-
-          <div className="aai-composer-zone">
-            {attached && (
-              <div className="aai-attachrow">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
-                <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
-              </div>
-            )}
-            <div className="aai-composer">
-              <textarea className="aai-well" value={input} onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                placeholder={attached ? "Add a question about the image (optional)…" : mode === "find" ? "Type a topic or paste a question to find where it appeared…" : "Ask about any topic, or paste a question…"}
-                rows={1} />
-              <div className="aai-bar">
-                <div className="aai-seg" role="tablist" aria-label="Mode">
-                  <button className={mode === "ask" ? "on" : ""} onClick={() => setMode("ask")}
-                    title="Explain, solve or practise — grounded in real past-paper questions">
-                    <Icon name="sparkles" size={14} fill="currentColor" stroke={0} /> Ask
-                  </button>
-                  <button className={mode === "find" ? "on" : ""} onClick={() => setMode("find")}
-                    title="Find which past papers a topic or question appeared in — best, same-concept and related matches">
-                    <Icon name="search" size={14} /> Find
-                  </button>
-                </div>
-                {subjectOptions.length > 0 && (
-                  <label className="aai-chip" title="Limit answers to one subject">
-                    <span className="swatch" />
-                    <select value={scopeSubject} onChange={(e) => setScopeSubject(e.target.value)} aria-label="Subject scope">
-                      <option value="">All subjects</option>
-                      {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </label>
+          {(() => {
+            // One composer, two homes: centred under the greeting on a fresh
+            // chat, pinned to the bottom once the conversation starts.
+            const composerZone = (
+              <div className="aai-composer-zone">
+                {attached && (
+                  <div className="aai-attachrow">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={attached.url} alt="attachment" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attached.file.name}</span>
+                    <button className="icon-btn" aria-label="Remove image" onClick={() => { URL.revokeObjectURL(attached.url); setAttached(null); }} style={{ width: 28, height: 28 }}><Icon name="x" size={14} /></button>
+                  </div>
                 )}
-                <input ref={imageInput} type="file" accept="image/*" style={{ display: "none" }}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 12 * 1024 * 1024) { setToast("Image is larger than 12 MB."); } else setAttached({ file: f, url: URL.createObjectURL(f) }); } e.currentTarget.value = ""; }} />
-                <button className="icon-btn" onClick={() => imageInput.current?.click()} disabled={loading} aria-label="Attach image"
-                  title="Attach a diagram, graph or photo of a question" style={{ width: 34, height: 34, flex: "none" }}>
-                  <Icon name="camera" size={17} />
-                </button>
-                <span style={{ flex: 1 }} />
-                <button className="aai-send" onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
-                  <Icon name="send" size={16} fill="#fff" stroke={0} />
-                </button>
+                <div className="aai-composer">
+                  <textarea className="aai-well" value={input} onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                    placeholder={attached ? "Add a question about the image (optional)…" : mode === "find" ? "Type a topic or paste a question to find where it appeared…" : "Ask about any topic, or paste a question…"}
+                    rows={1} />
+                  <div className="aai-bar">
+                    <div className="aai-seg" role="tablist" aria-label="Mode">
+                      <button className={mode === "ask" ? "on" : ""} onClick={() => setMode("ask")}
+                        title="Explain, solve or practise — grounded in real past-paper questions">
+                        <Icon name="sparkles" size={14} fill="currentColor" stroke={0} /> Ask
+                      </button>
+                      <button className={mode === "find" ? "on" : ""} onClick={() => setMode("find")}
+                        title="Find which past papers a topic or question appeared in — best, same-concept and related matches">
+                        <Icon name="search" size={14} /> Find
+                      </button>
+                    </div>
+                    {subjectOptions.length > 0 && (
+                      <label className="aai-chip" title="Limit answers to one subject">
+                        <span className="swatch" />
+                        <select value={scopeSubject} onChange={(e) => setScopeSubject(e.target.value)} aria-label="Subject scope">
+                          <option value="">All subjects</option>
+                          {subjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    <input ref={imageInput} type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 12 * 1024 * 1024) { setToast("Image is larger than 12 MB."); } else setAttached({ file: f, url: URL.createObjectURL(f) }); } e.currentTarget.value = ""; }} />
+                    <button className="icon-btn" onClick={() => imageInput.current?.click()} disabled={loading} aria-label="Attach image"
+                      title="Attach a diagram, graph or photo of a question" style={{ width: 34, height: 34, flex: "none" }}>
+                      <Icon name="camera" size={17} />
+                    </button>
+                    <span style={{ flex: 1 }} />
+                    <button className="aai-send" onClick={() => send(input)} disabled={(!input.trim() && !attached) || loading} aria-label="Send">
+                      <Icon name="send" size={16} fill="#fff" stroke={0} />
+                    </button>
+                  </div>
+                </div>
+                <p className="aai-note"><b>Ask</b> explains and cites · <b>Find</b> jumps straight to matching past-paper questions</p>
               </div>
-            </div>
-            <p className="aai-note"><b>Ask</b> explains and cites · <b>Find</b> jumps straight to matching past-paper questions</p>
-          </div>
+            );
+
+            return empty ? (
+              <div className="aai-canvas">
+                <div className="aai-hero aai-measure">
+                  <span className="aai-badge">
+                    <Icon name="sparkles" size={14} fill="currentColor" stroke={0} />
+                    Powered by past papers
+                  </span>
+                  <h1>Hey {name}, what should we tackle?</h1>
+                  <p>
+                    {mode === "find"
+                      ? "Type a topic or paste a question — I'll show you every past paper it appeared in, ranked by how closely it matches."
+                      : "Ask anything and I'll explain it — then show you the exam questions the answer came from."}
+                  </p>
+                </div>
+                {composerZone}
+                <div className="aai-grid aai-measure">
+                  {promptCards.map((p, i) => {
+                    const s = subjectStyle(p.subj);
+                    return (
+                      <button key={i} className="aai-card" onClick={() => send(p.t)}>
+                        <div className="aai-card-top">
+                          <span className="aai-tile" style={{ background: s.color + "1c", color: s.color }}><Icon name={p.icon} size={16} /></span>
+                          <Icon name="arrow_up" size={16} className="arrow" />
+                        </div>
+                        <span className="q">{p.t}</span>
+                        <span className="tag">{p.tag} · past papers</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div ref={scroller} className="aai-scroll">
+                  <div className="aai-thread">
+                    {msgs.map((m, i) => <ChatBubble key={i} m={m} onRetry={() => lastUser && send(lastUser)} />)}
+                    {loading && <Typing mode={mode} />}
+                  </div>
+                </div>
+                {composerZone}
+              </>
+            );
+          })()}
         </main>
 
       </div>
