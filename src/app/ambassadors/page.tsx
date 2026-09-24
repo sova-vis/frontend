@@ -7,7 +7,7 @@
  * deadline row and an "Apply now" that opens the Google Form.
  */
 import Link from "next/link";
-import { ArrowRight, Home, Sparkles } from "lucide-react";
+import { ArrowRight, Home } from "lucide-react";
 import { BrandLogo } from "@/components/ui/Logo";
 import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
 
@@ -66,16 +66,17 @@ export default function AmbassadorsPage() {
               </div>
             </Reveal>
 
-            {/* poster-style crimson accent */}
+            {/* the cohort's students — cut from the flyer, blends into the cream */}
             <Reveal delay={0.1}>
-              <div className="relative hidden h-[300px] md:block">
-                <div aria-hidden className="absolute right-4 top-2 h-36 w-36 rotate-12 rounded-[2rem] bg-crimson-soft" />
-                <div aria-hidden className="absolute right-24 top-16 h-32 w-32 -rotate-6 rounded-[2rem] bg-crimson/10" />
-                <div className="absolute inset-x-2 bottom-0 rounded-[1.75rem] bg-crimson p-8 text-white shadow-crimson">
-                  <Sparkles size={22} className="text-white/80" />
-                  <p className="mt-3 font-display text-3xl italic leading-tight">Be the change<br />at your school.</p>
-                  <p className="mt-4 font-mono text-[11px] font-medium uppercase tracking-[.13em] text-white/75">O &amp; A Level · across Pakistan</p>
-                </div>
+              <div className="overflow-hidden rounded-[1.25rem]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/ambassadors-students.jpg"
+                  alt="Two O and A Level students holding notebooks, ready to represent Propel"
+                  width={516}
+                  height={474}
+                  className="h-auto w-full object-cover"
+                />
               </div>
             </Reveal>
           </div>
