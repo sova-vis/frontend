@@ -229,12 +229,13 @@ function HomePageContent() {
           <BrandLogo size={38} labelClassName="text-2xl text-crimson" />
 
           <div className="flex items-center gap-3 md:gap-8">
-            <div className="hidden md:flex items-center gap-8 font-semibold text-ink-muted">
+            <div className="hidden md:flex items-center gap-6 font-semibold text-ink-muted">
               <a href="#features" className="cursor-pointer hover:text-crimson transition-colors">Features</a>
               <a href="#levels" className="cursor-pointer hover:text-crimson transition-colors">Levels</a>
               <a href="#how-it-works" className="cursor-pointer hover:text-crimson transition-colors">How It Works</a>
               <a href="#pricing" className="cursor-pointer hover:text-crimson transition-colors">Pricing</a>
               <button onClick={goPastPapers} className="cursor-pointer hover:text-crimson transition-colors">Past Papers</button>
+              <Link href="/ambassadors" className="cursor-pointer hover:text-crimson transition-colors">Ambassadors</Link>
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
@@ -270,6 +271,7 @@ function HomePageContent() {
             <a href="#how-it-works" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>How It Works</a>
             <a href="#pricing" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Pricing</a>
             <button onClick={() => { setIsMobileNavOpen(false); goPastPapers(); }} className="block w-full py-1 text-left">Past Papers</button>
+            <Link href="/ambassadors" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Ambassadors</Link>
             <button onClick={() => { setIsMobileNavOpen(false); openAuth(); }} className="mt-1 w-full rounded-full bg-crimson py-2 font-semibold text-white">
               Login
             </button>
@@ -661,6 +663,7 @@ function HomePageContent() {
                 <li><a href="#features" className="hover:text-pink transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-pink transition-colors">How It Works</a></li>
                 <li><button onClick={goPastPapers} className="hover:text-pink transition-colors">Past Papers</button></li>
+                <li><Link href="/ambassadors" className="hover:text-pink transition-colors">Ambassadors</Link></li>
               </ul>
             </div>
 
