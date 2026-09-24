@@ -16,7 +16,7 @@ const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: '--font-roboto-mo
 const fredoka = Fredoka({ subsets: ["latin"], weight: ['400', '500', '600', '700'], variable: '--font-fredoka', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: "Propel — AI marking for Cambridge O & A Level",
+  title: "Propel: AI marking for Cambridge O & A Level",
   description: "Propel is an AI-powered assessment platform for Cambridge O Level and A Level. Submit answers, get them marked against the official CAIE scheme, and see exactly where every mark went.",
 };
 

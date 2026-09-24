@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Landing-page hero — a faithful React port of the Claude Design "Hero.dc.html".
+ * Landing-page hero, a faithful React port of the Claude Design "Hero.dc.html".
  * A floating, 3-beat "intelligence" card that loops:
  *   0. a marked answer  →  progress stats
  *   1. strengths vs weaknesses (topic map + "Focus next")
@@ -38,7 +38,7 @@ const HEAD = { pre: "", accent: "Propel", post: " your A/O Levels game" };
 const BEAT_MS = 4900;
 
 // ---------------------------------------------------------------------------
-// Subject pool — one is chosen at random on each mount. Each carries the copy
+// Subject pool, one is chosen at random on each mount. Each carries the copy
 // for all three beats so the whole card is coherent to that subject.
 // ---------------------------------------------------------------------------
 type Status = "full" | "partial" | "miss";
@@ -77,7 +77,7 @@ const SUBJECTS: Subject[] = [
       ["Forces & momentum", 86, "strong"], ["Thermal physics", 91, "strong"],
     ],
     focus: ["Electric fields", "Circular motion"],
-    plan: ["Electric fields — 12 questions, Paper 2", "Circular motion — mark scheme drill, 20 min", "Waves — timed set"],
+    plan: ["Electric fields, 12 questions, Paper 2", "Circular motion, mark scheme drill, 20 min", "Waves, timed set"],
     practiceTag: "Electric fields · Q1",
     practiceQ: "A charged oil drop is held stationary between two plates. Calculate the field strength.",
   },
@@ -99,7 +99,7 @@ const SUBJECTS: Subject[] = [
       ["Chemical bonding", 85, "strong"], ["Stoichiometry", 90, "strong"],
     ],
     focus: ["Redox", "Organic mechanisms"],
-    plan: ["Redox — 15 questions, Paper 2", "Organic mechanisms — mark scheme drill", "Equilibria — timed set"],
+    plan: ["Redox, 15 questions, Paper 2", "Organic mechanisms, mark scheme drill", "Equilibria, timed set"],
     practiceTag: "Redox reactions · Q1",
     practiceQ: "Balance the half-equation for the reduction of MnO₄⁻ in acidic solution.",
   },
@@ -121,7 +121,7 @@ const SUBJECTS: Subject[] = [
       ["Transport in mammals", 84, "strong"], ["Biological molecules", 92, "strong"],
     ],
     focus: ["Gas exchange", "Immunity"],
-    plan: ["Gas exchange — 12 questions, Paper 2", "Immunity — mark scheme drill", "Enzymes — timed set"],
+    plan: ["Gas exchange, 12 questions, Paper 2", "Immunity, mark scheme drill", "Enzymes, timed set"],
     practiceTag: "Cell membranes · Q1",
     practiceQ: "Explain how the structure of a phospholipid bilayer relates to its function.",
   },
@@ -143,7 +143,7 @@ const SUBJECTS: Subject[] = [
       ["Trigonometry", 85, "strong"], ["Algebra", 90, "strong"],
     ],
     focus: ["Vectors", "Complex numbers"],
-    plan: ["Vectors — 10 questions, Paper 3", "Complex numbers — mark scheme drill", "Integration — timed set"],
+    plan: ["Vectors, 10 questions, Paper 3", "Complex numbers, mark scheme drill", "Integration, timed set"],
     practiceTag: "Vectors · Q1",
     practiceQ: "Find the acute angle between the lines with equations r = a + t·b and r = c + s·d.",
   },
@@ -165,7 +165,7 @@ const SUBJECTS: Subject[] = [
       ["Costs & revenue", 84, "strong"], ["Macro policy", 90, "strong"],
     ],
     focus: ["Market failure", "Exchange rates"],
-    plan: ["Market failure — 8 questions, Paper 2", "Exchange rates — data-response drill", "Elasticity — timed set"],
+    plan: ["Market failure, 8 questions, Paper 2", "Exchange rates, data-response drill", "Elasticity, timed set"],
     practiceTag: "Market failure · Q1",
     practiceQ: "Explain, using a diagram, how a negative externality leads to market failure.",
   },
@@ -187,7 +187,7 @@ const SUBJECTS: Subject[] = [
       ["Algorithms", 85, "strong"], ["Programming", 91, "strong"],
     ],
     focus: ["Networking", "Boolean algebra"],
-    plan: ["Networking — 10 questions, Paper 1", "Boolean algebra — mark scheme drill", "Databases — timed set"],
+    plan: ["Networking, 10 questions, Paper 1", "Boolean algebra, mark scheme drill", "Databases, timed set"],
     practiceTag: "Data representation · Q1",
     practiceQ: "Convert the denary number 200 into 8-bit binary and then into hexadecimal.",
   },
@@ -253,7 +253,7 @@ function HeroStage({ subject }: { subject: Subject }) {
     return {
       t1: r[0],
       m: st === "miss" ? "0" : "+" + r[1],
-      icon: st === "full" ? "✓" : st === "partial" ? "~" : "—",
+      icon: st === "full" ? "✓" : st === "partial" ? "~" : "-",
       bg: st === "full" ? "rgb(var(--mint))" : st === "partial" ? "rgb(var(--gold))" : "rgb(var(--ink) / 0.32)",
       mc: st === "full" ? "rgb(var(--mint))" : st === "partial" ? "rgb(var(--gold))" : "rgb(var(--ink) / 0.4)",
       o: on,
@@ -393,7 +393,7 @@ function HeroStage({ subject }: { subject: Subject }) {
                 </div>
                 <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", gap: 12, border: "1px solid rgb(var(--crimson) / 0.22)", background: "rgb(var(--crimson) / 0.05)", borderRadius: 13, padding: "12px 15px", opacity: sumO, transform: `translateY(${(1 - sumO) * 10}px)`, transition: "opacity .5s ease,transform .5s cubic-bezier(.22,1,.36,1)" }}>
                   <span className="font-display" style={{ fontSize: 30, lineHeight: 1, color: "rgb(var(--crimson))" }}>2</span>
-                  <span style={{ flex: 1, font: "400 11px/1.4 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--ink-muted))" }}>{"topics below your target grade — folded into this week's plan"}</span>
+                  <span style={{ flex: 1, font: "400 11px/1.4 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--ink-muted))" }}>{"topics below your target grade, folded into this week's plan"}</span>
                   <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 6, font: "500 10.5px/1 var(--font-sans,'DM Sans',sans-serif)", color: "rgb(var(--crimson))" }}>Build plan <span aria-hidden>→</span></span>
                 </div>
               </div>
@@ -492,7 +492,7 @@ export default function ProductHero({ user, profile, onSignUp, onExplore }: Prod
           </h1>
 
           <p className="dc-rise m-0 max-w-[47ch] text-ink-muted [text-wrap:pretty]" style={{ fontSize: "clamp(16px,1.25vw,18.5px)", lineHeight: 1.55, animationDelay: "0.18s" }}>
-            Real past papers, marked against the official Cambridge scheme — then a study plan that targets your weak topics.
+            Real past papers, marked against the official Cambridge scheme, then a study plan that targets your weak topics.
           </p>
 
           <div className="dc-rise mt-0.5 flex flex-wrap gap-3" style={{ animationDelay: "0.32s" }}>

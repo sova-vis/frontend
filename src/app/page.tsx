@@ -61,7 +61,7 @@ function HomePageContent() {
   const [authOpen, setAuthOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
-  // Where to land AFTER sign-in — set when the user was trying to reach a
+  // Where to land AFTER sign-in, set when the user was trying to reach a
   // specific place (Past Papers, Get Pro). Null = the usual role dashboard.
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -84,7 +84,7 @@ function HomePageContent() {
       // then this errors and the user can use email sign-in below.
       await signInWithGoogle(pendingRedirect || "/dashboard");
     } catch {
-      setAuthError("Google sign-in isn't set up yet — use email sign-in below.");
+      setAuthError("Google sign-in isn't set up yet, use email sign-in below.");
       setGoogleBusy(false);
     }
   }, [googleBusy, pendingRedirect]);
@@ -101,13 +101,13 @@ function HomePageContent() {
     if (user) router.push("/student/upgrade"); else openAuth("/student/upgrade");
   }, [user, router, openAuth]);
 
-  // "Past Papers": the user wants past papers — sign in first, then go straight
+  // "Past Papers": the user wants past papers, sign in first, then go straight
   // there (not the dashboard); signed-in users go directly.
   const goPastPapers = useCallback(() => {
     if (user) router.push("/student/past-papers"); else openAuth("/student/past-papers");
   }, [user, router, openAuth]);
 
-  // Instant redirect the moment auth is confirmed — no lingering on the landing
+  // Instant redirect the moment auth is confirmed, no lingering on the landing
   // page. Returning users are routed from their cached profile immediately; a
   // brand-new user (no cache yet) goes straight to onboarding without waiting on
   // the backend round-trip. The onboarding page bounces anyone already onboarded.
@@ -136,7 +136,7 @@ function HomePageContent() {
       // treat this as a new account. Routing to /onboarding while it's still
       // loading (e.g. right after a login, when the cached profile was cleared on
       // the previous sign-out) sent returning users to onboarding every time.
-      // While it loads with no cache, we wait here — the splash covers the gap.
+      // While it loads with no cache, we wait here, the splash covers the gap.
       router.replace(destForUser(user, profile));
     }
   }, [isLoaded, user, profileLoading, profile, router]);
@@ -173,16 +173,16 @@ function HomePageContent() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // The four claims Propel leads with — assessment, not tutoring (brand book p4).
+  // The four claims Propel leads with, assessment, not tutoring (brand book p4).
   const features = [
     { icon: FileCheck2, title: "Marked against the scheme", desc: "Typed or handwritten answers, scored against the official CAIE mark scheme.", iconWrap: "bg-crimson-soft text-crimson-ink" },
-    { icon: ListChecks, title: "Every mark explained", desc: "Each mark traced to the exact scheme point that earned or lost it — no black box.", iconWrap: "bg-crimson-soft text-crimson-ink" },
+    { icon: ListChecks, title: "Every mark explained", desc: "Each mark traced to the exact scheme point that earned or lost it, no black box.", iconWrap: "bg-crimson-soft text-crimson-ink" },
     { icon: Target, title: "Weak topics, tracked", desc: "Topic-level analytics show exactly where your marks keep going, over time.", iconWrap: "bg-clay-soft text-clay-ink" },
-    { icon: School, title: "Built for schools", desc: "A teacher portal and institution management, built in from the start — not bolted on.", iconWrap: "bg-crimson-soft text-crimson-ink" },
+    { icon: School, title: "Built for schools", desc: "A teacher portal and institution management, built in from the start, not bolted on.", iconWrap: "bg-crimson-soft text-crimson-ink" },
   ];
 
   // O and A tracks read as real, separate offerings (no "Add Maths" anywhere,
-  // per the current curriculum) — but the landing presents both uniformly.
+  // per the current curriculum), but the landing presents both uniformly.
   const subjectsByLevel: Record<"O" | "A", string[]> = {
     O: ["Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Economics", "Business Studies", "Accounting", "English Language", "Islamiyat", "Pakistan Studies", "Statistics"],
     A: ["Physics", "Chemistry", "Biology", "Mathematics", "Further Mathematics", "Computer Science", "Economics", "Business", "Accounting", "Psychology", "Sociology", "English Literature"],
@@ -197,7 +197,7 @@ function HomePageContent() {
     { to: 100, suffix: "%", label: "Marks explained" },
   ];
 
-  // Once auth is confirmed, cover the page and redirect — the student never
+  // Once auth is confirmed, cover the page and redirect, the student never
   // lingers on the landing page after signing in / up.
   if (isLoaded && user) {
     return (
@@ -279,7 +279,7 @@ function HomePageContent() {
         </div>
       )}
 
-      {/* Login popup — one tap, Google only. */}
+      {/* Login popup, one tap, Google only. */}
       {authOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setAuthOpen(false)}>
           <div className="relative w-full max-w-sm rounded-[1.5rem] border border-line bg-surface p-7 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -343,7 +343,7 @@ function HomePageContent() {
             <h2 className="mt-3 font-display text-3xl md:text-5xl font-semibold tracking-tight text-ink">
               See exactly where your <span className="italic text-crimson">marks</span> go
             </h2>
-            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Not tutoring — assessment. Your answers, marked against the official Cambridge scheme.</p>
+            <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">Not tutoring, assessment. Your answers, marked against the official Cambridge scheme.</p>
           </Reveal>
 
           <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
@@ -366,7 +366,7 @@ function HomePageContent() {
         </div>
       </section>
 
-      {/* Pricing — Free vs Pro */}
+      {/* Pricing, Free vs Pro */}
       <section id="pricing" className="relative py-20 md:py-28 px-5 md:px-12 bg-surface-soft">
         <div className="max-w-[1100px] mx-auto">
           <Reveal className="text-center mb-12 md:mb-16">
@@ -375,7 +375,7 @@ function HomePageContent() {
               Start free, go <span className="italic text-crimson">Pro</span> when you&apos;re ready
             </h2>
             <p className="mt-4 text-lg text-ink-muted max-w-2xl mx-auto">
-              Past papers are free forever. Everything that marks and explains your work lives on Pro — with a 10-day free trial, no card.
+              Past papers are free forever. Everything that marks and explains your work lives on Pro, with a 10-day free trial, no card.
             </p>
           </Reveal>
 
@@ -391,10 +391,10 @@ function HomePageContent() {
                   <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Rs&nbsp;0</span>
                   <span className="text-sm text-ink-faint">/ always</span>
                 </div>
-                <p className="mt-2 text-[15px] text-ink-muted">Browse every past paper — no account limits.</p>
+                <p className="mt-2 text-[15px] text-ink-muted">Browse every past paper, no account limits.</p>
                 <ul className="mt-6 flex-1 space-y-3">
                   {[
-                    "Full past-paper library — 20+ subjects, 15+ years",
+                    "Full past-paper library, 20+ subjects, 15+ years",
                     "Question papers, mark schemes & examiner reports",
                     "View or download any paper",
                     "Browse by subject, year and session",
@@ -424,13 +424,13 @@ function HomePageContent() {
                   <span className="font-display text-4xl md:text-5xl font-semibold text-ink">Rs&nbsp;6,000</span>
                   <span className="text-sm text-ink-faint">/ month</span>
                 </div>
-                <p className="mt-2 text-[15px] text-ink-muted">Everything that marks, explains and tracks your work — start with a 10-day free trial, no card.</p>
+                <p className="mt-2 text-[15px] text-ink-muted">Everything that marks, explains and tracks your work, start with a 10-day free trial, no card.</p>
                 <ul className="mt-6 flex-1 space-y-3">
                   {[
                     "Everything in Free, plus:",
-                    "AI marking — typed or handwritten, against the CAIE scheme",
+                    "AI marking, typed or handwritten, against the CAIE scheme",
                     "Every mark explained, traced to the exact scheme point",
-                    "Ask AI — answers grounded in real past papers",
+                    "Ask AI, answers grounded in real past papers",
                     "Weak-topic analytics that track your marks over time",
                     "Study planner, exam datesheet & unlimited practice",
                   ].map((f, i) => (
@@ -442,7 +442,7 @@ function HomePageContent() {
                 <button onClick={goPro} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full bg-crimson px-6 py-3 font-bold text-white shadow-crimson transition-colors hover:bg-crimson-deep active:scale-[0.99]">
                   Get Pro <ArrowRight size={18} />
                 </button>
-                <p className="mt-3 text-center text-xs text-ink-faint">Sign in, then start your trial or upgrade — cancel anytime.</p>
+                <p className="mt-3 text-center text-xs text-ink-faint">Sign in, then start your trial or upgrade, cancel anytime.</p>
               </div>
             </StaggerItem>
           </Stagger>
@@ -596,7 +596,7 @@ function HomePageContent() {
         </div>
       </section>
 
-      {/* Testimonials Section — dark "product" skin */}
+      {/* Testimonials Section, dark "product" skin */}
       <section className="py-20 md:py-28 px-5 md:px-12 bg-[#161310] text-cream">
         <div className="max-w-[1200px] mx-auto">
           <Reveal className="text-center mb-12 md:mb-16">
@@ -607,9 +607,9 @@ function HomePageContent() {
 
           <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: "Sara — A Level", label: "Weak topic found", quote: "I finally knew which topics to redo. The breakdown showed every mark I dropped on evaluation points." },
-              { name: "Ali — O Level", label: "Marked in minutes", quote: "I upload a photo of my answer and see exactly where the scheme gave and took marks. No guessing." },
-              { name: "Ms Khan — Teacher", label: "Explained line by line", quote: "My class sees the reasoning, not just a score — and it saves me marking hours every week." }
+              { name: "Sara, A Level", label: "Weak topic found", quote: "I finally knew which topics to redo. The breakdown showed every mark I dropped on evaluation points." },
+              { name: "Ali, O Level", label: "Marked in minutes", quote: "I upload a photo of my answer and see exactly where the scheme gave and took marks. No guessing." },
+              { name: "Ms Khan, Teacher", label: "Explained line by line", quote: "My class sees the reasoning, not just a score, and it saves me marking hours every week." }
             ].map((testimonial, idx) => (
               <StaggerItem key={idx}>
                 <motion.div
@@ -634,7 +634,7 @@ function HomePageContent() {
       <section className="py-20 md:py-28 px-5 md:px-12 bg-[#1C1714] text-white">
         <Reveal className="max-w-[1200px] mx-auto text-center">
           <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-semibold tracking-tight mb-5">Ready to <span className="italic text-pink">propel</span> your success?</h2>
-          <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">See exactly where your marks went — marked against the official Cambridge scheme.</p>
+          <p className="text-lg md:text-xl text-white/60 mb-9 max-w-2xl mx-auto">See exactly where your marks went, marked against the official Cambridge scheme.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button onClick={() => openAuth()} onMouseEnter={preloadClerk} size="lg" className="h-14 rounded-full px-10 text-base md:text-lg shadow-crimson">
               Get started free <ArrowRight className="ml-1" size={20} />
@@ -653,7 +653,7 @@ function HomePageContent() {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1 space-y-4">
               <BrandLogo size={38} tone="dark" labelClassName="text-2xl" />
-              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">The AI-powered assessment platform for Cambridge O Level and A Level — every answer marked against the official scheme, every mark explained.</p>
+              <p className="text-white/60 leading-relaxed text-sm md:text-[15px]">The AI-powered assessment platform for Cambridge O Level and A Level, every answer marked against the official scheme, every mark explained.</p>
             </div>
 
             {/* Quick Links */}
@@ -667,7 +667,7 @@ function HomePageContent() {
               </ul>
             </div>
 
-            {/* Legal — distinct pages for payment-processor verification */}
+            {/* Legal, distinct pages for payment-processor verification */}
             <div>
               <h3 className="text-base font-bold mb-4 text-white">Legal</h3>
               <ul className="space-y-2.5 text-white/60 text-sm md:text-[15px]">

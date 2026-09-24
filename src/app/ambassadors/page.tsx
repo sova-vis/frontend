@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Student Ambassador Programme — a poster-style recruitment page linked from the
+ * Student Ambassador Programme, a poster-style recruitment page linked from the
  * landing nav ("Ambassadors"). Built to match the Cohort 01 flyer: cream paper,
  * a big serif headline, four numbered benefit cards (the last one crimson), a
  * deadline row and an "Apply now" that opens the Google Form.
@@ -66,7 +66,7 @@ export default function AmbassadorsPage() {
               </div>
             </Reveal>
 
-            {/* the cohort's students — cut from the flyer, blends into the cream */}
+            {/* the cohort's students, cut from the flyer, blends into the cream */}
             <Reveal delay={0.1}>
               <div className="overflow-hidden rounded-[1.25rem]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -108,7 +108,7 @@ export default function AmbassadorsPage() {
                 <h2 className="font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">
                   Deadline: <span className="text-crimson">2nd Oct 2026</span>
                 </h2>
-                <p className="mt-2 text-ink-muted">A seven-minute form — that&apos;s all it takes to apply.</p>
+                <p className="mt-2 text-ink-muted">A seven-minute form, that&apos;s all it takes to apply.</p>
               </div>
               <a href={FORM_URL} target="_blank" rel="noopener noreferrer" className="ed-btn-primary h-14 self-start px-9 text-base tracking-wide sm:self-auto md:text-lg">
                 APPLY NOW <ArrowRight size={20} />

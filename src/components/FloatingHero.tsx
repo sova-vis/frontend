@@ -105,7 +105,7 @@ export default function FloatingHero({ user, profile, onSignUp, onExplore }: Flo
           className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg"
         >
           AI marking against the official Cambridge scheme, mark-scheme feedback and
-          weakness tracking — everything to take your prep to the next level.
+          weakness tracking, everything to take your prep to the next level.
         </motion.p>
 
         <motion.div
