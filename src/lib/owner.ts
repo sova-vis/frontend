@@ -48,9 +48,17 @@ export interface SchoolUsage {
   seats: { teachers_used: number; teachers_max: number; students_used: number; students_max: number } | null;
 }
 
+export interface SchoolFunnel {
+  prompts_shown: number;
+  students_prompted: number;
+  conversions: number;
+  rate: number;
+}
+
 export interface SchoolWithUsage extends School {
   limits: SchoolLimits | null;
   usage: SchoolUsage;
+  funnel?: SchoolFunnel | null;
 }
 
 export interface AdminResult {

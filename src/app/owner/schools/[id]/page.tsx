@@ -127,6 +127,20 @@ export default function SchoolDetailPage() {
         <UsageStat icon="message" label="Ask AI · allowance" used={s.usage?.askai?.used ?? 0} max={s.usage?.askai?.allowance ?? null} tone="var(--purple)" />
       </div>
 
+      {/* Upsell funnel (§6.2) */}
+      <div className="card card-pad" style={{ marginBottom: 22 }}>
+        <div className="card-head">
+          <div className="card-title">Upsell funnel</div>
+          <span className="faint" style={{ fontSize: 12.5 }}>Classroom students → personal Pro{s.discount_pct > 0 ? ` · ${s.discount_pct}% off` : ""}</span>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
+          <FunnelStat label="Prompts shown" value={s.funnel?.prompts_shown ?? 0} />
+          <FunnelStat label="Students prompted" value={s.funnel?.students_prompted ?? 0} />
+          <FunnelStat label="Converted" value={s.funnel?.conversions ?? 0} tone="var(--teal)" />
+          <FunnelStat label="Conversion" value={`${s.funnel?.rate ?? 0}%`} tone="var(--crimson)" />
+        </div>
+      </div>
+
       <div className="grid" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", alignItems: "start" }}>
         {/* Limits editor */}
         <div className="card card-pad">
@@ -206,6 +220,15 @@ function UsageStat({ icon, label, used, max, tone }: { icon: string; label: stri
       </div>
       <div className="stat-num">{used}<span className="faint" style={{ fontSize: 16 }}>{max != null ? ` / ${max}` : ""}</span></div>
       <div className="mt-12"><Bar value={pct} tone={pct >= 100 ? "coral" : pct >= 80 ? "amber" : "teal"} height={6} /></div>
+    </div>
+  );
+}
+
+function FunnelStat({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
+  return (
+    <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "12px 14px" }}>
+      <div className="stat-num" style={{ color: tone }}>{value}</div>
+      <div className="eyebrow" style={{ marginTop: 2 }}>{label}</div>
     </div>
   );
 }
