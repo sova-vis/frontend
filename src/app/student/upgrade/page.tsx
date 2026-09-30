@@ -11,10 +11,10 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, ShieldCheck, Sparkles, Clock, X, Tag } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Sparkles, Clock, X, Tag, GraduationCap } from "lucide-react";
 import { useUser } from "@/lib/auth";
 import { usePro } from "@/lib/usePro";
-import { fetchPayInfo, submitProRequest, fetchMyRequest, type PayInfo, type ProRequest } from "@/lib/billing";
+import { fetchPayInfo, submitProRequest, fetchMyRequest, logFunnelPrompt, type PayInfo, type ProRequest } from "@/lib/billing";
 
 export default function UpgradePage() {
   const { user } = useUser();
@@ -53,6 +53,7 @@ export default function UpgradePage() {
       if (req && req.status === "pending") setMyRequest(req);
       setLoading(false);
     })();
+    void logFunnelPrompt("upgrade_page"); // §6.2 prompt impression
     return () => { alive = false; };
   }, [loadPayInfo]);
 
@@ -72,6 +73,7 @@ export default function UpgradePage() {
   };
 
   const amount = payInfo?.amountPkr ?? 6000;
+  const sd = payInfo?.schoolDiscount ?? null;
   const canSubmit = Boolean(name.trim() && phone.trim() && email);
   const promoApplied = payInfo?.promo?.applied;
   const promoInvalid = Boolean(appliedPromo) && payInfo?.promo && !payInfo.promo.applied;
@@ -164,7 +166,15 @@ export default function UpgradePage() {
           <div className="mt-5 flex items-end justify-between gap-3">
             <div>
               <p className="ed-label">Amount</p>
-              <p className="font-display text-3xl font-semibold text-ink">Rs {amount.toLocaleString()}</p>
+              <div className="flex items-baseline gap-2">
+                {sd && <span className="font-display text-lg font-semibold text-ink-faint line-through">Rs {sd.basePkr.toLocaleString()}</span>}
+                <p className="font-display text-3xl font-semibold text-ink">Rs {amount.toLocaleString()}</p>
+              </div>
+              {sd && (
+                <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-mint-ink">
+                  <GraduationCap className="h-3.5 w-3.5" /> {sd.schoolName} gives you {sd.pct}% off
+                </p>
+              )}
               {promoApplied && <p className="mt-1 text-xs font-semibold text-mint-ink">Promo {payInfo?.promo?.code} applied{payInfo?.promo?.label ? ` · ${payInfo.promo.label}` : ""}</p>}
             </div>
           </div>

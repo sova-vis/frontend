@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePro } from '@/lib/usePro';
-import { startCheckout } from '@/lib/billing';
+import { startCheckout, logFunnelPrompt } from '@/lib/billing';
 
 export default function UpgradeModal() {
   const router = useRouter();
@@ -35,11 +35,16 @@ export default function UpgradeModal() {
     return () => window.removeEventListener('keydown', onKey);
   }, [upgradeOpen, closeUpgrade]);
 
+  useEffect(() => {
+    if (upgradeOpen) void logFunnelPrompt('modal'); // §6.2 prompt impression
+  }, [upgradeOpen]);
+
   if (!upgradeOpen) return null;
 
   const monthly = data?.price?.monthlyPkr ?? 6000;
   const annual = data?.price?.annualPkr ?? null;
   const trialDays = data?.trialDays ?? 10;
+  const sd = data?.schoolDiscount ?? null;
 
   const onStartTrial = async () => {
     setBusy(true);
@@ -123,13 +128,25 @@ export default function UpgradeModal() {
               analytics and everything else. Past papers stay free, always.
             </p>
             <div className="mt-4 rounded-xl border border-ink/10 bg-paper-soft p-4">
-              <div className="text-lg font-bold text-ink">
-                Rs {monthly.toLocaleString()} <span className="text-sm font-medium text-ink-muted">/ month</span>
-              </div>
-              {annual != null && (
-                <div className="mt-1 text-sm text-ink-muted">
-                  or Rs {annual.toLocaleString()} / year — one payment, no monthly renewals
-                </div>
+              {sd ? (
+                <>
+                  <div className="text-lg font-bold text-ink">
+                    <span className="mr-2 text-sm font-medium text-ink-faint line-through">Rs {sd.basePkr.toLocaleString()}</span>
+                    Rs {sd.discountedPkr.toLocaleString()} <span className="text-sm font-medium text-ink-muted">/ month</span>
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-mint-ink">{sd.schoolName} gives you {sd.pct}% off</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-lg font-bold text-ink">
+                    Rs {monthly.toLocaleString()} <span className="text-sm font-medium text-ink-muted">/ month</span>
+                  </div>
+                  {annual != null && (
+                    <div className="mt-1 text-sm text-ink-muted">
+                      or Rs {annual.toLocaleString()} / year — one payment, no monthly renewals
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <button

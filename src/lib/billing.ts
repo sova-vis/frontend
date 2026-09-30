@@ -19,6 +19,15 @@ export interface BillingStatus {
   graceDays: number;
   paymentsMode?: 'manual' | 'safepay';   // 'manual' hides Safepay, uses the QR flow
   price: { monthlyPkr: number; annualPkr: number | null };
+  schoolDiscount?: SchoolDiscount | null; // §6.2 — classroom-student school discount, if any
+}
+
+/** A classroom student's school discount on personal Pro (spec §6.2). */
+export interface SchoolDiscount {
+  pct: number;
+  schoolName: string;
+  basePkr: number;
+  discountedPkr: number;
 }
 
 /* ---- Manual payment flow (while Safepay live keys are pending) ---- */
@@ -29,6 +38,7 @@ export interface PayInfo {
   configured: boolean;               // false → admin hasn't uploaded a QR yet
   payee: { name: string | null; accountNumber: string | null; bankName: string | null; instructions: string | null };
   promo: { applied: boolean; code: string; label: string | null; note: string | null } | null;
+  schoolDiscount?: SchoolDiscount | null;   // §6.2
 }
 
 export interface ProRequest {
@@ -77,6 +87,19 @@ export async function fetchMyRequest(): Promise<ProRequest | null> {
     return (data?.request as ProRequest) ?? null;
   } catch {
     return null;
+  }
+}
+
+/** Fire a paywall prompt impression into the school funnel (§6.2), best-effort. */
+export async function logFunnelPrompt(context: string): Promise<void> {
+  try {
+    await apiCall('/billing/funnel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context }),
+    });
+  } catch {
+    /* best-effort */
   }
 }
 
