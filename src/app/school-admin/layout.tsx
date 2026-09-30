@@ -9,11 +9,12 @@ import { useInactivityLogout } from "@/lib/useInactivityLogout";
 import PropelLoader from "@/components/ui/PropelLoader";
 import PortalShell from "@/components/portal/PortalShell";
 
-// Rebuilt teacher portal (Sept 2026 spec) on the shared .pr design system.
-// Classes is the home; assignments/marking modules land in the next slices.
-const TEACHER_NAV = [{ name: "Classes", href: "/teacher/classes", icon: "users" }];
+const SA_NAV = [
+  { name: "Overview", href: "/school-admin", icon: "dashboard" },
+  { name: "Teachers", href: "/school-admin/teachers", icon: "users" },
+];
 
-export default function TeacherLayout({ children }: { children: React.ReactNode }) {
+export default function SchoolAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ok, setOk] = useState(false);
   const { user, isLoaded } = useUser();
@@ -26,11 +27,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     if (!isLoaded || loading) return;
     if (!user) { router.replace("/"); return; }
     if (profile && profile.onboarding_complete === false) { router.replace("/onboarding"); return; }
-    if (!profile || profile.role !== "teacher") { router.replace("/"); return; }
+    if (!profile || profile.role !== "school_admin") { router.replace("/"); return; }
     setOk(true);
   }, [isLoaded, loading, user, profile, router]);
 
   if (!isLoaded || loading || !ok) return <PropelLoader fullScreen label="Verifying access…" />;
 
-  return <PortalShell nav={TEACHER_NAV} kicker="Teacher">{children}</PortalShell>;
+  return <PortalShell nav={SA_NAV} kicker="School Admin">{children}</PortalShell>;
 }

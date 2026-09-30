@@ -51,7 +51,11 @@ function destForUser(user: any, profile: { role?: string; onboarding_complete?: 
   const metadataRole = typeof user?.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
   const role = profile?.role || metadataRole || (adminEmails.includes(email) ? "admin" : "student");
   if (role === "teacher") return "/teacher/dashboard";
-  if (role === "admin") return "/admin/dashboard";
+  if (role === "owner") return "/owner";
+  if (role === "school_admin") return "/school-admin";
+  // The platform-owner account (legacy role name 'admin') now lands on the new
+  // Owner console; the old billing/user dashboard stays reachable at /admin/dashboard.
+  if (role === "admin") return "/owner";
   return "/student/dashboard";
 }
 

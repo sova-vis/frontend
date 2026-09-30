@@ -2,196 +2,129 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { School, Plus, Users } from "lucide-react";
-import { Reveal, Stagger, StaggerItem } from "@/components/ui/Motion";
-import { subjectStyle } from "@/components/propel/subjects";
-import { TeacherClass, listClasses } from "@/lib/teacherClasses";
-import { syllabusLabel } from "@/lib/syllabus";
-import { cacheGet, cacheSet } from "@/lib/sessionCache";
-import CreateClassModal from "@/components/teacher/CreateClassModal";
+import { Icon } from "@/components/propel/Icon";
+import { CountUp, Modal, EmptyState, Segmented, useToast } from "@/components/propel/primitives";
+import { listClasses, createClass, updateClass, type TeacherClass } from "@/lib/teacherClasses";
 
-type SortKey = "name" | "subject" | "recent";
-const CLASSES_KEY = "pp:teacher:classes";
+export default function TeacherClassesPage() {
+  const toast = useToast();
+  const [classes, setClasses] = useState<TeacherClass[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
-export default function ClassesPage() {
-  const router = useRouter();
-  const [classes, setClasses] = useState<TeacherClass[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
-  const [sort, setSort] = useState<SortKey>("name");
-  const [showCreate, setShowCreate] = useState(false);
+  const load = () => { setErr(null); listClasses(false).then(setClasses).catch((e) => setErr(e.message)); };
+  useEffect(load, []);
 
-  const load = async (useCache = false) => {
-    // Instant paint from the last view while we revalidate in the background.
-    if (useCache) {
-      const cached = cacheGet<TeacherClass[]>(CLASSES_KEY, 60_000);
-      if (cached) { setClasses(cached); setLoading(false); }
-    }
-    try {
-      const fresh = await listClasses(true); // fetch all; filter archived client-side
-      setClasses(fresh);
-      cacheSet(CLASSES_KEY, fresh);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load classes");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load(true);
-  }, []);
-
-  const visible = useMemo(() => {
-    const filtered = classes.filter((c) => (showArchived ? true : !c.archived));
-    return [...filtered].sort((a, b) => {
-      if (sort === "subject") return a.subject.localeCompare(b.subject);
-      if (sort === "recent") return (b.updated_at || "").localeCompare(a.updated_at || "");
-      return a.name.localeCompare(b.name);
-    });
-  }, [classes, showArchived, sort]);
-
-  const archivedCount = classes.filter((c) => c.archived).length;
+  const totals = useMemo(() => {
+    const c = classes ?? [];
+    return {
+      classes: c.length,
+      students: c.reduce((a, x) => a + (x.student_count ?? 0), 0),
+      pending: c.reduce((a, x) => a + (x.pending_count ?? 0), 0),
+    };
+  }, [classes]);
 
   return (
-    <div className="px-4 md:px-8 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <Reveal>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight">
-                Your <span className="italic text-crimson">Classes</span>
-              </h1>
-              <p className="text-ink-muted mt-1">
-                {classes.filter((c) => !c.archived).length} active
-                {archivedCount > 0 && ` · ${archivedCount} archived`}
-              </p>
-            </div>
-            <button onClick={() => setShowCreate(true)} className="ed-btn-primary px-4 py-2.5">
-              <Plus size={16} />
-              New class
-            </button>
-          </div>
-        </Reveal>
-
-        {classes.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="ed-label">Sort</span>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="ed-input px-3 py-2 text-sm w-auto"
-              >
-                <option value="name">Name</option>
-                <option value="subject">Subject</option>
-                <option value="recent">Recent activity</option>
-              </select>
-            </div>
-            {archivedCount > 0 && (
-              <label className="flex items-center gap-2 text-sm text-ink-muted cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showArchived}
-                  onChange={(e) => setShowArchived(e.target.checked)}
-                  className="accent-crimson"
-                />
-                Show archived
-              </label>
-            )}
-          </div>
-        )}
-
-        {error && <p className="text-sm text-crimson">{error}</p>}
-
-        {loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-40 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <EmptyState onCreate={() => setShowCreate(true)} />
-        ) : (
-          <Stagger className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visible.map((c) => {
-              const style = subjectStyle(c.subject);
-              return (
-                <StaggerItem key={c.id}>
-                  <Link
-                    href={`/teacher/classes/${c.id}`}
-                    className="ed-card p-5 block h-full hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span
-                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-paper"
-                          style={{ backgroundColor: style.color }}
-                        >
-                          <School size={18} />
-                        </span>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-ink truncate">{c.name}</h3>
-                          <p className="text-xs text-ink-faint truncate">{syllabusLabel(c.syllabus_code)}</p>
-                        </div>
-                      </div>
-                      {c.archived && <span className="ed-pill-neutral text-[0.65rem] shrink-0">Archived</span>}
-                    </div>
-
-                    <div className="mt-4 flex items-center gap-2 flex-wrap">
-                      <span className="ed-pill-mint text-[0.65rem]">{c.level} Level</span>
-                      {!c.is_owner && <span className="ed-pill-gold text-[0.65rem]">Co-teaching</span>}
-                      {(c.pending_count ?? 0) > 0 && (
-                        <span className="ed-pill-crimson text-[0.65rem]">{c.pending_count} pending</span>
-                      )}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
-                      <span className="inline-flex items-center gap-1.5 text-sm text-ink-muted">
-                        <Users size={14} />
-                        {c.student_count ?? 0} student{(c.student_count ?? 0) === 1 ? "" : "s"}
-                      </span>
-                      <span className="text-sm text-ink-faint">Avg —</span>
-                    </div>
-                  </Link>
-                </StaggerItem>
-              );
-            })}
-          </Stagger>
-        )}
+    <>
+      <div className="row-between wrap gap-16" style={{ marginBottom: 26 }}>
+        <div>
+          <span className="eyebrow">Teacher</span>
+          <h1 className="big-num" style={{ fontSize: 34, marginTop: 6 }}>Classes</h1>
+          <p className="muted" style={{ marginTop: 4 }}>Create a class, share its join code, and approve who gets in.</p>
+        </div>
+        <button className="btn btn-primary btn-lg" onClick={() => setCreateOpen(true)}><Icon name="plus" size={18} /> New class</button>
       </div>
 
-      {showCreate && (
-        <CreateClassModal
-          onClose={() => setShowCreate(false)}
-          onCreated={(created) => {
-            setClasses((prev) => [created, ...prev]);
-            setShowCreate(false);
-            // Jump straight into the new class so the teacher can share the join code.
-            router.push(`/teacher/classes/${created.id}`);
-          }}
-        />
+      <div className="grid stagger" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: 26 }}>
+        <Stat icon="users" tone="var(--crimson)" label="Classes" value={totals.classes} />
+        <Stat icon="graduation" tone="var(--teal)" label="Students" value={totals.students} />
+        <Stat icon="bell" tone="var(--amber)" label="Pending requests" value={totals.pending} />
+      </div>
+
+      {err && <div className="card card-pad" style={{ borderColor: "var(--coral)", color: "var(--coral)", marginBottom: 16 }}><Icon name="alert" size={16} /> {err}</div>}
+
+      {classes === null ? (
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>{[0, 1, 2].map((i) => <div key={i} className="sk" style={{ height: 180, borderRadius: 18 }} />)}</div>
+      ) : classes.length === 0 ? (
+        <div className="card"><EmptyState icon="users" title="No classes yet" body="Create your first class to get a join code students can use to request access." cta="Create a class" onCta={() => setCreateOpen(true)} /></div>
+      ) : (
+        <div className="grid stagger" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+          {classes.map((c) => <ClassCard key={c.id} c={c} />)}
+        </div>
       )}
+
+      {createOpen && <CreateClassModal onClose={() => setCreateOpen(false)} onCreated={() => { toast("Class created", "check_circle"); load(); }} />}
+    </>
+  );
+}
+
+function Stat({ icon, tone, label, value }: { icon: string; tone: string; label: string; value: number }) {
+  return (
+    <div className="card card-pad">
+      <div className="flex items-center gap-12">
+        <div style={{ width: 42, height: 42, borderRadius: 12, display: "grid", placeItems: "center", background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone, flex: "none" }}><Icon name={icon} size={20} /></div>
+        <div><div className="stat-num"><CountUp value={value} /></div><div className="eyebrow" style={{ marginTop: 3 }}>{label}</div></div>
+      </div>
     </div>
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function ClassCard({ c }: { c: TeacherClass }) {
   return (
-    <div className="ed-card p-10 text-center">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink">
-        <School size={26} />
+    <Link href={`/teacher/classes/${c.id}`} className="card card-pad card-hover" style={{ display: "block" }}>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, flex: "none", display: "grid", placeItems: "center", background: "linear-gradient(140deg, var(--crimson), var(--crimson-deep))", color: "#fff", fontFamily: "var(--font-fraunces), serif", fontWeight: 600, fontSize: 18 }}>
+          {(c.name[0] || "C").toUpperCase()}
+        </div>
+        {(c.pending_count ?? 0) > 0 && <span className="badge amber"><Icon name="bell" size={12} /> {c.pending_count} pending</span>}
       </div>
-      <h3 className="mt-4 font-display text-xl font-semibold">Create your first class</h3>
-      <p className="mt-1 text-ink-muted max-w-sm mx-auto">
-        A class holds your students and one syllabus. Once created you can share a join code and start assigning past papers.
-      </p>
-      <button onClick={onCreate} className="ed-btn-primary mt-5 px-5 py-2.5 mx-auto">
-        <Plus size={16} />
-        New class
-      </button>
-    </div>
+      <div className="card-title" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+      <div className="flex items-center gap-6 wrap mt-8">
+        <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{c.subject}</span>
+        {c.syllabus_code && <span className="chip-tag mono" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{c.syllabus_code}</span>}
+        <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{c.level === "A" ? "A Level" : "O Level"}</span>
+      </div>
+      <div className="hr" style={{ margin: "14px 0" }} />
+      <div className="row-between">
+        <span className="muted flex items-center gap-6" style={{ fontSize: 13 }}><Icon name="graduation" size={15} /> {c.student_count ?? 0} student{(c.student_count ?? 0) === 1 ? "" : "s"}</span>
+        {c.join_code && <span className="mono" style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.08em", color: c.join_enabled ? "var(--ink)" : "var(--ink-faint)" }}>{c.join_code}</span>}
+      </div>
+    </Link>
+  );
+}
+
+function CreateClassModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [f, setF] = useState({ name: "", subject: "", syllabus_code: "", year_group: "" });
+  const [level, setLevel] = useState<"O" | "A">("O");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
+
+  const submit = async () => {
+    if (!f.name.trim() || !f.subject.trim()) { setErr("Class name and subject are required."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const c = await createClass({ name: f.name.trim(), subject: f.subject.trim(), syllabus_code: f.syllabus_code.trim(), level, year_group: f.year_group.trim() || undefined });
+      // Spec §5.1: never auto-accept — enforce manual approval regardless of any default.
+      if (c.auto_approve_joins) { try { await updateClass(c.id, { auto_approve_joins: false }); } catch { /* non-fatal */ } }
+      onCreated(); onClose();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open onClose={onClose}>
+      <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 20 }}>New class</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
+      <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Class name</span><input className="input" value={f.name} onChange={set("name")} placeholder="e.g. 11B Biology" /></label>
+      <div style={{ marginBottom: 12 }}>
+        <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Level</span>
+        <Segmented options={[{ value: "O", label: "O Level" }, { value: "A", label: "A Level" }]} value={level} onChange={setLevel} />
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Subject</span><input className="input" value={f.subject} onChange={set("subject")} placeholder="Biology" /></label>
+        <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Syllabus code</span><input className="input mono" value={f.syllabus_code} onChange={set("syllabus_code")} placeholder="0610" /></label>
+      </div>
+      <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Year group <span className="faint">(optional)</span></span><input className="input" value={f.year_group} onChange={set("year_group")} placeholder="Year 11" /></label>
+      {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
+      <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create class"}</button></div>
+    </Modal>
   );
 }

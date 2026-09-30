@@ -5,6 +5,7 @@ import "../styles/propel-scoped.css";
 import { AuthProvider } from "@/lib/auth";
 import ThemeScript from "@/components/ui/ThemeScript";
 import AuthTransitionSplash from "@/components/AuthTransitionSplash";
+import FirstLoginGate from "@/components/FirstLoginGate";
 
 // The three brand fonts, self-hosted via next/font: preloaded, no render-blocking
 // stylesheet request, and no layout shift. `display: swap` keeps text visible
@@ -50,6 +51,7 @@ export default function RootLayout({
         </head>
         <body className={hanken.className}>
           {children}
+          <FirstLoginGate />
           <AuthTransitionSplash />
         </body>
       </html>

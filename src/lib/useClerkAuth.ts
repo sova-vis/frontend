@@ -8,7 +8,7 @@ import { clerkFetch, resolveClerkToken } from "./clerkToken";
 export interface UserProfile {
   id: string;
   clerk_id: string;
-  role: "student" | "teacher" | "admin";
+  role: "student" | "teacher" | "admin" | "owner" | "school_admin";
   full_name: string;
   email: string;
   selected_subjects?: string[];
@@ -19,6 +19,9 @@ export interface UserProfile {
   subjects_by_level?: { olevel?: string[]; alevel?: string[] };
   active_level?: "olevel" | "alevel";
   onboarding_complete?: boolean;
+  // True for freshly issued staff accounts (owner/school-admin/teacher) — the app
+  // forces a password reset on first sign-in before anything else (spec §3.1).
+  must_change_password?: boolean;
   level?: string;
   exam_session?: string;
 }

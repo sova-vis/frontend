@@ -1,689 +1,148 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
-// QR only renders inside the Share tab — keep qrcode.react out of the initial bundle.
-const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), { ssr: false });
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Icon } from "@/components/propel/Icon";
+import { Segmented, EmptyState, useToast } from "@/components/propel/primitives";
 import {
-  Archive,
-  ArchiveRestore,
-  Check,
-  ClipboardList,
-  Copy,
-  Link2,
-  Plus,
-  RefreshCw,
-  QrCode,
-  Trash2,
-  UserMinus,
-  UserPlus,
-  Users,
-  X,
-} from "lucide-react";
-import { Reveal } from "@/components/ui/Motion";
-import { subjectStyle } from "@/components/propel/subjects";
-import { syllabusLabel } from "@/lib/syllabus";
-import AddStudentsModal from "@/components/teacher/AddStudentsModal";
-import { Assignment, deleteAssignment, listAssignments } from "@/lib/assignments";
-import {
-  CoTeacher,
-  Enrollment,
-  TeacherClass,
-  addCoTeacher,
-  archiveClass,
-  decideEnrollments,
-  deleteClass,
-  getClass,
-  joinLink,
-  listCoTeachers,
-  listEnrollments,
-  regenerateJoinCode,
-  removeCoTeacher,
-  removeStudent,
-  setJoinEnabled,
+  getClass, listEnrollments, decideEnrollments, regenerateJoinCode, setJoinEnabled,
+  removeStudent, archiveClass, joinLink, type TeacherClass, type Enrollment,
 } from "@/lib/teacherClasses";
-
-type Tab = "assignments" | "roster" | "requests" | "share" | "coteach";
+import { resolveName } from "@/lib/displayName";
 
 export default function ClassDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const classId = (params?.id ?? "") as string;
+  const id = params?.id ?? "";
+  const toast = useToast();
+  const [cls, setCls] = useState<TeacherClass | null>(null);
+  const [enr, setEnr] = useState<Enrollment[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<"requests" | "roster">("requests");
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
-  const [klass, setKlass] = useState<TeacherClass | null>(null);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [coTeachers, setCoTeachers] = useState<CoTeacher[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("assignments");
-  const [showAddStudents, setShowAddStudents] = useState(false);
+  const loadClass = () => getClass(id).then(setCls).catch((e) => setErr(e.message));
+  const loadEnr = () => listEnrollments(id).then(setEnr).catch((e) => setErr(e.message));
+  useEffect(() => { if (id) { loadClass(); loadEnr(); } /* eslint-disable-next-line */ }, [id]);
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      const [k, e, ct, as] = await Promise.all([
-        getClass(classId),
-        listEnrollments(classId),
-        listCoTeachers(classId),
-        listAssignments(classId).catch(() => [] as Assignment[]),
-      ]);
-      setKlass(k);
-      setEnrollments(e);
-      setCoTeachers(ct);
-      setAssignments(as);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load class");
-    } finally {
-      setLoading(false);
-    }
+  const pending = useMemo(() => (enr ?? []).filter((e) => e.status === "pending"), [enr]);
+  const active = useMemo(() => (enr ?? []).filter((e) => e.status === "active"), [enr]);
+
+  const decide = async (ids: string[], decision: "approve" | "reject") => {
+    if (!ids.length) return;
+    try { await decideEnrollments(id, ids, decision); toast(decision === "approve" ? "Approved" : "Rejected", "check_circle"); loadEnr(); loadClass(); }
+    catch (e) { toast((e as Error).message, "alert"); }
   };
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId]);
-
-  // Poll enrolments in the background so new join requests appear without a
-  // manual reload. Silent — no loading spinner, and pauses when the tab is hidden.
-  useEffect(() => {
-    if (!classId) return;
-    const tick = async () => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      try { setEnrollments(await listEnrollments(classId)); } catch { /* keep last good */ }
-    };
-    const id = window.setInterval(() => void tick(), 12000);
-    return () => window.clearInterval(id);
-  }, [classId]);
-
-  const pending = enrollments.filter((e) => e.status === "pending");
-  const active = enrollments.filter((e) => e.status === "active");
-
-  const handleDecision = async (ids: string[], decision: "approve" | "reject") => {
-    try {
-      await decideEnrollments(classId, ids, decision);
-      setEnrollments((prev) =>
-        prev.map((e) =>
-          ids.includes(e.student_clerk_id)
-            ? { ...e, status: decision === "approve" ? "active" : "rejected" }
-            : e
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update request");
-    }
+  const remove = async (studentClerkId: string) => {
+    try { await removeStudent(id, studentClerkId); toast("Removed", "check_circle"); setConfirmRemove(null); loadEnr(); loadClass(); }
+    catch (e) { toast((e as Error).message, "alert"); }
   };
+  const regen = async () => { try { setCls(await regenerateJoinCode(id)); toast("New code generated", "refresh"); } catch (e) { toast((e as Error).message, "alert"); } };
+  const toggleJoin = async () => { if (!cls) return; try { setCls(await setJoinEnabled(id, !cls.join_enabled)); } catch (e) { toast((e as Error).message, "alert"); } };
+  const archive = async () => { try { await archiveClass(id, true); toast("Class archived", "check_circle"); window.location.href = "/teacher/classes"; } catch (e) { toast((e as Error).message, "alert"); } };
 
-  const handleArchive = async () => {
-    if (!klass) return;
-    const next = !klass.archived;
-    if (next && !window.confirm("Archive this class? New submissions are disabled; all data is preserved and it can be restored.")) return;
-    try {
-      const updated = await archiveClass(classId, next);
-      setKlass(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to archive class");
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm(`Delete "${klass?.name}" permanently? All its assignments, submissions and enrolments are removed. This cannot be undone.`)) return;
-    try {
-      await deleteClass(classId);
-      router.push("/teacher/classes");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete class");
-    }
-  };
-
-  const handleDeleteAssignment = async (id: string, title: string) => {
-    if (!window.confirm(`Delete "${title}"? All its submissions and marks are removed. This cannot be undone.`)) return;
-    try {
-      await deleteAssignment(id);
-      setAssignments((prev) => prev.filter((a) => a.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete assignment");
-    }
-  };
-
-  const handleRemoveStudent = async (studentClerkId: string, name: string) => {
-    if (!window.confirm(`Remove ${name} from this class? Their marks are kept, but they lose access.`)) return;
-    try {
-      await removeStudent(classId, studentClerkId);
-      setEnrollments((prev) => prev.filter((e) => e.student_clerk_id !== studentClerkId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove student");
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="px-4 md:px-8 py-8 max-w-5xl mx-auto space-y-4">
-        <div className="h-28 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-        <div className="h-64 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-      </div>
-    );
-  }
-
-  if (!klass) {
-    return (
-      <div className="px-4 md:px-8 py-16 text-center">
-        <p className="text-ink-muted">{error || "Class not found."}</p>
-        <button onClick={() => router.push("/teacher/classes")} className="ed-btn-ghost mt-4 px-4 py-2 mx-auto">
-          Back to classes
-        </button>
-      </div>
-    );
-  }
-
-  const style = subjectStyle(klass.subject);
-  const tabs: { key: Tab; label: string; badge?: number }[] = [
-    { key: "assignments", label: "Assignments", badge: assignments.length },
-    { key: "roster", label: "Roster", badge: active.length },
-    { key: "requests", label: "Requests", badge: pending.length },
-    { key: "share", label: "Share & join" },
-    { key: "coteach", label: "Co-teachers", badge: coTeachers.length },
-  ];
+  if (err && !cls) return <p style={{ color: "var(--coral)" }}>{err}</p>;
+  if (!cls) return <div className="sk" style={{ height: 320, borderRadius: 18 }} />;
 
   return (
-    <div className="px-4 md:px-8 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <button onClick={() => router.push("/teacher/classes")} className="text-sm text-ink-muted hover:text-ink">
-          ← Classes
-        </button>
+    <>
+      <Link href="/teacher/classes" className="chip" style={{ marginBottom: 18 }}><Icon name="chevron_left" size={15} /> All classes</Link>
 
-        <Reveal>
-          <section className="ed-card p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-paper" style={{ backgroundColor: style.color }}>
-                  <Users size={22} />
-                </span>
-                <div className="min-w-0">
-                  <h1 className="font-display text-2xl font-semibold tracking-tight truncate">{klass.name}</h1>
-                  <p className="text-ink-muted text-sm">
-                    {syllabusLabel(klass.syllabus_code)} · {klass.level} Level
-                    {klass.year_group ? ` · ${klass.year_group}` : ""}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {klass.archived && <span className="ed-pill-neutral">Archived</span>}
-                {klass.is_owner && (
-                  <>
-                    <button onClick={() => void handleArchive()} className="ed-btn-ghost px-3 py-2 text-sm">
-                      {klass.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                      {klass.archived ? "Restore" : "Archive"}
-                    </button>
-                    <button onClick={() => void handleDelete()} className="inline-flex items-center gap-1.5 rounded-xl border border-crimson/40 text-crimson px-3 py-2 text-sm font-semibold hover:bg-crimson-soft">
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              <Stat label="Students" value={active.length} />
-              <Stat label="Pending" value={pending.length} />
-              <Stat label="30-day avg" value="—" />
-            </div>
-          </section>
-        </Reveal>
-
-        {error && <p className="text-sm text-crimson">{error}</p>}
-
-        {/* Pending banner (§4.1) — always visible above content when requests exist */}
-        {pending.length > 0 && tab !== "requests" && (
-          <div className="ed-card-soft p-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-crimson">
-            <p className="text-sm text-ink">
-              <span className="font-semibold">{pending.length}</span> student{pending.length === 1 ? "" : "s"} waiting to join.
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setTab("requests")} className="ed-btn-ghost px-3 py-1.5 text-xs">
-                Review
-              </button>
-              <button
-                onClick={() => void handleDecision(pending.map((p) => p.student_clerk_id), "approve")}
-                className="ed-btn-primary px-3 py-1.5 text-xs"
-              >
-                Approve all
-              </button>
+      <div className="row-between wrap gap-16" style={{ marginBottom: 24 }}>
+        <div className="flex items-center gap-16" style={{ minWidth: 0 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 15, flex: "none", display: "grid", placeItems: "center", background: "linear-gradient(140deg, var(--crimson), var(--crimson-deep))", color: "#fff", fontFamily: "var(--font-fraunces), serif", fontWeight: 600, fontSize: 24 }}>{(cls.name[0] || "C").toUpperCase()}</div>
+          <div style={{ minWidth: 0 }}>
+            <h1 className="big-num" style={{ fontSize: 28 }}>{cls.name}</h1>
+            <div className="flex items-center gap-6 wrap mt-6">
+              <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{cls.subject}</span>
+              {cls.syllabus_code && <span className="chip-tag mono" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{cls.syllabus_code}</span>}
+              <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{cls.level === "A" ? "A Level" : "O Level"}</span>
+              {cls.year_group && <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{cls.year_group}</span>}
             </div>
           </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-line overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`relative px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
-                tab === t.key ? "text-crimson" : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              {t.label}
-              {t.badge !== undefined && t.badge > 0 && (
-                <span className="ml-1.5 rounded-full bg-surface-soft px-1.5 py-0.5 text-[0.65rem] text-ink-muted">{t.badge}</span>
-              )}
-              {tab === t.key && <span className="absolute inset-x-3 -bottom-px h-0.5 bg-crimson rounded-full" />}
-            </button>
-          ))}
         </div>
-
-        {tab === "assignments" && (
-          <AssignmentsTab
-            assignments={assignments}
-            studentCount={active.length}
-            onAssign={() => router.push(`/teacher/assignments/new?class_id=${classId}`)}
-            onOpen={(id) => router.push(`/teacher/assignments/${id}`)}
-            onDelete={handleDeleteAssignment}
-          />
-        )}
-        {tab === "roster" && (
-          <RosterTab classId={classId} active={active} onAdd={() => setShowAddStudents(true)} onRemove={handleRemoveStudent} />
-        )}
-        {tab === "requests" && <RequestsTab pending={pending} onDecide={handleDecision} />}
-        {tab === "share" && <ShareTab klass={klass} onChange={setKlass} />}
-        {tab === "coteach" && (
-          <CoTeachTab
-            klass={klass}
-            coTeachers={coTeachers}
-            onChange={setCoTeachers}
-            onError={setError}
-          />
-        )}
+        <button className="btn btn-ghost" onClick={archive} style={{ color: "var(--ink-soft)" }}><Icon name="layers" size={16} /> Archive</button>
       </div>
 
-      {showAddStudents && (
-        <AddStudentsModal
-          classId={classId}
-          className={klass.name}
-          onClose={() => setShowAddStudents(false)}
-          onChanged={() => void load()}
-        />
-      )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="ed-card-soft p-4">
-      <p className="ed-label">{label}</p>
-      <p className="font-display text-2xl font-semibold mt-1">{value}</p>
-    </div>
-  );
-}
-
-function AssignmentsTab({ assignments, studentCount, onAssign, onOpen, onDelete }: { assignments: Assignment[]; studentCount: number; onAssign: () => void; onOpen: (id: string) => void; onDelete: (id: string, title: string) => void }) {
-  const statusLabel: Record<string, string> = { draft: "Draft", scheduled: "Scheduled", published: "Assigned", closed: "Closed" };
-  const statusStyle: Record<string, string> = { draft: "bg-surface-soft text-ink-muted", scheduled: "ed-pill-gold", published: "ed-pill-mint", closed: "ed-pill-neutral" };
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-muted">{assignments.length} assignment{assignments.length === 1 ? "" : "s"} · {studentCount} student{studentCount === 1 ? "" : "s"}</p>
-        <button onClick={onAssign} className="ed-btn-primary px-4 py-2.5"><Plus size={15} /> Assign new</button>
-      </div>
-      {assignments.length === 0 ? (
-        <div className="ed-card p-10 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-crimson-soft text-crimson-ink"><ClipboardList size={26} /></div>
-          <p className="mt-4 text-ink-muted">No assignments yet. Assign a paper, topic or your own questions to this class.</p>
-          <button onClick={onAssign} className="ed-btn-primary mt-4 px-4 py-2.5 mx-auto"><Plus size={15} /> Assign new</button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {assignments.map((a) => (
-            <button key={a.id} onClick={() => onOpen(a.id)} className="ed-card p-4 w-full text-left flex items-center gap-3 hover:shadow-sm">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-soft text-ink-soft"><ClipboardList size={18} /></div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-ink truncate">{a.title}</p>
-                <p className="text-xs text-ink-faint truncate">
-                  {a.question_count ?? 0} question{a.question_count === 1 ? "" : "s"} · {a.total_marks} marks
-                  {a.deadline_at ? ` · due ${new Date(a.deadline_at).toLocaleDateString()}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {a.pending_reviews ? <span className="ed-pill-crimson text-[0.65rem]">{a.pending_reviews} to review</span> : null}
-                <span className={`text-[0.65rem] px-2 py-0.5 rounded-full ${statusStyle[a.status] ?? "bg-surface-soft text-ink-muted"}`}>{statusLabel[a.status] ?? a.status}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(ev) => { ev.stopPropagation(); onDelete(a.id, a.title); }}
-                  onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); onDelete(a.id, a.title); } }}
-                  className="grid place-items-center h-8 w-8 rounded-lg text-ink-faint hover:text-crimson hover:bg-crimson-soft cursor-pointer"
-                  aria-label="Delete assignment"
-                >
-                  <Trash2 size={15} />
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RosterTab({ classId, active, onAdd, onRemove }: { classId: string; active: Enrollment[]; onAdd: () => void; onRemove: (studentClerkId: string, name: string) => void }) {
-  const [search, setSearch] = useState("");
-  const rows = active.filter((e) =>
-    (e.full_name || e.email || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (active.length === 0) {
-    return (
-      <div className="ed-card p-8 text-center">
-        <p className="text-ink-muted">
-          No students yet. Share the join code from the <span className="font-semibold">Share &amp; join</span> tab, or add
-          them directly.
-        </p>
-        <button onClick={onAdd} className="ed-btn-primary mt-4 px-4 py-2.5 mx-auto">
-          <UserPlus size={15} /> Add students
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="ed-card p-0 overflow-hidden">
-      <div className="p-4 border-b border-line flex items-center justify-between gap-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search students…"
-          className="ed-input px-3 py-2 text-sm max-w-xs"
-        />
-        <button onClick={onAdd} className="ed-btn-ghost px-3 py-2 text-sm shrink-0">
-          <UserPlus size={15} /> Add
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-ink-faint border-b border-line">
-              <th className="px-4 py-3 font-semibold">Student</th>
-              <th className="px-4 py-3 font-semibold">Last active</th>
-              <th className="px-4 py-3 font-semibold">Completed</th>
-              <th className="px-4 py-3 font-semibold">Average</th>
-              <th className="px-4 py-3 font-semibold text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr
-                key={e.id}
-                onClick={() => (window.location.href = `/teacher/classes/${classId}/students/${e.student_clerk_id}`)}
-                className="border-b border-line/60 hover:bg-surface-soft/50 cursor-pointer"
-              >
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-paper text-[0.6rem] font-bold">
-                      {(e.full_name || e.email || "S").slice(0, 2).toUpperCase()}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink truncate">{e.full_name || e.email || "Student"}</p>
-                      {e.email && e.full_name && <p className="text-xs text-ink-faint truncate">{e.email}</p>}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-ink-faint">—</td>
-                <td className="px-4 py-3 text-ink-faint">—</td>
-                <td className="px-4 py-3 text-ink-faint">—</td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.student_clerk_id, e.full_name || e.email || "this student"); }}
-                    className="inline-flex items-center gap-1 rounded-lg border border-crimson/30 text-crimson px-2.5 py-1.5 text-xs font-semibold hover:bg-crimson-soft"
-                  >
-                    <UserMinus size={13} /> Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function RequestsTab({
-  pending,
-  onDecide,
-}: {
-  pending: Enrollment[];
-  onDecide: (ids: string[], decision: "approve" | "reject") => Promise<void>;
-}) {
-  if (pending.length === 0) {
-    return (
-      <div className="ed-card p-8 text-center">
-        <p className="text-ink-muted">No pending enrolment requests.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="ed-card p-4 space-y-3">
-      <div className="flex justify-end">
-        <button
-          onClick={() => void onDecide(pending.map((p) => p.student_clerk_id), "approve")}
-          className="ed-btn-primary px-3 py-1.5 text-xs"
-        >
-          Approve all
-        </button>
-      </div>
-      {pending.map((e) => (
-        <div key={e.id} className="ed-card-soft p-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-medium text-ink truncate">{e.full_name || e.email || "Student"}</p>
-            <p className="text-xs text-ink-faint truncate">
-              {e.email && e.full_name ? `${e.email} · ` : ""}Requested {new Date(e.requested_at).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => void onDecide([e.student_clerk_id], "approve")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-mint/30 bg-mint-soft px-3 py-1.5 text-xs font-bold text-mint-ink"
-            >
-              <Check size={13} /> Approve
-            </button>
-            <button
-              onClick={() => void onDecide([e.student_clerk_id], "reject")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-1.5 text-xs font-bold text-crimson-ink"
-            >
-              <X size={13} /> Reject
+      <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.6fr)", alignItems: "start" }}>
+        {/* Join code */}
+        <div className="card card-pad">
+          <div className="row-between" style={{ marginBottom: 12 }}>
+            <span className="eyebrow">Join code</span>
+            <button type="button" onClick={toggleJoin} title={cls.join_enabled ? "Joining is on" : "Joining is off"}>
+              <span style={{ display: "inline-block", width: 44, height: 26, borderRadius: 99, background: cls.join_enabled ? "var(--teal)" : "var(--line-strong)", position: "relative", transition: "background .2s" }}>
+                <span style={{ position: "absolute", top: 3, left: cls.join_enabled ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "var(--shadow-sm)" }} />
+              </span>
             </button>
           </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ShareTab({ klass, onChange }: { klass: TeacherClass; onChange: (k: TeacherClass) => void }) {
-  const [copied, setCopied] = useState<"code" | "link" | null>(null);
-  const [busy, setBusy] = useState(false);
-  const link = klass.join_code ? joinLink(klass.join_code) : "";
-
-  const copy = async (value: string, which: "code" | "link") => {
-    await navigator.clipboard.writeText(value);
-    setCopied(which);
-    setTimeout(() => setCopied(null), 1500);
-  };
-
-  const regen = async () => {
-    if (!window.confirm("Generate a new code? The current code stops working immediately. Enrolled students are unaffected.")) return;
-    setBusy(true);
-    try {
-      onChange(await regenerateJoinCode(klass.id));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggle = async () => {
-    setBusy(true);
-    try {
-      onChange(await setJoinEnabled(klass.id, !klass.join_enabled));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const downloadQr = () => {
-    const svg = document.getElementById("join-qr");
-    if (!svg) return;
-    const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${klass.name.replace(/\s+/g, "-")}-join-qr.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="grid md:grid-cols-2 gap-4">
-      <div className="ed-card p-6 space-y-5">
-        <div>
-          <p className="ed-label mb-2">Join code</p>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-3xl font-medium tracking-[0.3em] text-ink">
-              {klass.join_enabled ? klass.join_code : "——————"}
-            </span>
-            {klass.join_enabled && klass.join_code && (
-              <button onClick={() => void copy(klass.join_code!, "code")} className="ed-btn-ghost p-2">
-                {copied === "code" ? <Check size={15} /> : <Copy size={15} />}
-              </button>
-            )}
+          <div className="big-num" style={{ fontSize: 34, letterSpacing: "0.14em", color: cls.join_enabled ? "var(--ink)" : "var(--ink-faint)" }}>{cls.join_code || "not set"}</div>
+          <p className="faint" style={{ fontSize: 12.5, marginTop: 4 }}>{cls.join_enabled ? "Students enter this code, then wait for your approval." : "Joining is off; no new requests can be made."}</p>
+          <div className="flex gap-8 wrap mt-16">
+            <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard?.writeText(cls.join_code || ""); toast("Code copied", "check_circle"); }}><Icon name="file_text" size={14} /> Copy code</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard?.writeText(joinLink(cls.join_code || "")); toast("Invite link copied", "check_circle"); }}><Icon name="send" size={14} /> Copy link</button>
           </div>
-          <p className="text-xs text-ink-faint mt-1">Students enter this at join — it is not case-sensitive.</p>
+          <div className="hr" style={{ margin: "14px 0" }} />
+          <button className="btn btn-ghost btn-sm" onClick={regen} style={{ color: "var(--ink-soft)" }}><Icon name="refresh" size={14} /> Regenerate (invalidates old)</button>
         </div>
 
-        <div>
-          <p className="ed-label mb-2">Join link</p>
-          <div className="flex items-center gap-2">
-            <input readOnly value={klass.join_enabled ? link : "Disabled"} className="ed-input px-3 py-2 text-sm flex-1" />
-            {klass.join_enabled && (
-              <button onClick={() => void copy(link, "link")} className="ed-btn-ghost p-2.5">
-                {copied === "link" ? <Check size={15} /> : <Link2 size={15} />}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {klass.is_owner && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button onClick={() => void regen()} disabled={busy} className="ed-btn-ghost px-3 py-2 text-sm">
-              <RefreshCw size={14} /> Regenerate
-            </button>
-            <button onClick={() => void toggle()} disabled={busy} className="ed-btn-ghost px-3 py-2 text-sm">
-              {klass.join_enabled ? "Disable joining" : "Enable joining"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="ed-card p-6 flex flex-col items-center justify-center gap-4">
-        {klass.join_enabled && link ? (
-          <>
-            <div className="rounded-2xl bg-white p-4">
-              <QRCodeSVG id="join-qr" value={link} size={168} level="M" />
-            </div>
-            <button onClick={downloadQr} className="ed-btn-ghost px-3 py-2 text-sm">
-              <QrCode size={14} /> Download QR
-            </button>
-          </>
-        ) : (
-          <p className="text-ink-faint text-sm text-center">Enable joining to show a QR code.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CoTeachTab({
-  klass,
-  coTeachers,
-  onChange,
-  onError,
-}: {
-  klass: TeacherClass;
-  coTeachers: CoTeacher[];
-  onChange: (rows: CoTeacher[]) => void;
-  onError: (msg: string) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [canGrade, setCanGrade] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  const add = async () => {
-    if (!email.trim()) return;
-    setBusy(true);
-    try {
-      const created = await addCoTeacher(klass.id, email.trim(), canGrade);
-      onChange([...coTeachers.filter((c) => c.teacher_clerk_id !== created.teacher_clerk_id), created]);
-      setEmail("");
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to add co-teacher");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async (teacherClerkId: string) => {
-    try {
-      await removeCoTeacher(klass.id, teacherClerkId);
-      onChange(coTeachers.filter((c) => c.teacher_clerk_id !== teacherClerkId));
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to remove co-teacher");
-    }
-  };
-
-  return (
-    <div className="ed-card p-6 space-y-5">
-      {klass.is_owner && (
-        <div>
-          <p className="ed-label mb-2">Invite a co-teacher by email</p>
-          <div className="flex flex-wrap gap-2 items-center">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="teacher@school.edu"
-              className="ed-input px-3 py-2 text-sm flex-1 min-w-[200px]"
+        {/* Requests + roster */}
+        <div className="card card-pad">
+          <div className="row-between wrap gap-12" style={{ marginBottom: 16 }}>
+            <Segmented
+              options={[{ value: "requests", label: `Requests${pending.length ? ` (${pending.length})` : ""}` }, { value: "roster", label: `Roster (${active.length})` }]}
+              value={tab} onChange={setTab}
             />
-            <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <input type="checkbox" checked={canGrade} onChange={(e) => setCanGrade(e.target.checked)} className="accent-crimson" />
-              Can grade
-            </label>
-            <button onClick={() => void add()} disabled={busy} className="ed-btn-primary px-3 py-2 text-sm">
-              <UserPlus size={14} /> Add
-            </button>
-          </div>
-          <p className="text-xs text-ink-faint mt-1">They must already have a teacher account.</p>
-        </div>
-      )}
-
-      {coTeachers.length === 0 ? (
-        <p className="text-ink-faint text-sm">No co-teachers on this class.</p>
-      ) : (
-        <div className="space-y-2">
-          {coTeachers.map((c) => (
-            <div key={c.id} className="ed-card-soft p-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="font-medium text-ink">{c.full_name || c.email}</p>
-                <p className="text-xs text-ink-faint">{c.can_grade ? "Can grade" : "Observer"}</p>
+            {tab === "requests" && pending.length > 0 && (
+              <div className="flex gap-8">
+                <button className="btn btn-soft btn-sm" onClick={() => decide(pending.map((p) => p.student_clerk_id), "approve")}><Icon name="check_circle" size={14} /> Approve all</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => decide(pending.map((p) => p.student_clerk_id), "reject")} style={{ color: "var(--coral)" }}>Reject all</button>
               </div>
-              {klass.is_owner && (
-                <button onClick={() => void remove(c.teacher_clerk_id)} className="ed-btn-ghost p-2">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          ))}
+            )}
+          </div>
+
+          {enr === null ? (
+            <div className="grid" style={{ gap: 10 }}>{[0, 1].map((i) => <div key={i} className="sk" style={{ height: 60, borderRadius: 14 }} />)}</div>
+          ) : tab === "requests" ? (
+            pending.length === 0
+              ? <EmptyState icon="check_circle" title="No pending requests" body="When a student enters your join code, they'll appear here for approval." />
+              : <div className="grid" style={{ gap: 10 }}>{pending.map((e) => (
+                  <Row key={e.id} e={e} sub={`Requested ${new Date(e.requested_at).toLocaleDateString()}`}>
+                    <button className="btn btn-soft btn-sm" onClick={() => decide([e.student_clerk_id], "approve")}><Icon name="check_circle" size={14} /> Approve</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => decide([e.student_clerk_id], "reject")} style={{ color: "var(--coral)" }}><Icon name="x" size={14} /></button>
+                  </Row>
+                ))}</div>
+          ) : (
+            active.length === 0
+              ? <EmptyState icon="users" title="No students yet" body="Approved students show up here as your class roster." />
+              : <div className="grid" style={{ gap: 10 }}>{active.map((e) => (
+                  <Row key={e.id} e={e} sub={e.approved_at ? `Joined ${new Date(e.approved_at).toLocaleDateString()}` : "Active"}>
+                    {confirmRemove === e.student_clerk_id
+                      ? <>
+                          <button className="btn btn-sm" onClick={() => remove(e.student_clerk_id)} style={{ background: "var(--coral)", color: "#fff" }}>Confirm</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button>
+                        </>
+                      : <button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemove(e.student_clerk_id)} style={{ color: "var(--ink-soft)" }}><Icon name="trash" size={14} /></button>}
+                  </Row>
+                ))}</div>
+          )}
         </div>
-      )}
+      </div>
+    </>
+  );
+}
+
+function Row({ e, sub, children }: { e: Enrollment; sub: string; children: React.ReactNode }) {
+  const name = resolveName({ full_name: e.full_name, email: e.email });
+  return (
+    <div className="flex items-center gap-12" style={{ justifyContent: "space-between", padding: "10px 12px", borderRadius: 14, background: "var(--surface-2)" }}>
+      <div className="flex items-center gap-12" style={{ minWidth: 0 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", background: "linear-gradient(140deg, var(--purple), #4b32a8)", color: "#fff", fontWeight: 600, fontSize: 14 }}>{(name[0] || "S").toUpperCase()}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+          <div className="faint" style={{ fontSize: 12 }}>{sub}</div>
+        </div>
+      </div>
+      <div className="flex gap-8" style={{ flex: "none" }}>{children}</div>
     </div>
   );
 }
