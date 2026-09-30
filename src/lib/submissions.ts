@@ -177,6 +177,11 @@ export async function getStatusBoard(assignmentId: string): Promise<StatusBoard>
   return json(await apiCall(`/submissions/assignment/${assignmentId}`));
 }
 
+/** Trigger AI marking now for all submitted-but-unmarked scripts (§5.4). */
+export async function markAssignment(assignmentId: string): Promise<{ marked: number; already: number }> {
+  return json(await apiCall(`/submissions/assignment/${assignmentId}/mark`, { method: "POST" }));
+}
+
 export async function extendDeadline(
   assignmentId: string,
   extensionUntil: string,

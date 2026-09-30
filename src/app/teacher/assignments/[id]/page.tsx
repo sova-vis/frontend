@@ -18,7 +18,7 @@ import { Modal, useToast, EmptyState } from "@/components/propel/primitives";
 import {
   Assignment, VISIBILITY_LABELS, deleteAssignment, duplicateAssignment, getAssignment, publishAssignment,
 } from "@/lib/assignments";
-import { StatusBoard, getStatusBoard } from "@/lib/submissions";
+import { StatusBoard, getStatusBoard, markAssignment } from "@/lib/submissions";
 import { resolveName } from "@/lib/displayName";
 
 const A_STATUS: Record<string, { label: string; bg: string; fg: string }> = {
@@ -51,6 +51,7 @@ export default function AssignmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [marking, setMarking] = useState(false);
   const [error, setError] = useState("");
 
   const load = async () => {
@@ -80,6 +81,21 @@ export default function AssignmentDetailPage() {
     setBusy(true);
     try { await deleteAssignment(id); router.push("/teacher/assignments"); }
     catch (err) { toast(err instanceof Error ? err.message : "Failed to delete", "alert"); setBusy(false); setConfirmDelete(false); }
+  };
+  const markNow = async () => {
+    if (!a) return;
+    setMarking(true);
+    try {
+      const r = await markAssignment(a.id);
+      toast(r.marked > 0 ? `Marked ${r.marked} script${r.marked === 1 ? "" : "s"}` : "Nothing new to mark", "check_circle");
+      const nb = await getStatusBoard(a.id).catch(() => null);
+      if (nb) setBoard(nb);
+      getAssignment(a.id).then(setA).catch(() => {}); // refresh pending-review count
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to mark", "alert");
+    } finally {
+      setMarking(false);
+    }
   };
 
   if (loading) return <div className="grid" style={{ gap: 16 }}><div className="sk" style={{ height: 120, borderRadius: 18 }} /><div className="sk" style={{ height: 260, borderRadius: 18 }} /></div>;
@@ -155,7 +171,7 @@ export default function AssignmentDetailPage() {
       </div>
 
       {/* Submissions */}
-      {live ? <SubmissionSection board={board} /> : (
+      {live ? <SubmissionSection board={board} canGrade={a.can_grade !== false} marking={marking} onMark={markNow} /> : (
         <div className="card card-pad" style={{ textAlign: "center" }}>
           <p className="muted" style={{ fontSize: 14 }}>Publish this assignment to start tracking submissions.</p>
         </div>
@@ -199,19 +215,27 @@ function MetaTile({ icon, label, value }: { icon: string; label: string; value: 
   );
 }
 
-function SubmissionSection({ board }: { board: StatusBoard | null }) {
+function SubmissionSection({ board, canGrade, marking, onMark }: { board: StatusBoard | null; canGrade: boolean; marking: boolean; onMark: () => void }) {
   if (!board) return <div className="sk" style={{ height: 200, borderRadius: 18 }} />;
   const rows = board.rows;
   const total = board.assignment.total || rows.length;
   const submitted = rows.filter((r) => r.status === "submitted" || r.status === "late").length;
   const inProgress = rows.filter((r) => r.status === "in_progress" || r.status === "returned").length;
   const released = rows.filter((r) => r.released).length;
+  const unmarked = rows.filter((r) => (r.status === "submitted" || r.status === "late") && r.total_score == null).length;
 
   return (
     <div className="card card-pad">
       <div className="row-between wrap gap-12" style={{ marginBottom: 14 }}>
         <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600 }}>Submissions</h2>
-        <span className="faint" style={{ fontSize: 13 }}>{submitted}/{total} submitted</span>
+        <div className="flex items-center gap-10 wrap">
+          <span className="faint" style={{ fontSize: 13 }}>{submitted}/{total} submitted</span>
+          {canGrade && unmarked > 0 && (
+            <button className="btn btn-primary btn-sm" disabled={marking} onClick={onMark}>
+              {marking ? "Marking…" : <><Icon name="sparkles" size={14} /> Mark {unmarked} now</>}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-8" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", marginBottom: 16 }}>
