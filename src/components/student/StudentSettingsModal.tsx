@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth, useClerk, useUser } from "@/lib/auth";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, Check, ClipboardCheck, CreditCard, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, Wrench, X } from "lucide-react";
+import { BookOpen, Check, ClipboardCheck, CreditCard, LogOut, Moon, Save, Settings as SettingsIcon, Sun, Trash2, User, Wrench, X, School, LayoutGrid } from "lucide-react";
+import { joinClassByCode } from "@/lib/submissions";
 import DevModeCard from "@/components/DevModeCard";
 import SubscriptionSettings from "@/components/billing/SubscriptionSettings";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -19,6 +20,43 @@ type Section = "account" | "profile" | "appearance" | "plan" | "devmode";
 
 // Central settings modal: account, profile (name + subjects), appearance (theme),
 // logout, and the danger zone. Everything here works live.
+// School: join your class by code, or switch between personal space and classroom.
+function SchoolCard({ onClose }: { onClose: () => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const join = async () => {
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await joinClassByCode(c);
+      setMsg({ ok: true, text: r.already ? "You're already in that class." : r.status === "pending" ? "Request sent — your teacher will approve you." : "Joined! Opening your classroom…" });
+      setCode("");
+      if (r.status !== "pending") setTimeout(() => { window.dispatchEvent(new CustomEvent("propel:switch-mode", { detail: "classroom" })); onClose(); }, 700);
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBusy(false); }
+  };
+  const goTo = (m: "personal" | "classroom") => { window.dispatchEvent(new CustomEvent("propel:switch-mode", { detail: m })); onClose(); };
+
+  return (
+    <div className="ed-card-soft p-4">
+      <div className="flex items-center gap-2 mb-1"><School size={15} className="text-crimson" /><p className="font-semibold text-ink text-sm">School</p></div>
+      <p className="text-xs text-ink-muted mb-3">Join your school class with the code your teacher gave you, or switch between your personal space and your classroom.</p>
+      <div className="flex gap-2">
+        <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CLASS CODE" className="ed-input px-3 py-2 text-sm flex-1 uppercase tracking-wider" />
+        <button onClick={() => void join()} disabled={busy || !code.trim()} className="ed-btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? "Joining…" : "Join"}</button>
+      </div>
+      {msg && <p className={`text-xs mt-2 ${msg.ok ? "text-mint-ink" : "text-crimson"}`}>{msg.text}</p>}
+      <div className="flex gap-2 mt-3">
+        <button onClick={() => goTo("classroom")} className="flex-1 ed-btn-ghost justify-center py-2 text-sm"><School size={14} /> My classroom</button>
+        <button onClick={() => goTo("personal")} className="flex-1 ed-btn-ghost justify-center py-2 text-sm"><LayoutGrid size={14} /> Personal space</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentSettingsModal({ onClose, initialSection = "account" }: { onClose: () => void; initialSection?: Section }) {
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -133,6 +171,8 @@ export default function StudentSettingsModal({ onClose, initialSection = "accoun
                     <span className="text-sm text-ink">Manage subjects &amp; profile</span>
                     <span className="text-crimson text-sm">→</span>
                   </button>
+
+                  <SchoolCard onClose={onClose} />
 
                   <div className="ed-card p-4 border border-crimson/30">
                     <p className="font-semibold text-crimson text-sm">Danger zone</p>

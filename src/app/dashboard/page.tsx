@@ -41,7 +41,12 @@ export default function DashboardRedirect() {
 
     const metadataRole = typeof user.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
     const role = resolved?.role || metadataRole || "student";
-    router.replace(role === "teacher" ? "/teacher/dashboard" : role === "admin" ? "/admin/dashboard" : "/student/dashboard");
+    router.replace(
+      role === "teacher" ? "/teacher/dashboard"
+        : role === "school_admin" ? "/school-admin"
+        : role === "owner" || role === "admin" ? "/owner"
+        : "/student/dashboard",
+    );
   }, [isLoaded, user, loading, profile, router]);
 
   return <PropelLoader fullScreen label="Loading your dashboard…" />;

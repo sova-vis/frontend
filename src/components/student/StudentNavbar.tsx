@@ -96,6 +96,17 @@ export default function StudentNavbar() {
     }, 650);
   };
 
+  // The personal/classroom switch now lives in Settings, which fires this event.
+  useEffect(() => {
+    const onSwitch = (e: Event) => {
+      const m = (e as CustomEvent).detail;
+      if (m === "personal" || m === "classroom") switchMode(m);
+    };
+    window.addEventListener("propel:switch-mode", onSwitch);
+    return () => window.removeEventListener("propel:switch-mode", onSwitch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   return (
     <>
       <nav className="sticky top-0 z-50 border-b border-line bg-paper/95 backdrop-blur-md">
@@ -106,7 +117,6 @@ export default function StudentNavbar() {
               <BrandLogo size={32} labelClassName="text-2xl" />
             </Link>
             <div className="flex items-center gap-2 lg:hidden">
-              <ModeToggle mode={mode} onSwitch={switchMode} />
               <SettingsButton onClick={() => { setSettingsSection("account"); setSettingsOpen(true); }} />
             </div>
           </div>
@@ -131,9 +141,8 @@ export default function StudentNavbar() {
             </div>
           </div>
 
-          {/* Right: Personal/Classroom + single settings icon */}
+          {/* Right: settings */}
           <div className="hidden items-center gap-2 lg:flex">
-            <ModeToggle mode={mode} onSwitch={switchMode} />
             <SettingsButton onClick={() => { setSettingsSection("account"); setSettingsOpen(true); }} />
           </div>
         </div>
@@ -174,22 +183,3 @@ function SettingsButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-// Personal / Classroom mode switch with a smooth cross-fade transition.
-function ModeToggle({ mode, onSwitch }: { mode: Mode; onSwitch: (m: Mode) => void }) {
-  return (
-    <div className="inline-flex gap-1 rounded-full border border-line bg-surface/70 p-1 shadow-sm">
-      <button
-        onClick={() => onSwitch("personal")}
-        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${mode === "personal" ? "bg-gradient-to-br from-crimson to-crimson-deep text-white" : "text-ink-muted hover:text-ink"}`}
-      >
-        <LayoutGrid size={13} /> Personal
-      </button>
-      <button
-        onClick={() => onSwitch("classroom")}
-        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${mode === "classroom" ? "bg-gradient-to-br from-crimson to-crimson-deep text-white" : "text-ink-muted hover:text-ink"}`}
-      >
-        <School size={13} /> Classroom
-      </button>
-    </div>
-  );
-}

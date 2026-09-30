@@ -14,6 +14,7 @@ import { BrandLogo } from '@/components/ui/Logo';
 import PropelLoader from '@/components/ui/PropelLoader';
 import { showAuthSplash } from '@/lib/authSplash';
 import { Reveal, Stagger, StaggerItem, CountUp, Marquee } from '@/components/ui/Motion';
+import SchoolLoginModal from '@/components/auth/SchoolLoginModal';
 
 /** Google 'G' mark for the single sign-in button. */
 function GoogleG({ size = 18 }: { size?: number }) {
@@ -63,6 +64,7 @@ function HomePageContent() {
   const { user, isLoaded } = useUser();
   const { profile, loading: profileLoading } = useClerkAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  const [schoolOpen, setSchoolOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   // Where to land AFTER sign-in, set when the user was trying to reach a
@@ -252,13 +254,21 @@ function HomePageContent() {
                 <Menu size={18} className="mx-auto" />
               </button>
               {isLoaded ? (
-                <Button
-                  onClick={() => openAuth()}
-                  onMouseEnter={preloadClerk}
-                  className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
-                >
-                  Login
-                </Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSchoolOpen(true)}
+                    className="rounded-full border border-line bg-surface px-4 md:px-5 h-10 md:h-11 text-xs md:text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink"
+                  >
+                    School login
+                  </button>
+                  <Button
+                    onClick={() => openAuth()}
+                    onMouseEnter={preloadClerk}
+                    className="rounded-full px-5 md:px-7 h-10 md:h-11 text-xs md:text-sm"
+                  >
+                    Login
+                  </Button>
+                </div>
               ) : (
                 <div className="h-10 w-20 md:w-24 rounded-full bg-surface-soft animate-pulse" />
               )}
@@ -278,6 +288,9 @@ function HomePageContent() {
             <Link href="/ambassadors" className="block py-1" onClick={() => setIsMobileNavOpen(false)}>Ambassadors</Link>
             <button onClick={() => { setIsMobileNavOpen(false); openAuth(); }} className="mt-1 w-full rounded-full bg-crimson py-2 font-semibold text-white">
               Login
+            </button>
+            <button onClick={() => { setIsMobileNavOpen(false); setSchoolOpen(true); }} className="w-full rounded-full border border-line py-2 font-semibold text-ink-muted">
+              School login
             </button>
           </div>
         </div>
@@ -315,6 +328,8 @@ function HomePageContent() {
           </div>
         </div>
       )}
+
+      <SchoolLoginModal open={schoolOpen} onClose={() => setSchoolOpen(false)} />
 
       {/* Hero Section */}
       <FloatingHero

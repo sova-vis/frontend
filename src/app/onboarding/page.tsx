@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/lib/auth";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Camera, Check, ClipboardCheck, School } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check } from "lucide-react";
 import { apiCall } from "@/lib/api";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { SUBJECT_OPTIONS as SUBJECTS, subjectSlug } from "@/lib/studentSubjects";
@@ -39,7 +39,8 @@ export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const { profile, loading } = useClerkAuth();
 
-  const [role, setRole] = useState<"student" | "teacher" | null>(null);
+  // Onboarding is student-only now — teachers get a generated login from their school.
+  const [role, setRole] = useState<"student" | "teacher">("student");
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -117,7 +118,7 @@ export default function OnboardingPage() {
   const set = (patch: Partial<Data>) => setData((d) => ({ ...d, ...patch }));
   const go = (n: number) => { setDir(n > step ? 1 : -1); setStep(n); };
   const next = () => go(step + 1);
-  const back = () => (step === 0 ? (joinContext ? undefined : setRole(null)) : go(step - 1));
+  const back = () => (step === 0 ? undefined : go(step - 1));
 
   const onPhoto = (f: File | null) => {
     setPhotoFile(f);
@@ -200,23 +201,6 @@ export default function OnboardingPage() {
       setSubmitting(false);
     }
   };
-
-  // ---- Role picker (step -1) ----
-  if (!role) {
-    return (
-      <Shell>
-        <p className="ed-eyebrow">Welcome{user?.firstName ? `, ${user.firstName}` : ""}</p>
-        <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mt-2">
-          How will you use <span className="italic text-crimson">Propel</span>?
-        </h1>
-        <p className="text-ink-muted mt-2">Choose your role to get set up.</p>
-        <div className="grid sm:grid-cols-2 gap-4 mt-8">
-          <RoleCard icon={ClipboardCheck} tone="mint" title="I'm a Student" desc="Practise past papers, take assignments, track progress." onClick={() => { setRole("student"); setStep(0); }} />
-          <RoleCard icon={School} tone="crimson" title="I'm a Teacher" desc="Create classes, set assignments, mark with AI, release results." onClick={() => { setRole("teacher"); setStep(0); }} />
-        </div>
-      </Shell>
-    );
-  }
 
   return (
     <Shell>
@@ -438,14 +422,3 @@ function Choices({ options, value, onChange }: { options: string[]; value: strin
   );
 }
 
-function RoleCard({ icon: Icon, tone, title, desc, onClick }: { icon: typeof School; tone: "mint" | "crimson"; title: string; desc: string; onClick: () => void }) {
-  const toneCls = tone === "mint" ? "bg-mint-soft text-mint-ink" : "bg-crimson-soft text-crimson-ink";
-  return (
-    <button onClick={onClick} className="ed-card p-8 text-left hover:shadow-lg transition-shadow group">
-      <span className={`grid h-14 w-14 place-items-center rounded-2xl ${toneCls} group-hover:scale-105 transition-transform`}><Icon size={28} /></span>
-      <h2 className="font-display text-xl font-semibold mt-4">{title}</h2>
-      <p className="text-ink-muted text-sm mt-1">{desc}</p>
-      <span className="inline-block mt-4 text-sm font-semibold text-crimson">Continue →</span>
-    </button>
-  );
-}

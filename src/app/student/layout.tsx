@@ -10,6 +10,7 @@ import { hideAuthSplash } from '@/lib/authSplash';
 import { useInactivityLogout } from '@/lib/useInactivityLogout';
 import PropelLoader from '@/components/ui/PropelLoader';
 import { ProProvider } from '@/lib/usePro';
+import { joinClassByCode } from '@/lib/submissions';
 import TrialBanner from '@/components/billing/TrialBanner';
 import UpgradeModal from '@/components/billing/UpgradeModal';
 import ProRouteGate from '@/components/billing/ProRouteGate';
@@ -33,6 +34,17 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 		if (loading || !profile || profile.role !== 'student') return;
 		void reconcilePersonalizationWithProfile(profile, getToken);
 	}, [loading, profile, getToken]);
+
+	// A student who came in via "School login → Student" left a pending class code
+	// (across the Google round-trip); join that class now so it shows in Classroom.
+	useEffect(() => {
+		if (loading || !profile || profile.role !== 'student') return;
+		let code = '';
+		try { code = sessionStorage.getItem('pending_class_code') || ''; } catch { /* ignore */ }
+		if (!code) return;
+		try { sessionStorage.removeItem('pending_class_code'); } catch { /* ignore */ }
+		void joinClassByCode(code).catch(() => { /* best-effort */ });
+	}, [loading, profile]);
 
 	// Persist O/A toggles to the server too, so the active level follows the account.
 	useEffect(() => {
