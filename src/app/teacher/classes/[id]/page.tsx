@@ -61,7 +61,10 @@ export default function ClassDetailPage() {
             </div>
           </div>
         </div>
-        <button className="btn btn-ghost" onClick={archive} style={{ color: "var(--ink-soft)" }}><Icon name="layers" size={16} /> Archive</button>
+        <div className="flex gap-8 wrap" style={{ flex: "none" }}>
+          <Link href={`/teacher/assignments/new?class_id=${cls.id}`} className="btn btn-primary"><Icon name="plus" size={16} /> New assignment</Link>
+          <button className="btn btn-ghost" onClick={archive} style={{ color: "var(--ink-soft)" }}><Icon name="layers" size={16} /> Archive</button>
+        </div>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.6fr)", alignItems: "start" }}>

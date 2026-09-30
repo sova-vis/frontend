@@ -10,8 +10,11 @@ import PropelLoader from "@/components/ui/PropelLoader";
 import PortalShell from "@/components/portal/PortalShell";
 
 // Rebuilt teacher portal (Sept 2026 spec) on the shared .pr design system.
-// Classes is the home; assignments/marking modules land in the next slices.
-const TEACHER_NAV = [{ name: "Classes", href: "/teacher/classes", icon: "users" }];
+// Classes is the home; Assignments is the teach→mark→release loop (§5.2+).
+const TEACHER_NAV = [
+  { name: "Classes", href: "/teacher/classes", icon: "users" },
+  { name: "Assignments", href: "/teacher/assignments", icon: "file_text" },
+];
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
