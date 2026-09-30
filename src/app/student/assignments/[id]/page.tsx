@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CheckCircle2, ChevronLeft, Clock } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Clock, Camera } from "lucide-react";
 import {
   SavedAnswer,
   StartSubmissionResponse,
@@ -80,6 +80,10 @@ export default function TakeAssignmentPage() {
 
   const readOnly = data?.read_only ?? false;
   const submissionId = data?.submission.id;
+  // §5.3 handwritten-first: when the teacher set the assignment to handwritten,
+  // each question opens in photo/upload mode by default (the student can still
+  // switch to typing per question as a fallback).
+  const defaultMode: "type" | "upload" = data?.assignment.answer_method === "handwritten" ? "upload" : "type";
 
   const persist = useCallback(
     (aqId: string, patch: { answer_text?: string; selected_option?: string; part_answers?: Record<string, string> }) => {
@@ -227,6 +231,12 @@ export default function TakeAssignmentPage() {
             <Clock size={14} /> Timed: {data.assignment.duration_minutes} minutes
           </p>
         )}
+        {data.assignment.answer_method === "handwritten" && !readOnly && (
+          <div className="ed-card-soft flex items-start gap-2 p-3 text-sm text-ink-muted">
+            <Camera size={16} className="mt-0.5 flex-none text-crimson" />
+            <span>This is a <strong className="text-ink">handwritten</strong> assignment — photograph your working for each question and we&apos;ll read it automatically. Prefer typing? Switch any question to type.</span>
+          </div>
+        )}
 
         {result?.released && <ResultsView result={result} />}
 
@@ -250,7 +260,7 @@ export default function TakeAssignmentPage() {
                 partAnswers={v.part_answers}
                 onPartAnswer={hasParts ? (k, val) => setPart(aq, q.parts, k, val) : undefined}
                 onPartAnswerBlur={hasParts ? (k, val) => persistPart(aq, q.parts, k, val) : undefined}
-                answerMode={mode[aq] || "type"}
+                answerMode={mode[aq] || defaultMode}
                 onAnswerMode={(m) => setMode((prev) => ({ ...prev, [aq]: m }))}
                 upload={uploads[aq]}
                 onUpload={(f) => handleUpload(aq, f)}

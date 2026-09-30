@@ -85,6 +85,7 @@ export interface StartSubmissionResponse {
     deadline_at: string | null;
     timed: boolean;
     duration_minutes: number | null;
+    answer_method?: "handwritten" | "typed" | "either" | string; // §5.3 default input
     effective_deadline: string | null;
   };
   questions: StudentQuestion[];
