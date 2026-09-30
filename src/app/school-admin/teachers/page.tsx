@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/propel/Icon";
 import { Modal, EmptyState, useToast } from "@/components/propel/primitives";
 import { listTeachers, createTeacher, bulkTeachers, updateTeacher, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
-
-const splitCsvList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+import { syllabusesForLevel } from "@/lib/syllabus";
 
 export default function TeachersPage() {
   const toast = useToast();
@@ -29,7 +28,7 @@ export default function TeachersPage() {
         <div>
           <span className="eyebrow">School Admin</span>
           <h1 className="big-num" style={{ fontSize: 32, marginTop: 6 }}>Teachers</h1>
-          <p className="muted" style={{ marginTop: 4 }}>Create staff logins and assign their subjects and year groups.</p>
+          <p className="muted" style={{ marginTop: 4 }}>Create staff logins and choose the levels &amp; subjects they teach.</p>
         </div>
         <div className="flex gap-10 wrap">
           <button className="btn btn-secondary" onClick={() => setBulkOpen(true)}><Icon name="upload" size={16} /> Import CSV</button>
@@ -101,15 +100,15 @@ function TempPasswordBox({ email, password }: { email: string; password: string 
 }
 
 function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ name: "", email: "", subjects: "", levels: "" });
+  const [name, setName] = useState(""); const [email, setEmail] = useState("");
+  const [levels, setLevels] = useState<string[]>([]); const [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<{ email: string; tempPassword: string | null; existed: boolean } | null>(null);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
   const submit = async () => {
-    if (!f.name.trim() || !f.email.trim()) { setErr("Name and email are required."); return; }
+    if (!name.trim() || !email.trim()) { setErr("Name and email are required."); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await createTeacher({ name: f.name.trim(), email: f.email.trim(), subjects: splitCsvList(f.subjects), levels: splitCsvList(f.levels) });
+      const r = await createTeacher({ name: name.trim(), email: email.trim(), subjects: codes, levels });
       setRes(r.teacher); onDone();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
@@ -127,10 +126,12 @@ function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () 
       ) : (
         <>
           <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Add teacher</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
-          <Field label="Name"><input className="input" value={f.name} onChange={set("name")} /></Field>
-          <Field label="Email"><input className="input" value={f.email} onChange={set("email")} type="email" /></Field>
-          <Field label="Subjects (syllabus codes, comma-separated)"><input className="input" value={f.subjects} onChange={set("subjects")} placeholder="0620, 0625" /></Field>
-          <Field label="Year groups / levels (comma-separated)"><input className="input" value={f.levels} onChange={set("levels")} placeholder="O, A" /></Field>
+          <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Email"><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></Field>
+          <div style={{ marginBottom: 12 }}>
+            <span className="eyebrow" style={{ marginBottom: 8, display: "block" }}>Levels &amp; subjects they teach</span>
+            <SubjectLevelPicker levels={levels} codes={codes} onLevels={setLevels} onCodes={setCodes} />
+          </div>
           {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
           <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add teacher"}</button></div>
         </>
@@ -141,23 +142,78 @@ function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () 
 
 function EditTeacherModal({ teacher, onClose, onDone }: { teacher: Teacher; onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState(teacher.full_name || "");
-  const [subjects, setSubjects] = useState((teacher.syllabus_codes ?? []).join(", "));
-  const [levels, setLevels] = useState((teacher.levels ?? []).join(", "));
+  const [levels, setLevels] = useState<string[]>((teacher.levels ?? []).filter((l) => l === "O" || l === "A"));
+  const [codes, setCodes] = useState<string[]>(teacher.syllabus_codes ?? []);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const submit = async () => {
     setBusy(true); setErr(null);
-    try { await updateTeacher(teacher.clerk_id, { full_name: name.trim() || undefined, subjects: splitCsvList(subjects), levels: splitCsvList(levels) }); onDone(); onClose(); }
+    try { await updateTeacher(teacher.clerk_id, { full_name: name.trim() || undefined, subjects: codes, levels }); onDone(); onClose(); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
     <Modal open onClose={onClose}>
       <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Edit teacher</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
       <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <Field label="Subjects (syllabus codes)"><input className="input" value={subjects} onChange={(e) => setSubjects(e.target.value)} placeholder="0620, 0625" /></Field>
-      <Field label="Year groups / levels"><input className="input" value={levels} onChange={(e) => setLevels(e.target.value)} placeholder="O, A" /></Field>
+      <div style={{ marginBottom: 12 }}>
+        <span className="eyebrow" style={{ marginBottom: 8, display: "block" }}>Levels &amp; subjects</span>
+        <SubjectLevelPicker levels={levels} codes={codes} onLevels={setLevels} onCodes={setCodes} />
+      </div>
       {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
       <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</button></div>
     </Modal>
+  );
+}
+
+// Level → subjects picker (§4.1). Toggle O Level and/or A Level; each reveals its
+// real syllabuses to tick. Reports the chosen levels + syllabus codes.
+function SubjectLevelPicker({ levels, codes, onLevels, onCodes }: {
+  levels: string[]; codes: string[]; onLevels: (l: string[]) => void; onCodes: (c: string[]) => void;
+}) {
+  const toggleLevel = (lv: "O" | "A") => {
+    if (levels.includes(lv)) {
+      onLevels(levels.filter((x) => x !== lv));
+      const lvCodes = new Set(syllabusesForLevel(lv).map((s) => s.code));
+      onCodes(codes.filter((c) => !lvCodes.has(c)));
+    } else {
+      onLevels([...levels, lv]);
+    }
+  };
+  const toggleCode = (code: string) => onCodes(codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code]);
+  return (
+    <div className="grid" style={{ gap: 10 }}>
+      {(["O", "A"] as const).map((lv) => {
+        const on = levels.includes(lv);
+        const chosen = syllabusesForLevel(lv).filter((s) => codes.includes(s.code)).length;
+        return (
+          <div key={lv} style={{ border: `1px solid ${on ? "var(--crimson)" : "var(--line)"}`, borderRadius: 12, padding: 12 }}>
+            <button type="button" onClick={() => toggleLevel(lv)} className="row-between" style={{ width: "100%" }}>
+              <span className="flex items-center gap-8">
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{lv === "O" ? "O Level / IGCSE" : "A Level"}</span>
+                {on && chosen > 0 && <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{chosen}</span>}
+              </span>
+              <span style={{ display: "inline-block", width: 42, height: 24, borderRadius: 99, background: on ? "var(--crimson)" : "var(--line-strong)", position: "relative", transition: "background .2s", flex: "none" }}>
+                <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "var(--shadow-sm)" }} />
+              </span>
+            </button>
+            {on && (
+              <div className="flex wrap gap-6" style={{ marginTop: 12 }}>
+                {syllabusesForLevel(lv).map((s) => {
+                  const sel = codes.includes(s.code);
+                  return (
+                    <button key={s.code} type="button" onClick={() => toggleCode(s.code)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                        ...(sel ? { background: "var(--crimson)", color: "#fff", border: "1px solid var(--crimson)" } : { background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }) }}>
+                      {sel && <Icon name="check_circle" size={13} />}
+                      {s.subject} <span className="mono" style={{ opacity: 0.7, fontSize: 11 }}>{s.code}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
