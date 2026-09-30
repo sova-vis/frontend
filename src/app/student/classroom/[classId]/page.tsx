@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, CheckCircle2, Clock, LogOut, School } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Clock, LogOut, School, FileText, Globe, Paperclip } from "lucide-react";
 import { AvailableAssignment, Classroom, getAvailableAssignments, getMyClassrooms, leaveClass } from "@/lib/submissions";
+import { Resource, listPublishedResources, openResource } from "@/lib/resources";
 
 export default function StudentClassPage() {
   const params = useParams<{ classId: string }>();
@@ -11,15 +12,21 @@ export default function StudentClassPage() {
   const classId = (params?.classId ?? "") as string;
   const [cls, setCls] = useState<Classroom | null>(null);
   const [assignments, setAssignments] = useState<AvailableAssignment[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const [cs, as] = await Promise.all([getMyClassrooms(), getAvailableAssignments().catch(() => [])]);
+        const [cs, as, rs] = await Promise.all([
+          getMyClassrooms(),
+          getAvailableAssignments().catch(() => []),
+          listPublishedResources(classId).catch(() => [] as Resource[]),
+        ]);
         setCls(cs.find((c) => c.class_id === classId) || null);
         setAssignments(as.filter((a) => a.class_id === classId));
+        setResources(rs);
       } finally {
         setLoading(false);
       }
@@ -72,6 +79,7 @@ export default function StudentClassPage() {
                 <Group title="To do" icon={BookOpen} items={todo} onOpen={open} cta="Start" empty="You're all caught up." />
                 {submitted.length > 0 && <Group title="Submitted · awaiting review" icon={Clock} items={submitted} onOpen={open} cta="View" muted />}
                 {reviewed.length > 0 && <Group title="Reviewed" icon={CheckCircle2} items={reviewed} onOpen={open} cta="See feedback" mint />}
+                {resources.length > 0 && <ResourcesSection resources={resources} />}
               </div>
             )}
           </>
@@ -107,6 +115,37 @@ function Group({ title, icon: Icon, items, onOpen, cta, empty, muted, mint }: {
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function ResourcesSection({ resources }: { resources: Resource[] }) {
+  const [err, setErr] = useState("");
+  return (
+    <section className="ed-card p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Paperclip size={16} className="text-crimson" />
+        <h2 className="font-semibold text-ink text-sm">Resources</h2>
+        <span className="text-xs text-ink-faint">{resources.length}</span>
+      </div>
+      {err && <p className="text-xs text-crimson mb-2">{err}</p>}
+      <div className="space-y-2">
+        {resources.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => void openResource(r).catch(() => setErr("Could not open that resource."))}
+            className="ed-card-soft p-3 flex items-center gap-3 w-full text-left hover:shadow-sm transition-shadow"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-crimson">
+              {r.kind === "link" ? <Globe size={16} /> : <FileText size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-ink truncate">{r.title}</p>
+              <p className="text-xs text-ink-faint truncate">{r.topic ? `${r.topic} · ` : ""}{r.kind === "link" ? "Link" : "File"}</p>
+            </div>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
