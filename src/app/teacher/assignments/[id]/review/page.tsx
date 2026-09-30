@@ -1,42 +1,39 @@
 "use client";
 
+/**
+ * Review & release workspace (spec §5.5) — rebuilt on the shared `.pr` design.
+ * Two views: a per-student overview (cards), and a focus view that walks one
+ * student's answers with the AI marks, per-criterion override, comments +
+ * comment bank, "apply to all who missed", a voice note, flag, and a single
+ * "check & release" on the last answer. All actions reuse the stable
+ * /review + /release APIs untouched. Marking itself is unchanged (§5.4).
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, Flag } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Icon } from "@/components/propel/Icon";
+import { EmptyState, useToast } from "@/components/propel/primitives";
 import {
-  QueueItem,
-  QueueResponse,
-  approveMark,
-  flagMark,
-  getQueue,
-  overrideMark,
-  saveVoiceNote,
+  QueueItem, QueueResponse, approveMark, bulkApprove, flagMark, getQueue, overrideMark, saveVoiceNote,
 } from "@/lib/review";
 import { applyMissedGuidance, releaseOne, saveCriterionComment } from "@/lib/feedbackRelease";
-import { Send } from "lucide-react";
 import CommentBankButton from "@/components/teacher/CommentBankButton";
 import VoiceNote from "@/components/teacher/VoiceNote";
 
 const REVIEWED = ["approved", "overridden", "auto_approved"];
 
 interface StudentRow {
-  clerkId: string;
-  name: string;
-  items: QueueItem[];
-  count: number;
-  reviewed: number;
-  earned: number;
-  total: number;
-  done: boolean;
+  clerkId: string; name: string; items: QueueItem[];
+  count: number; reviewed: number; earned: number; total: number; done: boolean;
 }
 
 export default function ReviewPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const assignmentId = (params?.id ?? "") as string;
+  const assignmentId = params?.id ?? "";
+  const toast = useToast();
 
   const [data, setData] = useState<QueueResponse | null>(null);
-  const [selected, setSelected] = useState<string | null>(null); // student clerkId in focus, null = table
+  const [selected, setSelected] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [awarded, setAwarded] = useState<boolean[]>([]);
   const [comments, setComments] = useState<string[]>([]);
@@ -44,7 +41,6 @@ export default function ReviewPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Optional deep-link straight into one student's review (from the status board).
   useEffect(() => {
     if (typeof window !== "undefined") {
       const s = new URLSearchParams(window.location.search).get("student");
@@ -53,17 +49,11 @@ export default function ReviewPage() {
   }, []);
 
   const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setData(await getQueue(assignmentId, "all"));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load review queue");
-    } finally {
-      setLoading(false);
-    }
+    try { setLoading(true); setData(await getQueue(assignmentId, "all")); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to load review queue"); }
+    finally { setLoading(false); }
   }, [assignmentId]);
-
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (assignmentId) void load(); }, [load, assignmentId]);
 
   const allItems = data?.items ?? [];
 
@@ -74,14 +64,12 @@ export default function ReviewPage() {
       e.items.push(it);
       map.set(it.student_clerk_id, e);
     }
-    return Array.from(map.values())
-      .map((s) => {
-        const total = s.items.reduce((sum, it) => sum + (it.ai_marks_available ?? it.question.marks ?? 0), 0);
-        const earned = s.items.reduce((sum, it) => sum + (it.final_score ?? it.ai_score ?? 0), 0);
-        const reviewed = s.items.filter((it) => REVIEWED.includes(it.status)).length;
-        return { ...s, count: s.items.length, reviewed, earned, total, done: reviewed === s.items.length && s.items.length > 0 };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.values()).map((s) => {
+      const total = s.items.reduce((sum, it) => sum + (it.ai_marks_available ?? it.question.marks ?? 0), 0);
+      const earned = s.items.reduce((sum, it) => sum + (it.final_score ?? it.ai_score ?? 0), 0);
+      const reviewed = s.items.filter((it) => REVIEWED.includes(it.status)).length;
+      return { ...s, count: s.items.length, reviewed, earned, total, done: reviewed === s.items.length && s.items.length > 0 };
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [allItems]);
 
   const focusItems = useMemo(() => (selected ? allItems.filter((it) => it.student_clerk_id === selected) : []), [allItems, selected]);
@@ -94,9 +82,8 @@ export default function ReviewPage() {
     setComments(base.map((_, i) => current.criterion_comments?.find((cm) => cm.index === i)?.text ?? ""));
   }, [current]);
 
-  const markLocal = (markId: string, patch: Partial<QueueItem>) => {
+  const markLocal = (markId: string, patch: Partial<QueueItem>) =>
     setData((d) => (d ? { ...d, items: d.items.map((it) => (it.mark_id === markId ? { ...it, ...patch } : it)) } : d));
-  };
 
   const total = useMemo(() => {
     if (!current) return { earned: 0, available: 0 };
@@ -111,14 +98,9 @@ export default function ReviewPage() {
     return awarded.some((a, i) => a !== base[i]?.awarded);
   }, [current, awarded]);
 
-  const openStudent = (clerkId: string) => { setSelected(clerkId); setIndex(0); setError(""); };
   const backToTable = () => { setSelected(null); setIndex(0); };
-
   const advance = useCallback(() => {
-    setIndex((i) => {
-      if (i + 1 >= focusItems.length) { setSelected(null); return 0; } // finished this student → back to table
-      return i + 1;
-    });
+    setIndex((i) => { if (i + 1 >= focusItems.length) { setSelected(null); return 0; } return i + 1; });
   }, [focusItems.length]);
 
   const approveCurrent = useCallback(async () => {
@@ -133,42 +115,37 @@ export default function ReviewPage() {
         markLocal(current.mark_id, { status: "approved", final_score: current.ai_score });
       }
       advance();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { toast(err instanceof Error ? err.message : "Failed to save", "alert"); }
+    finally { setBusy(false); }
   }, [current, busy, dirty, awarded, advance]);
 
   const flagCurrent = useCallback(async () => {
     if (!current) return;
-    try {
-      await flagMark(current.mark_id, !current.flagged);
-      markLocal(current.mark_id, { flagged: !current.flagged });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to flag");
-    }
+    try { await flagMark(current.mark_id, !current.flagged); markLocal(current.mark_id, { flagged: !current.flagged }); }
+    catch (err) { toast(err instanceof Error ? err.message : "Failed to flag", "alert"); }
   }, [current]);
 
-  // Approve every not-yet-reviewed answer for one student in one click.
   const approveAllForStudent = async (row: StudentRow) => {
     const pending = row.items.filter((it) => !REVIEWED.includes(it.status));
     if (pending.length === 0) return;
-    if (!window.confirm(`Approve ${pending.length} answer${pending.length === 1 ? "" : "s"} for ${row.name}?`)) return;
     setBusy(true);
     try {
-      for (const it of pending) {
-        await approveMark(it.mark_id);
-        markLocal(it.mark_id, { status: "approved", final_score: it.ai_score });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to approve");
-    } finally {
-      setBusy(false);
-    }
+      for (const it of pending) { await approveMark(it.mark_id); markLocal(it.mark_id, { status: "approved", final_score: it.ai_score }); }
+      toast(`Approved ${pending.length} for ${row.name}`, "check_circle");
+    } catch (err) { toast(err instanceof Error ? err.message : "Failed to approve", "alert"); }
+    finally { setBusy(false); }
   };
 
-  // Check the current answer (if needed) and release this student's whole result.
+  const approveConfident = async () => {
+    setBusy(true);
+    try {
+      const { approved } = await bulkApprove(assignmentId);
+      toast(approved > 0 ? `Approved ${approved} confident answer${approved === 1 ? "" : "s"}` : "Nothing above the confidence threshold", "check_circle");
+      await load();
+    } catch (err) { toast(err instanceof Error ? err.message : "Bulk approve failed", "alert"); }
+    finally { setBusy(false); }
+  };
+
   const checkAndRelease = async () => {
     if (!current || busy) return;
     setBusy(true);
@@ -181,286 +158,228 @@ export default function ReviewPage() {
         markLocal(current.mark_id, { status: "approved", final_score: current.ai_score });
       }
       await releaseOne(current.submission_id);
+      toast("Released to student", "send");
       backToTable();
       await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to release results");
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { toast(err instanceof Error ? err.message : "Failed to release results", "alert"); }
+    finally { setBusy(false); }
   };
 
-  if (loading) {
-    return (
-      <div className="px-4 md:px-8 py-8 max-w-5xl mx-auto space-y-4">
-        <div className="h-16 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-        <div className="h-96 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-      </div>
-    );
-  }
+  if (loading) return <div className="grid" style={{ gap: 16 }}><div className="sk" style={{ height: 60, borderRadius: 16 }} /><div className="sk" style={{ height: 360, borderRadius: 18 }} /></div>;
 
   const reviewedStudents = students.filter((s) => s.done).length;
 
-  // ---------------- TABLE VIEW ----------------
+  // ---------------- OVERVIEW ----------------
   if (!selected) {
     return (
-      <div className="px-4 md:px-8 py-6">
-        <div className="max-w-5xl mx-auto space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <button onClick={() => router.push(`/teacher/assignments/${assignmentId}`)} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1">
-              <ChevronLeft size={15} /> {data?.assignment.title || "Assignment"}
-            </button>
-            <span className="text-sm text-ink-muted">{reviewedStudents}/{students.length} students reviewed</span>
+      <>
+        <div className="row-between wrap gap-12" style={{ marginBottom: 18 }}>
+          <Link href={`/teacher/assignments/${assignmentId}`} className="chip"><Icon name="chevron_left" size={15} /> {data?.assignment.title || "Assignment"}</Link>
+          <div className="flex items-center gap-10 wrap">
+            <span className="faint" style={{ fontSize: 13 }}>{reviewedStudents}/{students.length} reviewed</span>
+            {students.some((s) => !s.done) && (
+              <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void approveConfident()}>
+                <Icon name="sparkles" size={14} /> Approve confident
+              </button>
+            )}
           </div>
-
-          {error && <p className="text-sm text-crimson">{error}</p>}
-
-          {students.length === 0 ? (
-            <div className="ed-card p-10 text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-mint-soft text-mint-ink"><Check size={26} /></div>
-              <p className="mt-4 text-ink-muted">No submissions to review yet.</p>
-            </div>
-          ) : (
-            <div className="ed-card p-0 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-ink-faint border-b border-line">
-                      <th className="font-semibold px-4 py-3">Student</th>
-                      <th className="font-semibold px-4 py-3">Progress</th>
-                      <th className="font-semibold px-4 py-3">Score</th>
-                      <th className="font-semibold px-4 py-3">Status</th>
-                      <th className="font-semibold px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.map((s) => (
-                      <tr key={s.clerkId} className="border-b border-line last:border-0 hover:bg-surface-soft/60">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-crimson-soft text-crimson-ink text-xs font-bold">{s.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="font-medium text-ink">{s.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-ink-muted">{s.reviewed}/{s.count} marked</td>
-                        <td className="px-4 py-3 font-semibold text-ink">{s.earned}<span className="text-ink-faint font-normal">/{s.total}</span></td>
-                        <td className="px-4 py-3">
-                          {s.done
-                            ? <span className="ed-pill-mint text-[0.65rem]">Reviewed</span>
-                            : <span className="ed-pill-gold text-[0.65rem]">{s.count - s.reviewed} pending</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-2">
-                            {!s.done && (
-                              <button onClick={() => void approveAllForStudent(s)} disabled={busy} className="ed-btn-ghost px-3 py-1.5 text-xs">
-                                <Check size={13} /> Approve all
-                              </button>
-                            )}
-                            <button onClick={() => openStudent(s.clerkId)} className="ed-btn-primary px-3 py-1.5 text-xs">
-                              {s.done ? "View" : "Review"} <ChevronRight size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+
+        {error && <p style={{ color: "var(--coral)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+
+        {students.length === 0 ? (
+          <EmptyState icon="check_circle" title="Nothing to review yet" body="Once students submit and their scripts are marked, they'll appear here for you to check and release." />
+        ) : (
+          <div className="grid" style={{ gap: 10 }}>
+            {students.map((s) => (
+              <div key={s.clerkId} className="card card-pad row-between wrap gap-12">
+                <div className="flex items-center gap-12" style={{ minWidth: 0 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 11, flex: "none", display: "grid", placeItems: "center", background: "linear-gradient(140deg, var(--purple), #4b32a8)", color: "#fff", fontWeight: 600, fontSize: 14 }}>{s.name.slice(0, 2).toUpperCase()}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                    <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>{s.reviewed}/{s.count} marked · <b style={{ color: "var(--ink)" }}>{s.earned}</b>/{s.total}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-8 wrap" style={{ flex: "none" }}>
+                  {s.done
+                    ? <span className="chip-tag" style={{ background: "var(--teal-soft)", color: "var(--teal)" }}>Reviewed</span>
+                    : <span className="chip-tag" style={{ background: "var(--amber-soft)", color: "var(--amber)" }}>{s.count - s.reviewed} pending</span>}
+                  {!s.done && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void approveAllForStudent(s)}><Icon name="check_circle" size={13} /> Approve all</button>}
+                  <button className="btn btn-primary btn-sm" onClick={() => { setSelected(s.clerkId); setIndex(0); setError(""); }}>{s.done ? "View" : "Review"} <Icon name="chevron_right" size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
     );
   }
 
-  // ---------------- FOCUS VIEW (one student) ----------------
+  // ---------------- FOCUS (one student) ----------------
   const focusName = focusItems[0]?.student_name ?? "Student";
   if (!current) {
     return (
-      <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto space-y-4">
-        <button onClick={backToTable} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1"><ChevronLeft size={15} /> All students</button>
-        <div className="ed-card p-10 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-mint-soft text-mint-ink"><Check size={26} /></div>
-          <p className="mt-4 text-ink-muted">Nothing to review for {focusName}.</p>
-        </div>
-      </div>
+      <>
+        <button className="chip" onClick={backToTable} style={{ marginBottom: 16 }}><Icon name="chevron_left" size={15} /> All students</button>
+        <EmptyState icon="check_circle" title={`Nothing to review for ${focusName}`} />
+      </>
     );
   }
+  const q = current.question;
+  const answerImages = Array.isArray(current.answer.images) ? (current.answer.images as { data_url?: string }[]) : [];
 
   return (
-    <div className="px-4 md:px-8 py-6">
-      <div className="max-w-4xl mx-auto space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <button onClick={backToTable} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1">
-            <ChevronLeft size={15} /> All students
-          </button>
-          <span className="text-sm font-semibold text-ink">{focusName}</span>
-        </div>
+    <>
+      <style>{`.rv-panes{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}@media(min-width:900px){.rv-panes{grid-template-columns:1fr 1fr}}`}</style>
 
-        {error && <p className="text-sm text-crimson">{error}</p>}
+      <div className="row-between wrap gap-12" style={{ marginBottom: 14 }}>
+        <button className="chip" onClick={backToTable}><Icon name="chevron_left" size={15} /> All students</button>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{focusName}</span>
+      </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-ink-muted">
-            Q{String(current.question.number)} · {current.question.marks} marks{current.question.topic ? ` · ${current.question.topic}` : ""}
-          </p>
-          {current.ai_score === null && current.question.type !== "mcq" && (
-            <span className="ed-pill-gold text-[0.65rem]">Needs marking</span>
+      {error && <p style={{ color: "var(--coral)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <p className="faint" style={{ fontSize: 13 }}>Q{String(q.number)} · {q.marks} marks{q.topic ? ` · ${q.topic}` : ""}</p>
+        {current.ai_score === null && q.type !== "mcq" && <span className="chip-tag" style={{ background: "var(--amber-soft)", color: "var(--amber)" }}>Needs marking</span>}
+      </div>
+
+      <div className="rv-panes">
+        {/* Student answer */}
+        <div className="card card-pad">
+          <p className="eyebrow" style={{ marginBottom: 10 }}>Student answer</p>
+          {q.text && <p className="faint" style={{ fontSize: 12.5, marginBottom: 10, whiteSpace: "pre-wrap" }}>{q.text}</p>}
+          {q.images && q.images.length > 0 && (
+            <div className="flex wrap gap-8" style={{ marginBottom: 10 }}>
+              {q.images.map((im, k) => im.src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={k} src={im.src} alt={im.alt || "Figure"} style={{ maxHeight: 160, borderRadius: 10, border: "1px solid var(--line)", objectFit: "contain", background: "#fff" }} />
+              ) : null)}
+            </div>
+          )}
+          {q.parts && q.parts.length > 0 && (
+            <div className="grid" style={{ gap: 6, marginBottom: 10 }}>
+              {q.parts.map((p, k) => <div key={k} className="faint" style={{ fontSize: 12.5 }}><b style={{ color: "var(--ink)" }}>{p.label}</b> {p.body}{p.marks != null ? ` [${p.marks}]` : ""}</div>)}
+            </div>
+          )}
+          {current.answer.ocr_status === "failed" && <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)", marginBottom: 10, display: "inline-block" }}>OCR failed — original image required</span>}
+          {q.type === "mcq" ? (
+            <p style={{ fontSize: 14 }}>Selected: <span className="mono" style={{ fontWeight: 700 }}>{current.answer.selected_option || "—"}</span></p>
+          ) : (
+            <p style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{current.answer.text || current.answer.ocr_text || <span className="faint">No answer.</span>}</p>
+          )}
+          {answerImages.length > 0 && (
+            <div className="flex wrap gap-8" style={{ marginTop: 12 }}>
+              {answerImages.map((img, i) => img?.data_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={img.data_url} alt="handwritten answer" style={{ height: 128, borderRadius: 10, border: "1px solid var(--line)", objectFit: "cover" }} />
+              ) : null)}
+            </div>
           )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Student answer */}
-          <div className="ed-card p-4">
-            <p className="ed-label mb-2">Student answer</p>
-            {current.question.text && <p className="text-xs text-ink-faint mb-2 whitespace-pre-wrap">{current.question.text}</p>}
-            {/* Full question figures + structured parts so the marker sees exactly what the student saw. */}
-            {current.question.images && current.question.images.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {current.question.images.map((im, k) => im.src ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={k} src={im.src} alt={im.alt || "Figure"} className="max-h-40 rounded-lg border border-line object-contain bg-white" />
-                ) : null)}
-              </div>
-            )}
-            {current.question.parts && current.question.parts.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {current.question.parts.map((p, k) => (
-                  <div key={k} className="text-xs text-ink-muted"><b className="text-ink">{p.label}</b> {p.body}{p.marks != null ? ` [${p.marks}]` : ""}</div>
-                ))}
-              </div>
-            )}
-            {current.answer.ocr_status === "failed" && <p className="ed-pill-crimson text-[0.65rem] mb-2">OCR failed — original image required</p>}
-            {current.question.type === "mcq" ? (
-              <p className="text-sm text-ink">Selected: <span className="font-mono font-bold">{current.answer.selected_option || "—"}</span></p>
-            ) : (
-              <p className="text-sm text-ink whitespace-pre-wrap">
-                {current.answer.text || current.answer.ocr_text || <span className="text-ink-faint">No answer.</span>}
-              </p>
-            )}
-            {Array.isArray(current.answer.images) && current.answer.images.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(current.answer.images as { data_url?: string }[]).map((img, i) =>
-                  img?.data_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={img.data_url} alt="handwritten answer" className="h-32 rounded-lg border border-line object-cover" />
-                  ) : null
-                )}
-              </div>
-            )}
+        {/* Mark scheme + per-criterion override */}
+        <div className="card card-pad">
+          <div className="row-between" style={{ marginBottom: 10 }}>
+            <p className="eyebrow">Mark scheme</p>
+            <span className="big-num" style={{ fontSize: 18 }}>{total.earned}<span className="faint" style={{ fontSize: 13 }}>/{total.available}</span></span>
           </div>
-
-          {/* Mark scheme + per-criterion override */}
-          <div className="ed-card p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="ed-label">Mark scheme</p>
-              <span className="font-display text-lg font-semibold">{total.earned}<span className="text-ink-faint text-sm">/{total.available}</span></span>
+          {current.examiner_note && (
+            <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 10, marginBottom: 10, borderLeft: "3px solid var(--amber)" }}>
+              <p className="eyebrow" style={{ color: "var(--amber)" }}>Examiner report — common mistakes</p>
+              <p className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>{current.examiner_note}</p>
+              <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>Teacher-facing · never shown to students</p>
             </div>
-            {current.examiner_note && (
-              <div className="ed-card-soft p-2.5 mb-2 border-l-2 border-gold">
-                <p className="ed-label text-gold-ink">Examiner report — common mistakes</p>
-                <p className="text-xs text-ink-muted mt-1">{current.examiner_note}</p>
-                <p className="text-[0.65rem] text-ink-faint mt-1">Teacher-facing · never shown to students</p>
-              </div>
-            )}
-            <div className="space-y-2">
-              {current.ai_criteria.map((c, i) => (
-                <div key={i} className={`rounded-xl border p-3 ${awarded[i] ? "border-mint/40 bg-mint-soft/40" : "border-line"}`}>
-                  <div className="flex items-start gap-2">
-                    <button
-                      onClick={() => setAwarded((prev) => prev.map((a, idx) => (idx === i ? !a : a)))}
-                      className={`shrink-0 mt-0.5 grid h-5 w-5 place-items-center rounded border ${awarded[i] ? "bg-mint text-paper border-mint" : "border-line"}`}
-                      aria-label="Toggle criterion"
-                    >
-                      {awarded[i] && <Check size={12} />}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-ink">{c.criterion_text || `Criterion ${i + 1}`}</p>
-                      <p className="text-xs text-ink-faint mt-0.5">{c.marks_available} mark{c.marks_available === 1 ? "" : "s"}</p>
-                      {c.reasoning && (
-                        <p className="text-xs text-ink-muted mt-1">
-                          <span className="font-mono text-[0.6rem] font-medium uppercase tracking-[.13em] text-purple-ink">AI</span>{" "}
-                          {c.reasoning}
-                        </p>
-                      )}
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <input
-                          value={comments[i] ?? ""}
-                          onChange={(e) => setComments((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                          onBlur={(e) => { if (current) void saveCriterionComment(current.mark_id, i, e.target.value).catch(() => {}); }}
-                          placeholder="Add a comment for this criterion…"
-                          className="ed-input px-2.5 py-1.5 text-xs flex-1"
-                        />
-                        <CommentBankButton
-                          topic={current.question.topic}
-                          currentText={comments[i] ?? ""}
-                          onInsert={(t) => {
-                            setComments((prev) => prev.map((v, idx) => (idx === i ? t : v)));
-                            if (current) void saveCriterionComment(current.mark_id, i, t).catch(() => {});
-                          }}
-                        />
-                      </div>
-                      {!awarded[i] && (comments[i] ?? "").trim() && (
-                        <button
-                          onClick={async () => {
-                            if (!current) return;
-                            const { applied } = await applyMissedGuidance(assignmentId, current.assignment_question_id, i, comments[i]);
-                            window.alert(`Applied to ${applied} student${applied === 1 ? "" : "s"} who missed this criterion.`);
-                          }}
-                          className="text-[0.7rem] text-crimson hover:underline mt-1"
-                        >
-                          Apply to all who missed this criterion
-                        </button>
-                      )}
+          )}
+          <div className="grid" style={{ gap: 8 }}>
+            {current.ai_criteria.map((c, i) => (
+              <div key={i} style={{ borderRadius: 12, padding: 12, border: `1px solid ${awarded[i] ? "var(--teal)" : "var(--line)"}`, background: awarded[i] ? "var(--teal-soft)" : "transparent" }}>
+                <div className="flex items-start gap-8">
+                  <button
+                    onClick={() => setAwarded((prev) => prev.map((a, idx) => (idx === i ? !a : a)))}
+                    aria-label="Toggle criterion"
+                    style={{ flex: "none", marginTop: 1, width: 22, height: 22, borderRadius: 7, display: "grid", placeItems: "center", background: awarded[i] ? "var(--teal)" : "var(--surface)", color: "#fff", border: awarded[i] ? "none" : "1px solid var(--line-strong)" }}
+                  >
+                    {awarded[i] && <Icon name="check_circle" size={13} />}
+                  </button>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: 13.5 }}>{c.criterion_text || `Criterion ${i + 1}`}</p>
+                    <p className="faint" style={{ fontSize: 12, marginTop: 2 }}>{c.marks_available} mark{c.marks_available === 1 ? "" : "s"}</p>
+                    {c.reasoning && (
+                      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        <span className="mono" style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".13em", color: "var(--purple)" }}>AI</span> {c.reasoning}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-6" style={{ marginTop: 8 }}>
+                      <input
+                        className="input"
+                        style={{ padding: "7px 10px", fontSize: 12.5, flex: 1 }}
+                        value={comments[i] ?? ""}
+                        onChange={(e) => setComments((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                        onBlur={(e) => { if (current) void saveCriterionComment(current.mark_id, i, e.target.value).catch(() => {}); }}
+                        placeholder="Comment for this criterion…"
+                      />
+                      <CommentBankButton
+                        topic={current.question.topic}
+                        currentText={comments[i] ?? ""}
+                        onInsert={(t) => { setComments((prev) => prev.map((v, idx) => (idx === i ? t : v))); if (current) void saveCriterionComment(current.mark_id, i, t).catch(() => {}); }}
+                      />
                     </div>
+                    {!awarded[i] && (comments[i] ?? "").trim() && (
+                      <button
+                        onClick={async () => {
+                          if (!current) return;
+                          try { const { applied } = await applyMissedGuidance(assignmentId, current.assignment_question_id, i, comments[i]); toast(`Applied to ${applied} student${applied === 1 ? "" : "s"} who missed this`, "check_circle"); }
+                          catch (e) { toast(e instanceof Error ? e.message : "Failed to apply", "alert"); }
+                        }}
+                        style={{ fontSize: 11.5, color: "var(--crimson)", fontWeight: 600, marginTop: 6 }}
+                      >
+                        Apply to all who missed this criterion
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Voice note */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="ed-label">Voice note</span>
-          <VoiceNote
-            value={current.voice_note}
-            onChange={async (audio) => {
-              markLocal(current.mark_id, { voice_note: audio });
-              try { await saveVoiceNote(current.mark_id, audio); setError(""); }
-              catch (e) { setError(e instanceof Error ? e.message : "Voice note failed to save — try a shorter recording."); }
-            }}
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setIndex((i) => Math.max(0, i - 1))} disabled={index === 0} className="ed-btn-ghost px-3 py-2"><ChevronLeft size={15} /></button>
-            <span className="text-sm text-ink-muted">{index + 1} / {focusItems.length}</span>
-            <button onClick={advance} className="ed-btn-ghost px-3 py-2"><ChevronRight size={15} /></button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => void flagCurrent()} className={`ed-btn-ghost px-3 py-2 text-sm ${current.flagged ? "text-crimson" : ""}`}>
-              <Flag size={14} /> {current.flagged ? "Flagged" : "Flag"}
-            </button>
-            {index >= focusItems.length - 1 ? (
-              // On the last answer, one button checks it and releases the whole
-              // result straight to the student (marks, comments, voice notes, all).
-              <button
-                onClick={() => void checkAndRelease()}
-                disabled={busy}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-mint disabled:opacity-60"
-              >
-                <Send size={15} /> Check &amp; release to {focusName.split(" ")[0]}
-              </button>
-            ) : (
-              <button onClick={() => void approveCurrent()} disabled={busy} className="ed-btn-primary px-5 py-2.5">
-                <Check size={15} /> {dirty ? "Save & next" : "Checked & next"}
-              </button>
-            )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Voice note */}
+      <div className="flex items-center gap-10 wrap" style={{ marginTop: 16 }}>
+        <span className="eyebrow">Voice note</span>
+        <VoiceNote
+          value={current.voice_note}
+          onChange={async (audio) => {
+            markLocal(current.mark_id, { voice_note: audio });
+            try { await saveVoiceNote(current.mark_id, audio); setError(""); }
+            catch (e) { setError(e instanceof Error ? e.message : "Voice note failed to save — try a shorter recording."); }
+          }}
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="row-between wrap gap-12" style={{ marginTop: 18 }}>
+        <div className="flex items-center gap-8">
+          <button className="btn btn-ghost btn-sm" onClick={() => setIndex((i) => Math.max(0, i - 1))} disabled={index === 0}><Icon name="chevron_left" size={15} /></button>
+          <span className="faint" style={{ fontSize: 13 }}>{index + 1} / {focusItems.length}</span>
+          <button className="btn btn-ghost btn-sm" onClick={advance}><Icon name="chevron_right" size={15} /></button>
+        </div>
+        <div className="flex items-center gap-8 wrap">
+          <button className="btn btn-ghost btn-sm" onClick={() => void flagCurrent()} style={current.flagged ? { color: "var(--crimson)" } : undefined}>
+            <Icon name="flag" size={14} /> {current.flagged ? "Flagged" : "Flag"}
+          </button>
+          {index >= focusItems.length - 1 ? (
+            <button className="btn" style={{ background: "var(--teal)", color: "#fff" }} disabled={busy} onClick={() => void checkAndRelease()}>
+              <Icon name="send" size={15} /> Check &amp; release to {focusName.split(" ")[0]}
+            </button>
+          ) : (
+            <button className="btn btn-primary" disabled={busy} onClick={() => void approveCurrent()}>
+              <Icon name="check_circle" size={15} /> {dirty ? "Save & next" : "Checked & next"}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
