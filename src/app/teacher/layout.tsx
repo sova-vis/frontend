@@ -14,6 +14,7 @@ import PortalShell from "@/components/portal/PortalShell";
 const TEACHER_NAV = [
   { name: "Classes", href: "/teacher/classes", icon: "users" },
   { name: "Assignments", href: "/teacher/assignments", icon: "file_text" },
+  { name: "Insights", href: "/teacher/insights", icon: "chart" },
 ];
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {

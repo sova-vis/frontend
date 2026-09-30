@@ -1,274 +1,180 @@
 "use client";
 
+/**
+ * Class-wide insights (spec §5.7) — rebuilt on the shared `.pr` design.
+ * For a chosen class: the weakness heatmap (topics x students, doubling as the
+ * topic->student pivot — read a column to see who's weak in that topic), the
+ * class's weakest topics headline, and question difficulty (worst-first). Plus a
+ * CSV export (§4.3). Per-student depth lives on the student profile page (§5.6).
+ * Reuses the stable /teacher-insights endpoints untouched.
+ */
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { Download, FileText } from "lucide-react";
-import { Reveal } from "@/components/ui/Motion";
-import { TeacherClass, Enrollment, listClasses, listEnrollments } from "@/lib/teacherClasses";
-import {
-  Difficulty,
-  Heatmap,
-  Predicted,
-  Progress,
-  downloadCsv,
-  getDifficulty,
-  getHeatmap,
-  getPredicted,
-  getProgress,
-} from "@/lib/teacherInsights";
-import { syllabusLabel } from "@/lib/syllabus";
+import { Icon } from "@/components/propel/Icon";
+import { Bar, accTone, EmptyState, useToast } from "@/components/propel/primitives";
+import { Difficulty, Heatmap, downloadCsv, getDifficulty, getHeatmap } from "@/lib/teacherInsights";
+import { TeacherClass, listClasses } from "@/lib/teacherClasses";
+
+function cellStyle(v: number | null): React.CSSProperties {
+  if (v == null) return { background: "var(--surface-2)", color: "var(--ink-faint)" };
+  if (v >= 75) return { background: "var(--teal-soft)", color: "var(--teal-deep)" };
+  if (v >= 55) return { background: "var(--amber-soft)", color: "var(--amber-deep)" };
+  return { background: "var(--coral-soft)", color: "var(--coral)" };
+}
 
 export default function InsightsPage() {
-  const [classes, setClasses] = useState<TeacherClass[]>([]);
+  const toast = useToast();
+  const [classes, setClasses] = useState<TeacherClass[] | null>(null);
   const [classId, setClassId] = useState("");
   const [heatmap, setHeatmap] = useState<Heatmap | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
-  const [students, setStudents] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(false);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      const c = await listClasses();
-      setClasses(c);
-      if (c.length > 0) setClassId(c[0].id);
+      try {
+        const cs = (await listClasses()).filter((c) => !c.archived && (c.can_grade ?? c.is_owner ?? true));
+        setClasses(cs);
+        if (cs.length) setClassId(cs[0].id);
+      } catch { setClasses([]); }
     })();
   }, []);
 
   useEffect(() => {
-    if (!classId) return;
-    void (async () => {
-      setLoading(true);
-      try {
-        const [h, d, e] = await Promise.all([getHeatmap(classId), getDifficulty(classId), listEnrollments(classId, "active")]);
-        setHeatmap(h);
-        setDifficulty(d);
-        setStudents(e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    if (!classId) { setHeatmap(null); setDifficulty(null); return; }
+    setLoading(true);
+    Promise.allSettled([getHeatmap(classId), getDifficulty(classId)]).then(([h, d]) => {
+      setHeatmap(h.status === "fulfilled" ? h.value : { topics: [], rows: [], class_average: [] });
+      setDifficulty(d.status === "fulfilled" ? d.value : { questions: [] });
+      setLoading(false);
+    });
   }, [classId]);
 
-  const selectedClass = classes.find((c) => c.id === classId);
+  const weakest = useMemo(() => {
+    if (!heatmap) return [];
+    return heatmap.topics
+      .map((t, i) => ({ topic: t, avg: heatmap.class_average[i] }))
+      .filter((x): x is { topic: string; avg: number } => x.avg != null && x.topic !== "General")
+      .sort((a, b) => a.avg - b.avg)
+      .slice(0, 4);
+  }, [heatmap]);
+
+  const exportCsv = async () => {
+    if (!classId) return;
+    setExporting(true);
+    try { await downloadCsv(classId); toast("Export ready", "download"); }
+    catch { toast("Export failed", "alert"); }
+    finally { setExporting(false); }
+  };
+
+  const hasHeat = heatmap && heatmap.rows.length > 0 && heatmap.topics.length > 0;
 
   return (
-    <div className="px-4 md:px-8 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <Reveal>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tight">
-                <span className="italic text-crimson">Insights</span>
-              </h1>
-              {selectedClass && <p className="text-ink-muted mt-1">{syllabusLabel(selectedClass.syllabus_code)}</p>}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={classId} onChange={(e) => setClassId(e.target.value)} className="ed-input px-3 py-2 text-sm w-auto">
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="ed-input px-2 py-2 text-sm w-auto" title="From" />
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="ed-input px-2 py-2 text-sm w-auto" title="To" />
-              <button onClick={() => void downloadCsv(classId, from || undefined, to || undefined)} className="ed-btn-ghost px-3 py-2 text-sm">
-                <Download size={14} /> CSV
-              </button>
-              {classId && (
-                <Link href={`/teacher/reports/class/${classId}`} className="ed-btn-ghost px-3 py-2 text-sm">
-                  <FileText size={14} /> Report
-                </Link>
-              )}
-            </div>
-          </div>
-        </Reveal>
-
-        {loading ? (
-          <div className="h-64 rounded-[1.25rem] bg-surface-soft animate-pulse" />
-        ) : (
-          <>
-            <HeatmapPanel heatmap={heatmap} />
-            <DifficultyPanel difficulty={difficulty} />
-            <StudentPanel classId={classId} students={students} />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function shade(pct: number | null): string {
-  if (pct === null) return "transparent";
-  // Single-hue sequential teal — mastery is "earned/improving" (brand meaning),
-  // so darker teal = stronger. Token-based so it adapts in dark mode.
-  const alpha = 0.12 + (pct / 100) * 0.78;
-  return `rgb(var(--mint) / ${alpha.toFixed(2)})`;
-}
-
-function HeatmapPanel({ heatmap }: { heatmap: Heatmap | null }) {
-  if (!heatmap || heatmap.rows.length === 0) {
-    return <section className="ed-card p-6 text-ink-muted text-sm">No marked data yet for the topic heatmap.</section>;
-  }
-  return (
-    <section className="ed-card p-6">
-      <h2 className="font-display text-lg font-semibold mb-1">Topic heatmap</h2>
-      <p className="text-xs text-ink-faint mb-4">A pale column = the class didn&apos;t learn a topic; a pale row = one student struggling.</p>
-      <div className="overflow-x-auto">
-        <table className="text-xs border-collapse">
-          <thead>
-            <tr>
-              <th className="sticky left-0 bg-paper px-2 py-1 text-left text-ink-faint font-semibold">Student</th>
-              {heatmap.topics.map((t) => (
-                <th key={t} className="px-1 py-1 text-ink-faint font-normal align-bottom">
-                  <div className="w-8 truncate" title={t}>{t}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {heatmap.rows.map((r) => (
-              <tr key={r.student}>
-                <td className="sticky left-0 bg-paper px-2 py-1 text-ink whitespace-nowrap">{r.student}</td>
-                {r.cells.map((c, i) => (
-                  <td key={i} className="text-center text-[0.65rem] text-ink" style={{ backgroundColor: shade(c) }} title={`${heatmap.topics[i]}: ${c ?? "—"}%`}>
-                    {c ?? ""}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            <tr className="border-t-2 border-line font-semibold">
-              <td className="sticky left-0 bg-paper px-2 py-1 text-ink">Class avg</td>
-              {heatmap.class_average.map((c, i) => (
-                <td key={i} className="text-center text-[0.65rem] text-ink" style={{ backgroundColor: shade(c) }}>{c ?? ""}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function DifficultyPanel({ difficulty }: { difficulty: Difficulty | null }) {
-  if (!difficulty || difficulty.questions.length === 0) {
-    return <section className="ed-card p-6 text-ink-muted text-sm">No marked questions yet for difficulty analysis.</section>;
-  }
-  return (
-    <section className="ed-card p-6">
-      <h2 className="font-display text-lg font-semibold mb-4">Question difficulty <span className="text-ink-faint text-sm font-normal">(worst first)</span></h2>
-      <div className="space-y-2">
-        {difficulty.questions.slice(0, 20).map((q, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span className="w-28 shrink-0 text-xs text-ink-muted truncate" title={q.topic}>
-              {q.number ? `Q${q.number} ` : ""}{q.topic}
-            </span>
-            <div className="flex-1 h-5 rounded bg-surface-soft overflow-hidden">
-              <div className="h-full rounded" style={{ width: `${q.pct}%`, backgroundColor: q.pct < 50 ? "rgb(var(--clay))" : q.pct < 75 ? "rgb(var(--gold))" : "rgb(var(--mint))" }} />
-            </div>
-            <span className="w-10 text-right text-xs font-semibold text-ink">{q.pct}%</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function StudentPanel({ classId, students }: { classId: string; students: Enrollment[] }) {
-  const [clerkId, setClerkId] = useState("");
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [predicted, setPredicted] = useState<Predicted | null>(null);
-
-  useEffect(() => {
-    if (!clerkId) {
-      setProgress(null);
-      setPredicted(null);
-      return;
-    }
-    void (async () => {
-      const [p, pr] = await Promise.all([getProgress(classId, clerkId), getPredicted(classId, clerkId)]);
-      setProgress(p);
-      setPredicted(pr);
-    })();
-  }, [classId, clerkId]);
-
-  const pts = progress?.points ?? [];
-  const spark = useMemo(() => {
-    if (pts.length < 2) return "";
-    const w = 280;
-    const h = 60;
-    return pts
-      .map((p, i) => `${(i / (pts.length - 1)) * w},${h - (p.pct / 100) * h}`)
-      .join(" ");
-  }, [pts]);
-
-  return (
-    <section className="ed-card p-6">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="font-display text-lg font-semibold">Individual progress</h2>
-        <select value={clerkId} onChange={(e) => setClerkId(e.target.value)} className="ed-input px-3 py-2 text-sm w-auto">
-          <option value="">Select a student…</option>
-          {students.map((s) => (
-            <option key={s.id} value={s.student_clerk_id}>{s.full_name || s.email || "Student"}</option>
-          ))}
-        </select>
+    <>
+      <div className="row-between wrap gap-16" style={{ marginBottom: 22 }}>
+        <div>
+          <h1 className="big-num" style={{ fontSize: 28 }}>Insights</h1>
+          <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>Where a class is strong, where it needs work.</p>
+        </div>
+        <div className="flex gap-8 wrap">
+          {classes && classes.length > 0 && (
+            <select className="input" style={{ width: "auto", minWidth: 180 }} value={classId} onChange={(e) => setClassId(e.target.value)}>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <button className="btn btn-secondary" disabled={!classId || exporting} onClick={() => void exportCsv()}><Icon name="download" size={16} /> Export CSV</button>
+        </div>
       </div>
 
-      {!clerkId ? (
-        <p className="text-sm text-ink-faint">Pick a student to see their progress and predicted grade.</p>
+      {classes === null ? (
+        <div className="grid" style={{ gap: 12 }}>{[0, 1].map((i) => <div key={i} className="sk" style={{ height: 160, borderRadius: 18 }} />)}</div>
+      ) : classes.length === 0 ? (
+        <EmptyState icon="users" title="No classes yet" body="Create a class and set assignments — once work is marked, its analytics land here." />
+      ) : loading ? (
+        <div className="grid" style={{ gap: 16 }}><div className="sk" style={{ height: 90, borderRadius: 18 }} /><div className="sk" style={{ height: 240, borderRadius: 18 }} /></div>
+      ) : !hasHeat ? (
+        <EmptyState icon="chart" title="No marked work yet" body="Once this class has submitted and marked assignments, the weakness heatmap and question analytics appear here." />
       ) : (
-        <div className="grid md:grid-cols-[1fr_240px] gap-5">
-          <div>
-            {pts.length === 0 ? (
-              <p className="text-sm text-ink-faint">No attempts yet.</p>
-            ) : (
-              <>
-                <svg viewBox="0 0 280 60" className="w-full h-16">
-                  <polyline points={spark} fill="none" stroke="rgb(var(--mint))" strokeWidth="2" />
-                </svg>
-                <div className="mt-2 space-y-1">
-                  {pts.slice(-5).reverse().map((p, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <span className="text-ink-muted truncate">
-                        {p.title} {p.is_full_paper ? <span className="ed-pill-mint text-[0.55rem]">Paper</span> : <span className="ed-pill-gold text-[0.55rem]">Topical</span>}
-                      </span>
-                      <span className="font-semibold text-ink">{p.pct}%</span>
-                    </div>
+        <div className="grid" style={{ gap: 16 }}>
+          {/* Weakest topics headline */}
+          {weakest.length > 0 && (
+            <div className="card card-pad">
+              <p className="eyebrow" style={{ marginBottom: 10 }}>Class needs work on</p>
+              <div className="flex wrap gap-8">
+                {weakest.map((w) => (
+                  <span key={w.topic} className="flex items-center gap-8" style={{ padding: "8px 12px", borderRadius: 12, ...cellStyle(w.avg) }}>
+                    <b style={{ fontSize: 13.5 }}>{w.topic}</b>
+                    <span className="mono" style={{ fontSize: 12.5 }}>{w.avg}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Heatmap */}
+          <div className="card card-pad">
+            <div className="row-between wrap gap-8" style={{ marginBottom: 12 }}>
+              <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600 }}>Weakness heatmap</h2>
+              <span className="faint" style={{ fontSize: 12 }}>Read a column to see who is weak in a topic</span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "separate", borderSpacing: 4, minWidth: "100%" }}>
+                <thead>
+                  <tr>
+                    <th style={{ position: "sticky", left: 0, background: "var(--canvas)", zIndex: 1, textAlign: "left", padding: "4px 8px", minWidth: 120 }}><span className="eyebrow">Student</span></th>
+                    {heatmap!.topics.map((t) => (
+                      <th key={t} title={t} style={{ padding: "4px 6px", minWidth: 62, maxWidth: 84 }}>
+                        <span className="faint" style={{ fontSize: 10.5, fontWeight: 600, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 80 }}>{t}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatmap!.rows.map((r, ri) => (
+                    <tr key={ri}>
+                      <td style={{ position: "sticky", left: 0, background: "var(--canvas)", zIndex: 1, padding: "4px 8px", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140 }}>{r.student}</td>
+                      {r.cells.map((c, ci) => (
+                        <td key={ci} style={{ padding: 0 }}>
+                          <div className="mono" style={{ height: 34, borderRadius: 8, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, ...cellStyle(c) }}>{c == null ? "·" : c}</div>
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </div>
-              </>
-            )}
+                  {/* Class average */}
+                  <tr>
+                    <td style={{ position: "sticky", left: 0, background: "var(--canvas)", zIndex: 1, padding: "8px 8px 4px", fontSize: 12 }}><span className="eyebrow">Class avg</span></td>
+                    {heatmap!.class_average.map((c, ci) => (
+                      <td key={ci} style={{ padding: "6px 0 0" }}>
+                        <div style={{ height: 30, borderRadius: 8, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, border: "1px solid var(--line)", color: c == null ? "var(--ink-faint)" : "var(--ink)" }}>{c == null ? "·" : c}</div>
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="ed-card-soft p-4">
-            <p className="ed-label">Predicted grade</p>
-            {!predicted ? (
-              <p className="text-sm text-ink-faint mt-1">…</p>
-            ) : !predicted.enough_data ? (
-              <>
-                <p className="font-display text-xl font-semibold mt-1">Not enough data yet</p>
-                <p className="text-xs text-ink-faint mt-1">
-                  {predicted.completed ?? 0} assignments · {predicted.topics ?? 0} topics (need 4 across 3+ topics).
-                </p>
-              </>
-            ) : predicted.grade === null ? (
-              <>
-                <p className="font-display text-2xl font-semibold mt-1">{predicted.rolling_pct}%</p>
-                <p className="text-xs text-ink-faint mt-1">{predicted.reason}</p>
-              </>
-            ) : (
-              <>
-                <p className="font-display text-3xl font-semibold mt-1 text-crimson">{predicted.grade}</p>
-                <p className="text-xs text-ink-muted mt-1">Rolling average {predicted.rolling_pct}%</p>
-                {predicted.marks_to_next_pct != null && (
-                  <p className="text-xs text-ink-faint mt-1">{predicted.marks_to_next_pct}% to the next grade</p>
-                )}
-                <p className="text-[0.65rem] text-ink-faint mt-2">Boundaries: {predicted.session_used}</p>
-              </>
-            )}
-          </div>
+          {/* Question difficulty */}
+          {difficulty && difficulty.questions.length > 0 && (
+            <div className="card card-pad">
+              <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Hardest questions</h2>
+              <p className="faint" style={{ fontSize: 12.5, marginBottom: 14 }}>Lowest class score first — good candidates to reteach.</p>
+              <div className="grid" style={{ gap: 10 }}>
+                {difficulty.questions.slice(0, 20).map((q, i) => (
+                  <div key={i} className="flex items-center gap-12">
+                    <span style={{ flex: "0 0 42%", minWidth: 0, fontSize: 13 }}>
+                      <span className="mono faint" style={{ fontSize: 11.5 }}>Q{q.number || "?"}</span>{" "}
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{q.topic}</span>
+                    </span>
+                    <div style={{ flex: 1 }}><Bar value={q.pct} tone={accTone(q.pct)} /></div>
+                    <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, flex: "none", width: 40, textAlign: "right" }}>{q.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </section>
+    </>
   );
 }
