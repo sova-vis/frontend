@@ -100,15 +100,15 @@ function TempPasswordBox({ email, password }: { email: string; password: string 
 }
 
 function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [name, setName] = useState(""); const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [levels, setLevels] = useState<string[]>([]); const [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<{ email: string; tempPassword: string | null; existed: boolean } | null>(null);
   const submit = async () => {
-    if (!name.trim() || !email.trim()) { setErr("Name and email are required."); return; }
+    if (!name.trim()) { setErr("Name is required."); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await createTeacher({ name: name.trim(), email: email.trim(), subjects: codes, levels });
+      const r = await createTeacher({ name: name.trim(), subjects: codes, levels });
       setRes(r.teacher); onDone();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
@@ -126,8 +126,8 @@ function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () 
       ) : (
         <>
           <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Add teacher</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
-          <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Email"><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></Field>
+          <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></Field>
+          <p className="faint" style={{ fontSize: 12.5, marginBottom: 12 }}>A login is generated from the name with a one-time password.</p>
           <div style={{ marginBottom: 12 }}>
             <span className="eyebrow" style={{ marginBottom: 8, display: "block" }}>Levels &amp; subjects they teach</span>
             <SubjectLevelPicker levels={levels} codes={codes} onLevels={setLevels} onCodes={setCodes} />

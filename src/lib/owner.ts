@@ -93,10 +93,9 @@ export interface CreateSchoolInput {
   discount_pct?: number;
   allow_admin_script_view?: boolean;
   limits?: Partial<Omit<SchoolLimits, "school_id">>;
-  admin: { email: string; name: string; password?: string };
 }
 
-export async function createSchool(input: CreateSchoolInput): Promise<{ school: School; limits: SchoolLimits; admin: AdminResult }> {
+export async function createSchool(input: CreateSchoolInput): Promise<{ school: School; limits: SchoolLimits; short_code: string }> {
   return json(await apiCall("/owner/schools", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -122,7 +121,7 @@ export async function setLimits(id: string, limits: Partial<Omit<SchoolLimits, "
   }));
 }
 
-export async function addSchoolAdmin(id: string, admin: { email: string; name: string; password?: string }): Promise<{ admin: AdminResult }> {
+export async function addSchoolAdmin(id: string, admin: { name: string }): Promise<{ admin: AdminResult }> {
   return json(await apiCall(`/owner/schools/${id}/admins`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

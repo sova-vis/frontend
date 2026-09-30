@@ -171,27 +171,27 @@ function UsageRow({ label, used, max, pct, tone }: { label: string; used: number
 
 /* ---- Create school modal ---- */
 function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ name: "", adminName: "", adminEmail: "", discount: "", maxTeachers: "", maxStudents: "", quota: "" });
+  const [f, setF] = useState({ name: "", discount: "", maxTeachers: "", maxStudents: "", quota: "", askai: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [result, setResult] = useState<{ email: string; tempPassword: string | null; existed: boolean } | null>(null);
+  const [result, setResult] = useState<{ shortCode: string } | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   const submit = async () => {
-    if (!f.name.trim() || !f.adminName.trim() || !f.adminEmail.trim()) { setErr("School name, admin name and admin email are required."); return; }
+    if (!f.name.trim()) { setErr("School name is required."); return; }
     setBusy(true); setErr(null);
     try {
       const limits: Record<string, number> = {};
       if (f.maxTeachers) limits.max_teachers = parseInt(f.maxTeachers, 10);
       if (f.maxStudents) limits.max_students_total = parseInt(f.maxStudents, 10);
       if (f.quota) limits.marking_quota_units = parseInt(f.quota, 10);
+      if (f.askai) limits.askai_allowance = parseInt(f.askai, 10);
       const res = await createSchool({
         name: f.name.trim(),
         discount_pct: f.discount ? Number(f.discount) : undefined,
         limits: Object.keys(limits).length ? limits : undefined,
-        admin: { email: f.adminEmail.trim(), name: f.adminName.trim() },
       });
-      setResult(res.admin);
+      setResult({ shortCode: res.short_code });
       onCreated();
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
@@ -205,24 +205,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
             <Icon name="check_circle" size={32} />
           </div>
           <h3 className="card-title" style={{ fontSize: 20 }}>School created</h3>
-          <p className="muted" style={{ marginTop: 6 }}>
-            {result.existed
-              ? "That email already had an account, so it is now the school admin. They keep their existing password."
-              : "Share this one-time password with the school admin. They'll be asked to reset it on first sign-in."}
-          </p>
-          {!result.existed && result.tempPassword && (
-            <div className="card" style={{ background: "var(--surface-2)", padding: 16, marginTop: 16, textAlign: "left" }}>
-              <div className="eyebrow">Admin email</div>
-              <div className="mono" style={{ marginBottom: 10 }}>{result.email}</div>
-              <div className="eyebrow">Temporary password</div>
-              <div className="flex items-center gap-10" style={{ justifyContent: "space-between" }}>
-                <code className="mono" style={{ fontSize: 15, fontWeight: 600 }}>{result.tempPassword}</code>
-                <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard?.writeText(result.tempPassword || ""); }}>
-                  <Icon name="file_text" size={14} /> Copy
-                </button>
-              </div>
-            </div>
-          )}
+          <p className="muted" style={{ marginTop: 6 }}>Open the school to add its admin — logins are generated as <b className="mono">name@{result.shortCode}propel.com</b> with a one-time password.</p>
           <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 18 }} onClick={onClose}>Done</button>
         </div>
       ) : (
@@ -233,18 +216,15 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
           </div>
 
           <Field label="School name"><input className="input" value={f.name} onChange={set("name")} placeholder="Cambridge International School" /></Field>
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="First admin name"><input className="input" value={f.adminName} onChange={set("adminName")} placeholder="Full name" /></Field>
-            <Field label="First admin email"><input className="input" value={f.adminEmail} onChange={set("adminEmail")} placeholder="admin@school.edu" type="email" /></Field>
-          </div>
 
           <div className="hr" style={{ margin: "14px 0" }} />
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Limits and pricing (optional; sensible defaults apply)</div>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Limits &amp; pricing (optional; sensible defaults apply)</div>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Max teachers"><input className="input" value={f.maxTeachers} onChange={set("maxTeachers")} placeholder="10" inputMode="numeric" /></Field>
-            <Field label="Max students"><input className="input" value={f.maxStudents} onChange={set("maxStudents")} placeholder="300" inputMode="numeric" /></Field>
-            <Field label="Marking quota (parts/mo)"><input className="input" value={f.quota} onChange={set("quota")} placeholder="5000" inputMode="numeric" /></Field>
-            <Field label="Student discount %"><input className="input" value={f.discount} onChange={set("discount")} placeholder="40" inputMode="numeric" /></Field>
+            <InfoField label="Max teachers" info="The most teacher accounts this school can have at once."><input className="input" value={f.maxTeachers} onChange={set("maxTeachers")} placeholder="10" inputMode="numeric" /></InfoField>
+            <InfoField label="Max students" info="The most enrolled students across all of the school's classes."><input className="input" value={f.maxStudents} onChange={set("maxStudents")} placeholder="300" inputMode="numeric" /></InfoField>
+            <InfoField label="Marking quota (parts/period)" info="AI-marked question-parts the school gets each period; it warns at 80% and queues at 100% (never hard-stops)."><input className="input" value={f.quota} onChange={set("quota")} placeholder="5000" inputMode="numeric" /></InfoField>
+            <InfoField label="Ask-AI allowance" info="Ask-AI questions the school's students share each period — a separate pool from marking."><input className="input" value={f.askai} onChange={set("askai")} placeholder="2000" inputMode="numeric" /></InfoField>
+            <InfoField label="Student discount %" info="The discount classroom students get on a personal Pro upgrade."><input className="input" value={f.discount} onChange={set("discount")} placeholder="40" inputMode="numeric" /></InfoField>
           </div>
 
           {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 12 }}>{err}</p>}
@@ -252,7 +232,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className="flex gap-10" style={{ marginTop: 20 }}>
             <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
             <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>
-              {busy ? "Creating…" : "Create school & admin"}
+              {busy ? "Creating…" : "Create school"}
             </button>
           </div>
         </>
@@ -265,6 +245,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <label style={{ display: "block", marginBottom: 12 }}>
       <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// Numeric limit field whose label carries an (!) icon; hover it for an explanation.
+function InfoField({ label, info, children }: { label: string; info: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "block", marginBottom: 12 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <span className="eyebrow">{label}</span>
+        <span title={info} aria-label={info} style={{ cursor: "help", color: "var(--ink-faint)", display: "inline-flex" }}><Icon name="alert" size={13} /></span>
+      </span>
       {children}
     </label>
   );

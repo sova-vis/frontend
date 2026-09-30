@@ -251,13 +251,13 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
 }
 
 function AddAdminModal({ id, onClose, onDone }: { id: string; onClose: () => void; onDone: () => void }) {
-  const [name, setName] = useState(""); const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<{ email: string; tempPassword: string | null; existed: boolean } | null>(null);
   const submit = async () => {
-    if (!name.trim() || !email.trim()) { setErr("Name and email are required."); return; }
+    if (!name.trim()) { setErr("Name is required."); return; }
     setBusy(true); setErr(null);
-    try { const r = await addSchoolAdmin(id, { name: name.trim(), email: email.trim() }); setRes(r.admin); onDone(); }
+    try { const r = await addSchoolAdmin(id, { name: name.trim() }); setRes(r.admin); onDone(); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
@@ -278,8 +278,8 @@ function AddAdminModal({ id, onClose, onDone }: { id: string; onClose: () => voi
       ) : (
         <>
           <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Add school admin</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
-          <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Name</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Email</span><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></label>
+          <label style={{ display: "block", marginBottom: 8 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Admin name</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></label>
+          <p className="faint" style={{ fontSize: 12.5, marginBottom: 12 }}>A login is generated from the name with a one-time password.</p>
           {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
           <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add admin"}</button></div>
         </>

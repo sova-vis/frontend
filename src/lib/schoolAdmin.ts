@@ -60,7 +60,7 @@ export async function listTeachers(): Promise<Teacher[]> {
   return d.teachers;
 }
 
-export async function createTeacher(input: { email: string; name: string; subjects?: string[]; levels?: string[]; password?: string }): Promise<{ teacher: TeacherResult }> {
+export async function createTeacher(input: { name: string; subjects?: string[]; levels?: string[] }): Promise<{ teacher: TeacherResult }> {
   return json(await apiCall("/school-admin/teachers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
