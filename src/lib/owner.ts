@@ -55,10 +55,13 @@ export interface SchoolFunnel {
   rate: number;
 }
 
+export interface SchoolTotals { teachers: number; students: number; classes: number; assignments: number }
+
 export interface SchoolWithUsage extends School {
   limits: SchoolLimits | null;
   usage: SchoolUsage;
   funnel?: SchoolFunnel | null;
+  totals?: SchoolTotals | null;
 }
 
 export interface AdminResult {

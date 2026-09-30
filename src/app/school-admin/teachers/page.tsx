@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/propel/Icon";
 import { Modal, EmptyState, useToast } from "@/components/propel/primitives";
-import { listTeachers, createTeacher, bulkTeachers, updateTeacher, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
+import { listTeachers, createTeacher, bulkTeachers, updateTeacher, resetTeacherPassword, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
 import { syllabusesForLevel } from "@/lib/syllabus";
 
 export default function TeachersPage() {
@@ -13,6 +13,7 @@ export default function TeachersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
+  const [resetFor, setResetFor] = useState<Teacher | null>(null);
 
   const load = () => { setErr(null); listTeachers().then(setTeachers).catch((e) => setErr(e.message)); };
   useEffect(load, []);
@@ -65,9 +66,17 @@ export default function TeachersPage() {
                         {(t.levels ?? []).map((l) => <span key={l} className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{l}</span>)}
                         {(!t.syllabus_codes?.length && !t.levels?.length) && <span className="faint" style={{ fontSize: 12.5 }}>No subjects assigned</span>}
                       </div>
+                      {t.stats && (
+                        <div className="flex items-center gap-12 wrap faint" style={{ fontSize: 12.5, marginTop: 8 }}>
+                          <span><b style={{ color: "var(--ink)" }}>{t.stats.classes}</b> classes</span>
+                          <span><b style={{ color: "var(--ink)" }}>{t.stats.students}</b> students</span>
+                          <span><b style={{ color: "var(--ink)" }}>{t.stats.assignments}</b> assignments</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-8" style={{ flex: "none" }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setResetFor(t)} style={{ color: "var(--ink-soft)" }}><Icon name="refresh" size={15} /> Reset password</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}><Icon name="edit" size={15} /> Edit</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => toggleActive(t)} style={{ color: inactive ? "var(--teal)" : "var(--coral)" }}>
                       <Icon name={inactive ? "refresh" : "x"} size={15} /> {inactive ? "Reactivate" : "Deactivate"}
@@ -83,6 +92,7 @@ export default function TeachersPage() {
       {addOpen && <AddTeacherModal onClose={() => setAddOpen(false)} onDone={() => { toast("Teacher added", "check_circle"); load(); }} />}
       {bulkOpen && <BulkModal onClose={() => setBulkOpen(false)} onDone={load} />}
       {editing && <EditTeacherModal teacher={editing} onClose={() => setEditing(null)} onDone={() => { toast("Saved", "check_circle"); load(); }} />}
+      {resetFor && <ResetPasswordModal teacher={resetFor} onClose={() => setResetFor(null)} />}
     </>
   );
 }
@@ -134,6 +144,38 @@ function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           </div>
           {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
           <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add teacher"}</button></div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function ResetPasswordModal({ teacher, onClose }: { teacher: Teacher; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [pw, setPw] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const name = teacher.full_name || teacher.email || "this teacher";
+  const doReset = async () => {
+    setBusy(true); setErr(null);
+    try { const r = await resetTeacherPassword(teacher.clerk_id); setPw(r.tempPassword); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose}>
+      {pw ? (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 60, height: 60, margin: "0 auto 12px", borderRadius: 16, display: "grid", placeItems: "center", background: "var(--teal-soft)", color: "var(--teal-deep)" }}><Icon name="check_circle" size={30} /></div>
+          <h3 className="card-title" style={{ fontSize: 19 }}>Password reset</h3>
+          <p className="muted mt-6">Share this one-time password with {name}; they set a new one on next sign-in.</p>
+          <TempPasswordBox email={teacher.email || ""} password={pw} />
+          <button className="btn btn-primary btn-block mt-16" onClick={onClose}>Done</button>
+        </div>
+      ) : (
+        <>
+          <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Reset password</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
+          <p className="muted">Generate a new one-time password for <b>{name}</b>? Their current password stops working and they set a new one on next sign-in.</p>
+          {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
+          <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={doReset} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</button></div>
         </>
       )}
     </Modal>

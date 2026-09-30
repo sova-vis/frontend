@@ -5,6 +5,8 @@ import type { SchoolLimits, QuotaStatus } from "./owner";
  * School-admin console API client (backend /school-admin routes, spec §4).
  */
 
+export interface TeacherStat { classes: number; students: number; assignments: number }
+
 export interface Teacher {
   clerk_id: string;
   full_name: string | null;
@@ -14,6 +16,7 @@ export interface Teacher {
   deactivated_at: string | null;
   must_change_password: boolean;
   created_at: string;
+  stats?: TeacherStat;
 }
 
 export interface SchoolAdminHome {
@@ -74,6 +77,10 @@ export async function bulkTeachers(payload: { csv?: string; teachers?: Array<{ e
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }));
+}
+
+export async function resetTeacherPassword(clerkId: string): Promise<{ tempPassword: string }> {
+  return json(await apiCall(`/school-admin/teachers/${clerkId}/reset-password`, { method: "POST" }));
 }
 
 export async function updateTeacher(clerkId: string, patch: { subjects?: string[]; levels?: string[]; full_name?: string; active?: boolean }): Promise<{ teacher: Teacher }> {

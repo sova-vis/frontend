@@ -13,6 +13,7 @@ import PortalShell from "@/components/portal/PortalShell";
 // Classes is the home; Assignments is the teach→mark→release loop (§5.2+).
 const TEACHER_NAV = [
   { name: "Classes", href: "/teacher/classes", icon: "users" },
+  { name: "Students", href: "/teacher/students", icon: "graduation" },
   { name: "Assignments", href: "/teacher/assignments", icon: "file_text" },
   { name: "Insights", href: "/teacher/insights", icon: "chart" },
   { name: "Resources", href: "/teacher/resources", icon: "book" },

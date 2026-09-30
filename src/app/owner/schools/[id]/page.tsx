@@ -125,6 +125,8 @@ export default function SchoolDetailPage() {
           </div>
         </div>
         <UsageStat icon="message" label="Ask AI · allowance" used={s.usage?.askai?.used ?? 0} max={s.usage?.askai?.allowance ?? null} tone="var(--purple)" />
+        <CountStat icon="book" label="Classes" value={s.totals?.classes ?? 0} tone="var(--crimson)" />
+        <CountStat icon="file_text" label="Assignments" value={s.totals?.assignments ?? 0} tone="var(--ink)" />
       </div>
 
       {/* Upsell funnel (§6.2) */}
@@ -220,6 +222,18 @@ function UsageStat({ icon, label, used, max, tone }: { icon: string; label: stri
       </div>
       <div className="stat-num">{used}<span className="faint" style={{ fontSize: 16 }}>{max != null ? ` / ${max}` : ""}</span></div>
       <div className="mt-12"><Bar value={pct} tone={pct >= 100 ? "coral" : pct >= 80 ? "amber" : "teal"} height={6} /></div>
+    </div>
+  );
+}
+
+function CountStat({ icon, label, value, tone }: { icon: string; label: string; value: number; tone: string }) {
+  return (
+    <div className="card card-pad">
+      <div className="flex items-center gap-10" style={{ marginBottom: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone, flex: "none" }}><Icon name={icon} size={17} /></div>
+        <div className="eyebrow">{label}</div>
+      </div>
+      <div className="stat-num">{value}</div>
     </div>
   );
 }
