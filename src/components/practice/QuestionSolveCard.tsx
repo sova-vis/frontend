@@ -58,16 +58,19 @@ export function fromStudentQuestion(q: {
   assignment_question_id: string; type: "mcq" | "theory"; question_text: string;
   options: SolveOption[]; marks: number;
   images?: { src: string; alt?: string | null; caption?: string | null }[];
-  parts?: { label: string; body: string; marks: number | null }[];
+  parts?: { label: string; body: string; marks: number | null; images?: { src: string; alt?: string | null; caption?: string | null }[] }[];
 }): SolveQuestion {
+  const toImgs = (ims?: { src: string; alt?: string | null; caption?: string | null }[]): SolveImage[] =>
+    (ims ?? []).map((im) => ({ src: im.src, alt: im.alt ?? undefined, caption: im.caption ?? undefined }));
   return {
     id: q.assignment_question_id,
     type: q.type === "mcq" ? "mcq" : "structured",
     marks: q.marks,
     questionText: q.question_text || "",
     options: q.options ?? [],
-    images: (q.images ?? []).map((im) => ({ src: im.src, alt: im.alt ?? undefined, caption: im.caption ?? undefined })),
-    parts: (q.parts ?? []).map((p) => ({ label: p.label, body: p.body, marks: p.marks })),
+    images: toImgs(q.images),
+    // carry each sub-part's own figures so the student sees the full question
+    parts: (q.parts ?? []).map((p) => ({ label: p.label, body: p.body, marks: p.marks, images: toImgs(p.images) })),
   };
 }
 

@@ -65,7 +65,7 @@ export interface StudentQuestion {
   options: { label: string; text: string }[];
   marks: number;
   images?: { src: string; alt?: string; caption?: string | null }[];
-  parts?: { label: string; body: string; marks: number | null }[];
+  parts?: { label: string; body: string; marks: number | null; images?: { src: string; alt?: string; caption?: string | null }[] }[];
 }
 
 export interface SavedAnswer {
