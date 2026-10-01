@@ -5,6 +5,7 @@ import { Check, ChevronDown, X } from "lucide-react";
 import { SyllabusLevel, syllabusesForLevel } from "@/lib/syllabus";
 import { CreateClassInput, TeacherClass, createClass } from "@/lib/teacherClasses";
 import { subjectSlug } from "@/lib/studentSubjects";
+import { useClerkAuth } from "@/lib/useClerkAuth";
 
 // Normalise a subject/folder name so "Mathematics (Syllabus D)" ≈ "Mathematics".
 function normSubject(s: string): string {
@@ -34,6 +35,26 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
   const [bankSubjects, setBankSubjects] = useState<string[] | null>(null); // null = loading
   const [subjectQuery, setSubjectQuery] = useState("");
   const [subjectOpen, setSubjectOpen] = useState(false);
+
+  // The teaching scope a school-admin assigned this teacher (§4.1). When present,
+  // the class picker is limited to those levels + their subjects; absent (an
+  // independent teacher with no assigned scope) = the full bank, as before.
+  const { profile } = useClerkAuth();
+  const teacherCodes = useMemo(() => profile?.syllabus_codes ?? [], [profile]);
+  const allowedLevels = useMemo<SyllabusLevel[]>(() => {
+    const ls = (profile?.levels ?? []).filter((l): l is SyllabusLevel => l === "O" || l === "A");
+    return ls.length ? ls : ["O", "A"];
+  }, [profile]);
+  // Keep the chosen level within the teacher's allowed levels.
+  useEffect(() => {
+    if (!allowedLevels.includes(level)) { setLevel(allowedLevels[0]); setSubject(""); setSyllabusCode(""); }
+  }, [allowedLevels, level]);
+  // Subject names the teacher may use at the chosen level (null = unrestricted).
+  const allowedSubjectNames = useMemo<string[] | null>(() => {
+    if (!teacherCodes.length) return null;
+    const names = syllabusesForLevel(level).filter((s) => teacherCodes.includes(s.code)).map((s) => s.subject);
+    return Array.from(new Set(names));
+  }, [teacherCodes, level]);
 
   // Load the subjects that actually have questions in the bank for this level.
   useEffect(() => {
@@ -79,10 +100,17 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
   };
 
   const filteredSubjects = useMemo(() => {
-    const list = bankSubjects ?? [];
+    let list = bankSubjects ?? [];
+    if (allowedSubjectNames) {
+      const allow = new Set(allowedSubjectNames.map(normSubject));
+      const restricted = list.filter((s) => allow.has(normSubject(s)));
+      // If the bank has no match but the teacher has assigned subjects at this
+      // level, offer the assigned names directly so they're never blocked.
+      list = restricted.length ? restricted : allowedSubjectNames;
+    }
     const q = subjectQuery.trim().toLowerCase();
     return q ? list.filter((s) => s.toLowerCase().includes(q)) : list;
-  }, [bankSubjects, subjectQuery]);
+  }, [bankSubjects, subjectQuery, allowedSubjectNames]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !subject.trim()) {
@@ -123,8 +151,8 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
         <div className="space-y-4">
           <div>
             <label className="ed-label">Level</label>
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              {(["O", "A"] as SyllabusLevel[]).map((l) => (
+            <div className="mt-1 flex gap-2">
+              {allowedLevels.map((l) => (
                 <button
                   key={l}
                   onClick={() => {
@@ -132,7 +160,7 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
                     setSubject("");
                     setSyllabusCode("");
                   }}
-                  className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
                     level === l ? "border-crimson bg-crimson-soft text-crimson-ink" : "border-line text-ink-muted hover:bg-surface-soft"
                   }`}
                 >
@@ -168,7 +196,11 @@ export default function CreateClassModal({ onClose, onCreated }: Props) {
                   <div className="px-3 py-3 text-sm text-ink-faint">Loading subjects…</div>
                 ) : filteredSubjects.length === 0 ? (
                   <div className="px-3 py-3 text-sm text-ink-faint">
-                    {bankSubjects.length === 0 ? "No subjects found for this level yet." : `No subject matches “${subjectQuery}”.`}
+                    {subjectQuery
+                      ? `No subject matches “${subjectQuery}”.`
+                      : allowedSubjectNames
+                        ? "No subjects assigned to you at this level — ask your school admin."
+                        : "No subjects found for this level yet."}
                   </div>
                 ) : (
                   filteredSubjects.map((s) => (

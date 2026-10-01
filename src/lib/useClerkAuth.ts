@@ -24,6 +24,10 @@ export interface UserProfile {
   must_change_password?: boolean;
   level?: string;
   exam_session?: string;
+  // Teaching scope a school-admin assigned (§4.1): which O/A levels and which
+  // syllabus codes this teacher teaches. Constrains their class-creation picker.
+  syllabus_codes?: string[];
+  levels?: string[];
 }
 
 const PROFILE_CACHE_PREFIX = "propel_profile_";
