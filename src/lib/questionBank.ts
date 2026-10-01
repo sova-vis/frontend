@@ -32,6 +32,9 @@ export interface BankQuestionPart {
   body: string;
   marks: number | null;
   answer: string | null;
+  // figures attached to this specific sub-part (the API returns them; the picker's
+  // full-question preview renders them so "all parts + images" are visible).
+  images?: { src: string; alt?: string; caption?: string; role?: string }[];
 }
 
 export interface BankQuestion {

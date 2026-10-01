@@ -14,8 +14,8 @@ import { CheckCircle2, RefreshCw, Upload } from "lucide-react";
    ========================================================================== */
 
 export interface SolveOption { label: string; text: string }
-export interface SolvePart { label: string; body: string; marks: number | null; answer?: string | null }
 export interface SolveImage { src: string; alt?: string; caption?: string; role?: string }
+export interface SolvePart { label: string; body: string; marks: number | null; answer?: string | null; images?: SolveImage[] }
 
 export interface SolveQuestion {
   id: string;
@@ -269,6 +269,8 @@ function StructuredBody(props: {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {q.parts.map((part, i) => {
             const answerable = answerableIdx.includes(i);
+            const partFigures = (part.images ?? []).filter((im) => im.src && im.role !== "answer");
+            const partAnswerFigures = (part.images ?? []).filter((im) => im.src && im.role === "answer");
             return (
               <div key={i} style={{ borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface-2)", padding: 13 }}>
                 <div className="row-between" style={{ alignItems: "baseline" }}>
@@ -278,6 +280,11 @@ function StructuredBody(props: {
                   </p>
                   {part.marks != null && <span className="faint" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>[{part.marks}]</span>}
                 </div>
+                {partFigures.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                    {partFigures.map((im, k) => <QImage key={k} image={im} />)}
+                  </div>
+                )}
                 {perPart && mode === "type" && answerable && (
                   <textarea
                     className="textarea"
@@ -292,6 +299,11 @@ function StructuredBody(props: {
                   <p style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--line)" }}>{pa[String(i)]}</p>
                 )}
                 {reveal && part.answer && <div style={{ marginTop: 8 }}><SchemeList text={part.answer} label="Model answer" /></div>}
+                {reveal && partAnswerFigures.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                    {partAnswerFigures.map((im, k) => <QImage key={`a${k}`} image={im} />)}
+                  </div>
+                )}
               </div>
             );
           })}

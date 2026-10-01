@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/propel/Icon";
 import { Ring, Bar, Modal, useToast } from "@/components/propel/primitives";
-import { getSchool, setLimits, updateSchool, addSchoolAdmin, type SchoolWithUsage } from "@/lib/owner";
+import { getSchool, setLimits, updateSchool, addSchoolAdmin, deleteSchool, type SchoolWithUsage } from "@/lib/owner";
 
 type LimForm = {
   max_teachers: string; max_students_per_teacher: string; max_classes_per_teacher: string;
@@ -35,6 +35,7 @@ function fromSchool(s: SchoolWithUsage): LimForm {
 
 export default function SchoolDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id ?? "";
   const toast = useToast();
   const [s, setS] = useState<SchoolWithUsage | null>(null);
@@ -42,6 +43,7 @@ export default function SchoolDetailPage() {
   const [form, setForm] = useState<LimForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
   const load = () => getSchool(id).then((d) => { setS(d); setForm(fromSchool(d)); }).catch((e) => setErr(e.message));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
@@ -107,6 +109,9 @@ export default function SchoolDetailPage() {
           {s.status === "active"
             ? <button className="btn btn-secondary" onClick={() => setStatus("suspended")}><Icon name="pause" size={16} /> Suspend</button>
             : <button className="btn btn-secondary" onClick={() => setStatus("active")}><Icon name="play" size={16} /> Reactivate</button>}
+          <button className="btn btn-secondary" onClick={() => setDelOpen(true)} style={{ color: "var(--coral)", borderColor: "var(--coral)" }}>
+            <Icon name="trash" size={16} /> Delete
+          </button>
         </div>
       </div>
 
@@ -208,7 +213,50 @@ export default function SchoolDetailPage() {
       </div>
 
       {addOpen && <AddAdminModal id={id} onClose={() => setAddOpen(false)} onDone={() => toast("Admin added", "check_circle")} />}
+      {delOpen && <DeleteSchoolModal school={s} onClose={() => setDelOpen(false)} onDeleted={() => { toast("School deleted", "check_circle"); router.replace("/owner"); }} />}
     </>
+  );
+}
+
+function DeleteSchoolModal({ school, onClose, onDeleted }: { school: SchoolWithUsage; onClose: () => void; onDeleted: () => void }) {
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const t = school.totals;
+  const match = confirm.trim().toLowerCase() === school.name.trim().toLowerCase();
+  const submit = async () => {
+    if (!match) return;
+    setBusy(true); setErr(null);
+    try { await deleteSchool(school.id, confirm.trim()); onDeleted(); }
+    catch (e) { setErr((e as Error).message); setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose}>
+      <div className="row-between" style={{ marginBottom: 14 }}>
+        <h3 className="card-title" style={{ fontSize: 19, color: "var(--coral)" }}><Icon name="alert" size={18} /> Delete this school?</h3>
+        <button className="icon-btn" onClick={onClose} disabled={busy}><Icon name="x" size={18} /></button>
+      </div>
+      <p className="muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
+        This permanently deletes <strong style={{ color: "var(--ink)" }}>{school.name}</strong> and cannot be undone. It will:
+      </p>
+      <ul style={{ margin: "0 0 14px", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 5, fontSize: 13.5 }}>
+        <li>Delete <strong>{t?.teachers ?? 0}</strong> teacher{(t?.teachers ?? 0) === 1 ? "" : "s"} and all school-admin accounts</li>
+        <li>Delete their <strong>{t?.classes ?? 0}</strong> class{(t?.classes ?? 0) === 1 ? "" : "es"} and <strong>{t?.assignments ?? 0}</strong> assignment{(t?.assignments ?? 0) === 1 ? "" : "s"} (with all marked work)</li>
+        <li>Unenroll <strong>{t?.students ?? 0}</strong> student{(t?.students ?? 0) === 1 ? "" : "s"} and wipe their school answers — their personal accounts are kept</li>
+      </ul>
+      <label style={{ display: "block", marginBottom: 6 }}>
+        <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Type the school name to confirm</span>
+        <input className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={school.name} autoFocus />
+      </label>
+      {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
+      <div className="flex gap-10 mt-16">
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn btn-block" onClick={submit} disabled={!match || busy}
+          style={{ background: match ? "var(--coral)" : "var(--line-strong)", color: "#fff" }}>
+          {busy ? "Deleting…" : "Delete school permanently"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState } from "@/components/propel/primitives";
-import { Assignment, AssignmentStatus, listAssignments } from "@/lib/assignments";
+import { Assignment, AssignmentStatus, listAssignments, deleteAssignment } from "@/lib/assignments";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
 
 type Filter = "all" | "review" | "published" | "draft" | "closed";
@@ -105,17 +105,29 @@ export default function AssignmentsListPage() {
         />
       ) : (
         <div className="grid" style={{ gap: 12 }}>
-          {shown.map((a) => <AssignmentCard key={a.id} a={a} className={classMap.get(a.class_id)?.name} />)}
+          {shown.map((a) => (
+            <AssignmentCard key={a.id} a={a} className={classMap.get(a.class_id)?.name}
+              onDeleted={() => setAssignments((prev) => (prev ?? []).filter((x) => x.id !== a.id))} />
+          ))}
         </div>
       )}
     </>
   );
 }
 
-function AssignmentCard({ a, className }: { a: Assignment; className?: string }) {
+function AssignmentCard({ a, className, onDeleted }: { a: Assignment; className?: string; onDeleted: () => void }) {
   const st = STATUS_META[a.status];
   const due = a.deadline_at ? new Date(a.deadline_at) : null;
   const overdue = due && due < new Date() && a.status === "published";
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const stop = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const del = async (e: React.MouseEvent) => {
+    stop(e);
+    setBusy(true);
+    try { await deleteAssignment(a.id); onDeleted(); }
+    catch { setBusy(false); setConfirming(false); }
+  };
   return (
     <Link href={`/teacher/assignments/${a.id}`} className="card card-pad" style={{ display: "block", transition: "border-color .15s, box-shadow .15s" }}>
       <div className="row-between wrap gap-12">
@@ -138,7 +150,22 @@ function AssignmentCard({ a, className }: { a: Assignment; className?: string })
             {due && <><span>·</span><span style={{ color: overdue ? "var(--coral)" : undefined }}>Due {due.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span></>}
           </div>
         </div>
-        <Icon name="chevron_right" size={18} style={{ color: "var(--ink-faint)", flex: "none" }} />
+        <div className="flex items-center gap-8" style={{ flex: "none" }}>
+          {confirming ? (
+            <>
+              <button className="btn btn-sm" onClick={del} disabled={busy} style={{ background: "var(--coral)", color: "#fff" }}>
+                {busy ? <Icon name="refresh" size={14} className="spin" /> : "Delete"}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={(e) => { stop(e); setConfirming(false); }} disabled={busy}>Cancel</button>
+            </>
+          ) : (
+            <button className="icon-btn" title="Delete assignment" onClick={(e) => { stop(e); setConfirming(true); }}
+              style={{ width: 32, height: 32, border: "1px solid var(--line)", color: "var(--ink-faint)" }}>
+              <Icon name="trash" size={15} />
+            </button>
+          )}
+          <Icon name="chevron_right" size={18} style={{ color: "var(--ink-faint)", flex: "none" }} />
+        </div>
       </div>
     </Link>
   );

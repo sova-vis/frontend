@@ -90,3 +90,13 @@ export async function updateTeacher(clerkId: string, patch: { subjects?: string[
     body: JSON.stringify(patch),
   }));
 }
+
+// Permanently delete a teacher (account + their classes/assignments/submissions).
+// `confirm` must be the teacher's exact email.
+export async function removeTeacher(clerkId: string, confirm: string): Promise<{ ok: boolean }> {
+  return json(await apiCall(`/school-admin/teachers/${clerkId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm }),
+  }));
+}

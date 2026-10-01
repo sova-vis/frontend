@@ -132,6 +132,19 @@ export async function addSchoolAdmin(id: string, admin: { name: string }): Promi
   }));
 }
 
+export interface SchoolDeleteSummary { teachers: number; admins: number; classes: number; assignments: number; studentsUnenrolled: number }
+
+// Permanently delete a school and cascade (staff accounts + their classes/assignments/
+// submissions). Enrolled students keep their accounts but are unenrolled. `confirm`
+// must be the exact school name.
+export async function deleteSchool(id: string, confirm: string): Promise<SchoolDeleteSummary & { ok: boolean }> {
+  return json(await apiCall(`/owner/schools/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm }),
+  }));
+}
+
 // Platform-wide user roster (roles + billing), used for the owner overview stats
 // and the Users tab. Served by /admin/users-billing.
 export interface BillingUser {

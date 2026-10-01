@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/propel/Icon";
 import { Modal, EmptyState, useToast } from "@/components/propel/primitives";
-import { listTeachers, createTeacher, bulkTeachers, updateTeacher, resetTeacherPassword, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
+import { listTeachers, createTeacher, bulkTeachers, updateTeacher, resetTeacherPassword, removeTeacher, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
 import { syllabusesForLevel } from "@/lib/syllabus";
 
 export default function TeachersPage() {
@@ -14,6 +14,7 @@ export default function TeachersPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
   const [resetFor, setResetFor] = useState<Teacher | null>(null);
+  const [deleting, setDeleting] = useState<Teacher | null>(null);
 
   const load = () => { setErr(null); listTeachers().then(setTeachers).catch((e) => setErr(e.message)); };
   useEffect(load, []);
@@ -81,6 +82,9 @@ export default function TeachersPage() {
                     <button className="btn btn-ghost btn-sm" onClick={() => toggleActive(t)} style={{ color: inactive ? "var(--teal)" : "var(--coral)" }}>
                       <Icon name={inactive ? "refresh" : "x"} size={15} /> {inactive ? "Reactivate" : "Deactivate"}
                     </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(t)} style={{ color: "var(--coral)" }} title="Permanently delete this teacher">
+                      <Icon name="trash" size={15} /> Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -93,7 +97,49 @@ export default function TeachersPage() {
       {bulkOpen && <BulkModal onClose={() => setBulkOpen(false)} onDone={load} />}
       {editing && <EditTeacherModal teacher={editing} onClose={() => setEditing(null)} onDone={() => { toast("Saved", "check_circle"); load(); }} />}
       {resetFor && <ResetPasswordModal teacher={resetFor} onClose={() => setResetFor(null)} />}
+      {deleting && <DeleteTeacherModal teacher={deleting} onClose={() => setDeleting(null)} onDone={() => { toast("Teacher deleted", "check_circle"); load(); }} />}
     </>
+  );
+}
+
+function DeleteTeacherModal({ teacher, onClose, onDone }: { teacher: Teacher; onClose: () => void; onDone: () => void }) {
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const name = teacher.full_name || teacher.email || "this teacher";
+  const email = (teacher.email || "").trim();
+  const match = !!email && confirm.trim().toLowerCase() === email.toLowerCase();
+  const st = teacher.stats;
+  const submit = async () => {
+    if (!match) return;
+    setBusy(true); setErr(null);
+    try { await removeTeacher(teacher.clerk_id, confirm.trim()); onDone(); onClose(); }
+    catch (e) { setErr((e as Error).message); setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose}>
+      <div className="row-between" style={{ marginBottom: 14 }}>
+        <h3 className="card-title" style={{ fontSize: 19, color: "var(--coral)" }}><Icon name="alert" size={18} /> Delete teacher?</h3>
+        <button className="icon-btn" onClick={onClose} disabled={busy}><Icon name="x" size={18} /></button>
+      </div>
+      <p className="muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
+        This permanently deletes <strong style={{ color: "var(--ink)" }}>{name}</strong>&apos;s account and cannot be undone. It will delete their
+        {" "}<strong>{st?.classes ?? 0}</strong> class{(st?.classes ?? 0) === 1 ? "" : "es"} and <strong>{st?.assignments ?? 0}</strong> assignment{(st?.assignments ?? 0) === 1 ? "" : "s"},
+        clear every enrolled student&apos;s answers for them, and unenroll <strong>{st?.students ?? 0}</strong> student{(st?.students ?? 0) === 1 ? "" : "s"} (their accounts are kept).
+      </p>
+      <label style={{ display: "block", marginBottom: 6 }}>
+        <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Type the teacher&apos;s email to confirm</span>
+        <input className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={email} autoFocus />
+      </label>
+      {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
+      <div className="flex gap-10 mt-16">
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn btn-block" onClick={submit} disabled={!match || busy}
+          style={{ background: match ? "var(--coral)" : "var(--line-strong)", color: "#fff" }}>
+          {busy ? "Deleting…" : "Delete teacher permanently"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

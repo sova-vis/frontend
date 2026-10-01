@@ -112,7 +112,9 @@ export default function QuestionPicker({ subject, level, cartKeys, onAdd, onAddM
 
 /* ---- one selectable bank question, with an expandable full preview ---- */
 function BankRow({ q, inCart, onAdd, onRemove }: { q: BankQuestion; inCart: boolean; onAdd: () => void; onRemove: () => void }) {
-  const [open, setOpen] = useState(false);
+  // Default OPEN so the FULL question (every part + all images) is visible while
+  // assigning — the same card the student Practice page shows. Collapsible to scan.
+  const [open, setOpen] = useState(true);
   const preview = q.questionText || q.parts?.find((p) => p.body?.trim())?.body || (q.topic ? `${q.topic} — multi-part question` : "Multi-part question");
   return (
     <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 12, border: inCart ? "1px solid var(--crimson)" : "1px solid transparent" }}>
@@ -124,9 +126,9 @@ function BankRow({ q, inCart, onAdd, onRemove }: { q: BankQuestion; inCart: bool
             <span>{q.marks ?? "?"} marks</span>
             {q.year && <span>· {q.year} {q.session} {q.paper}{q.variant}</span>}
           </div>
-          <p style={{ fontSize: 13.5, color: "var(--ink)", marginTop: 5, ...(open ? { whiteSpace: "pre-wrap" } : clamp2) }}>{preview}</p>
+          {!open && <p style={{ fontSize: 13.5, color: "var(--ink)", marginTop: 5, ...clamp2 }}>{preview}</p>}
           <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-4" style={{ fontSize: 12, color: "var(--crimson)", fontWeight: 600, marginTop: 6 }}>
-            {open ? "Hide" : "View full question"}
+            {open ? "Hide full question" : "View full question"}
             <Icon name="chevron_down" size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
           </button>
         </div>
