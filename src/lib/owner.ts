@@ -132,6 +132,32 @@ export async function addSchoolAdmin(id: string, admin: { name: string }): Promi
   }));
 }
 
+export interface SchoolAdminRow {
+  clerk_id: string;
+  full_name: string | null;
+  email: string | null;
+  deactivated_at: string | null;
+  must_change_password: boolean;
+  created_at: string | null;
+}
+
+export async function listSchoolAdmins(id: string): Promise<SchoolAdminRow[]> {
+  const d = await json<{ admins: SchoolAdminRow[] }>(await apiCall(`/owner/schools/${id}/admins`));
+  return d.admins;
+}
+
+export async function resetSchoolAdminPassword(id: string, clerkId: string): Promise<{ tempPassword: string }> {
+  return json(await apiCall(`/owner/schools/${id}/admins/${clerkId}/reset-password`, { method: "POST" }));
+}
+
+export async function updateSchoolAdminEmail(id: string, clerkId: string, email: string): Promise<{ email: string }> {
+  return json(await apiCall(`/owner/schools/${id}/admins/${clerkId}/email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  }));
+}
+
 export interface SchoolDeleteSummary { teachers: number; admins: number; classes: number; assignments: number; studentsUnenrolled: number }
 
 // Permanently delete a school and cascade (staff accounts + their classes/assignments/

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/propel/Icon";
 import { Ring, Bar, Modal, useToast } from "@/components/propel/primitives";
-import { getSchool, setLimits, updateSchool, addSchoolAdmin, deleteSchool, type SchoolWithUsage } from "@/lib/owner";
+import { getSchool, setLimits, updateSchool, addSchoolAdmin, deleteSchool, listSchoolAdmins, resetSchoolAdminPassword, updateSchoolAdminEmail, type SchoolWithUsage, type SchoolAdminRow } from "@/lib/owner";
 
 type LimForm = {
   max_teachers: string; max_students_per_teacher: string; max_classes_per_teacher: string;
@@ -44,9 +44,13 @@ export default function SchoolDetailPage() {
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  const [admins, setAdmins] = useState<SchoolAdminRow[] | null>(null);
+  const [resetAdmin, setResetAdmin] = useState<SchoolAdminRow | null>(null);
+  const [editAdmin, setEditAdmin] = useState<SchoolAdminRow | null>(null);
 
   const load = () => getSchool(id).then((d) => { setS(d); setForm(fromSchool(d)); }).catch((e) => setErr(e.message));
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  const loadAdmins = () => listSchoolAdmins(id).then(setAdmins).catch(() => setAdmins([]));
+  useEffect(() => { load(); loadAdmins(); /* eslint-disable-next-line */ }, [id]);
 
   const num = (v: string) => (v === "" ? undefined : parseInt(v, 10));
 
@@ -203,8 +207,19 @@ export default function SchoolDetailPage() {
 
         {/* Side: admins */}
         <div className="card card-pad">
-          <div className="card-head"><div className="card-title">Access</div></div>
-          <p className="muted" style={{ fontSize: 13.5 }}>Add another school admin. They manage teachers and see aggregate reporting.</p>
+          <div className="card-head"><div className="card-title">School admins</div></div>
+          <p className="muted" style={{ fontSize: 13 }}>They manage teachers and see aggregate reporting. Passwords aren&apos;t stored — reset to issue a new one-time password.</p>
+
+          {admins === null ? (
+            <div className="grid mt-12" style={{ gap: 8 }}>{[0, 1].map((i) => <div key={i} className="sk" style={{ height: 64, borderRadius: 12 }} />)}</div>
+          ) : admins.length === 0 ? (
+            <p className="faint mt-12" style={{ fontSize: 13 }}>No school admins yet — add one below.</p>
+          ) : (
+            <div className="grid mt-12" style={{ gap: 8 }}>
+              {admins.map((a) => <AdminRow key={a.clerk_id} a={a} onReset={() => setResetAdmin(a)} onEdit={() => setEditAdmin(a)} />)}
+            </div>
+          )}
+
           <button className="btn btn-secondary btn-block mt-16" onClick={() => setAddOpen(true)}><Icon name="plus" size={16} /> Add school admin</button>
           <div className="hr" style={{ margin: "16px 0" }} />
           <div className="eyebrow">Created</div>
@@ -212,9 +227,92 @@ export default function SchoolDetailPage() {
         </div>
       </div>
 
-      {addOpen && <AddAdminModal id={id} onClose={() => setAddOpen(false)} onDone={() => toast("Admin added", "check_circle")} />}
+      {addOpen && <AddAdminModal id={id} onClose={() => setAddOpen(false)} onDone={() => { toast("Admin added", "check_circle"); loadAdmins(); }} />}
+      {resetAdmin && <AdminResetModal schoolId={id} admin={resetAdmin} onClose={() => setResetAdmin(null)} />}
+      {editAdmin && <AdminEmailModal schoolId={id} admin={editAdmin} onClose={() => setEditAdmin(null)} onDone={() => { toast("Email updated", "check_circle"); loadAdmins(); }} />}
       {delOpen && <DeleteSchoolModal school={s} onClose={() => setDelOpen(false)} onDeleted={() => { toast("School deleted", "check_circle"); router.replace("/owner"); }} />}
     </>
+  );
+}
+
+function AdminRow({ a, onReset, onEdit }: { a: SchoolAdminRow; onReset: () => void; onEdit: () => void }) {
+  const name = a.full_name || a.email?.split("@")[0] || "Admin";
+  return (
+    <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: 12 }}>
+      <div className="flex items-center gap-8 wrap">
+        <span style={{ fontWeight: 600, fontSize: 13.5 }}>{name}</span>
+        {a.deactivated_at
+          ? <span className="badge coral" style={{ fontSize: 10.5 }}>Deactivated</span>
+          : a.must_change_password
+            ? <span className="badge amber" style={{ fontSize: 10.5 }}>Pending first sign-in</span>
+            : <span className="badge teal" style={{ fontSize: 10.5 }}>Active</span>}
+      </div>
+      <div className="mono faint" style={{ fontSize: 12, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.email}</div>
+      <div className="flex gap-6 wrap" style={{ marginTop: 10 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Icon name="edit" size={13} /> Edit email</button>
+        <button className="btn btn-ghost btn-sm" onClick={onReset} style={{ color: "var(--crimson)" }}><Icon name="refresh" size={13} /> Reset password</button>
+      </div>
+    </div>
+  );
+}
+
+function AdminResetModal({ schoolId, admin, onClose }: { schoolId: string; admin: SchoolAdminRow; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [pw, setPw] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const name = admin.full_name || admin.email || "this admin";
+  const doReset = async () => {
+    setBusy(true); setErr(null);
+    try { const r = await resetSchoolAdminPassword(schoolId, admin.clerk_id); setPw(r.tempPassword); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose}>
+      {pw ? (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 60, height: 60, margin: "0 auto 12px", borderRadius: 16, display: "grid", placeItems: "center", background: "var(--teal-soft)", color: "var(--teal-deep)" }}><Icon name="check_circle" size={30} /></div>
+          <h3 className="card-title" style={{ fontSize: 19 }}>Password reset</h3>
+          <p className="muted mt-6">Share this one-time password with {name}; they set a new one on next sign-in.</p>
+          <div className="card" style={{ background: "var(--surface-2)", padding: 14, marginTop: 12, textAlign: "left" }}>
+            <div className="eyebrow">{admin.email}</div>
+            <div className="row-between mt-6">
+              <code className="mono" style={{ fontSize: 15, fontWeight: 600 }}>{pw}</code>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigator.clipboard?.writeText(pw)}><Icon name="file_text" size={14} /> Copy</button>
+            </div>
+          </div>
+          <button className="btn btn-primary btn-block mt-16" onClick={onClose}>Done</button>
+        </div>
+      ) : (
+        <>
+          <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Reset password</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
+          <p className="muted">Generate a new one-time password for <b>{name}</b>? Their current password stops working and they set a new one on next sign-in.</p>
+          {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
+          <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={doReset} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</button></div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function AdminEmailModal({ schoolId, admin, onClose, onDone }: { schoolId: string; admin: SchoolAdminRow; onClose: () => void; onDone: () => void }) {
+  const [email, setEmail] = useState(admin.email || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const submit = async () => {
+    const e2 = email.trim();
+    if (!e2) { setErr("Enter an email."); return; }
+    setBusy(true); setErr(null);
+    try { await updateSchoolAdminEmail(schoolId, admin.clerk_id, e2); onDone(); onClose(); }
+    catch (e) { setErr((e as Error).message); setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose}>
+      <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Change login email</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
+      <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>This becomes the admin&apos;s sign-in email immediately. Their password is unchanged.</p>
+      <label style={{ display: "block" }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Email</span><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoFocus /></label>
+      {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
+      <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save email"}</button></div>
+    </Modal>
   );
 }
 
