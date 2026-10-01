@@ -98,12 +98,16 @@ interface Props {
   onUpload?: (file: File) => void;
 }
 
-// A part is answerable (gets its own box) when it carries marks; if no part has
-// marks, every part is answerable. Marks-less lead-in parts are headers only.
+// A part is a lead-in HEADER when another part's label extends it (e.g. "(a)"
+// heads "(a)(i)", "(a)(ii)") — those introduce sub-parts, so they get no box.
+// EVERY other part is answerable: we do NOT gate on marks, because method/record
+// sub-parts often carry the marks on the group ("(a)(v) [14]"), not each line —
+// so marks-gating wrongly hid (a)(i)–(a)(iv) and left the student no box there.
+function isHeaderPart(parts: SolvePart[], label: string): boolean {
+  return Boolean(label) && parts.some((p) => p.label && p.label !== label && p.label.startsWith(label) && p.label.length > label.length);
+}
 function answerablePartIndexes(parts: SolvePart[]): number[] {
-  const withMarks = parts.map((p, i) => ({ p, i })).filter(({ p }) => p.marks != null);
-  if (withMarks.length > 0) return withMarks.map(({ i }) => i);
-  return parts.map((_, i) => i);
+  return parts.map((p, i) => ({ p, i })).filter(({ p }) => !isHeaderPart(parts, p.label)).map(({ i }) => i);
 }
 
 const SERIF: React.CSSProperties = { fontFamily: "var(--font-fraunces), serif" };
