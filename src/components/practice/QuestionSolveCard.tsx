@@ -14,7 +14,7 @@ import { CheckCircle2, RefreshCw, Upload } from "lucide-react";
    ========================================================================== */
 
 export interface SolveOption { label: string; text: string }
-export interface SolveImage { src: string; alt?: string; caption?: string; role?: string }
+export interface SolveImage { src: string; alt?: string; caption?: string | null; role?: string }
 export interface SolvePart { label: string; body: string; marks: number | null; answer?: string | null; images?: SolveImage[] }
 
 export interface SolveQuestion {
@@ -42,7 +42,7 @@ export function fromBankQuestion(q: {
   uid: string; type: "mcq" | "structured"; questionNumber: string; topic: string; theme: string;
   year: string; session: string; paper: string; variant: string; marks: number | null;
   questionText: string; options: SolveOption[]; correctOption: string | null; markingScheme: string;
-  images: { src: string; alt: string }[]; parts: SolvePart[];
+  images: { src: string; alt?: string }[]; parts: SolvePart[];
 }): SolveQuestion {
   return {
     id: q.uid, type: q.type, questionNumber: q.questionNumber, topic: q.topic, theme: q.theme,

@@ -94,6 +94,26 @@ export async function getAssignment(id: string): Promise<Assignment> {
   return json(await apiCall(`/assignments/${id}`));
 }
 
+/** A full assignment question (text, options, every part, images, answer + scheme)
+ *  for the teacher to review — shaped for fromBankQuestion(). */
+export interface FullAssignmentQuestion {
+  assignment_question_id: string;
+  uid: string; id: string; subject: string;
+  type: "mcq" | "structured";
+  year: string; session: string; paper: string; variant: string;
+  questionNumber: string; topic: string; theme: string;
+  questionText: string; marks: number | null;
+  options: { label: string; text: string }[];
+  correctOption: string | null; markingScheme: string;
+  images: { src: string; alt?: string; caption?: string | null; role?: string }[];
+  parts: { label: string; body: string; marks: number | null; answer: string | null; images?: { src: string; alt?: string; caption?: string | null; role?: string }[] }[];
+}
+
+export async function getAssignmentFullQuestions(id: string): Promise<FullAssignmentQuestion[]> {
+  const d = await json<{ questions: FullAssignmentQuestion[] }>(await apiCall(`/assignments/${id}/full-questions`));
+  return d.questions;
+}
+
 export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
   return json(
     await apiCall("/assignments", {

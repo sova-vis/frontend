@@ -17,9 +17,11 @@ import { Icon } from "@/components/propel/Icon";
 import { Modal, useToast, EmptyState } from "@/components/propel/primitives";
 import {
   Assignment, VISIBILITY_LABELS, deleteAssignment, duplicateAssignment, getAssignment, publishAssignment,
+  getAssignmentFullQuestions, type FullAssignmentQuestion,
 } from "@/lib/assignments";
 import { StatusBoard, getStatusBoard, markAssignment } from "@/lib/submissions";
 import { resolveName } from "@/lib/displayName";
+import QuestionSolveCard, { fromBankQuestion } from "@/components/practice/QuestionSolveCard";
 
 const A_STATUS: Record<string, { label: string; bg: string; fg: string }> = {
   draft: { label: "Draft", bg: "var(--surface-2)", fg: "var(--ink-soft)" },
@@ -53,6 +55,10 @@ export default function AssignmentDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [marking, setMarking] = useState(false);
   const [error, setError] = useState("");
+  // Full questions (text + parts + images + scheme), keyed by assignment_question_id,
+  // so each row can expand from a one-line preview to the complete question.
+  const [fullMap, setFullMap] = useState<Record<string, FullAssignmentQuestion>>({});
+  const [openQ, setOpenQ] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     try { setLoading(true); setA(await getAssignment(id)); }
@@ -60,6 +66,13 @@ export default function AssignmentDetailPage() {
     finally { setLoading(false); }
   };
   useEffect(() => { if (id) void load(); /* eslint-disable-next-line */ }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    void getAssignmentFullQuestions(id)
+      .then((list) => setFullMap(Object.fromEntries(list.map((q) => [q.assignment_question_id, q]))))
+      .catch(() => { /* fall back to the snapshot preview */ });
+  }, [id]);
 
   useEffect(() => {
     if (!a || (a.status !== "published" && a.status !== "closed")) { setBoard(null); return; }
@@ -153,17 +166,36 @@ export default function AssignmentDetailPage() {
       {/* Questions */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Questions</h2>
-        <div className="grid" style={{ gap: 8 }}>
+        <div className="grid" style={{ gap: 10 }}>
           {questions.map((q, i) => {
             const snap = (q.snapshot ?? {}) as Record<string, string>;
+            const full = fullMap[q.id];
+            const open = Boolean(openQ[q.id]);
+            const firstLine = (full?.questionText || snap?.text || q.question_ref || "Question").split(/\r?\n/)[0];
             return (
-              <div key={q.id} className="flex items-center gap-12" style={{ padding: "10px 12px", borderRadius: 12, background: "var(--surface-2)" }}>
-                <span style={{ width: 26, height: 26, borderRadius: 8, flex: "none", display: "grid", placeItems: "center", background: "var(--ink)", color: "var(--canvas)", fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{snap?.text || q.question_ref || "Question"}</p>
-                  <p className="faint" style={{ fontSize: 12 }}>{[snap?.topic, snap?.year, snap?.paper].filter(Boolean).join(" · ")}</p>
+              <div key={q.id} style={{ padding: 12, borderRadius: 12, background: "var(--surface-2)" }}>
+                <div className="flex items-start gap-12">
+                  <span style={{ width: 26, height: 26, borderRadius: 8, flex: "none", display: "grid", placeItems: "center", background: "var(--ink)", color: "var(--canvas)", fontSize: 12, fontWeight: 700, marginTop: 1 }}>{i + 1}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    {!open && (
+                      <p style={{ fontSize: 13.5, display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{firstLine}</p>
+                    )}
+                    <p className="faint" style={{ fontSize: 12, marginTop: open ? 0 : 2 }}>{[snap?.topic, snap?.year, snap?.paper].filter(Boolean).join(" · ")}</p>
+                    <button type="button" onClick={() => setOpenQ((p) => ({ ...p, [q.id]: !open }))}
+                      className="flex items-center gap-4" style={{ fontSize: 12, color: "var(--crimson)", fontWeight: 600, marginTop: 6 }}>
+                      {open ? "See less" : "See more"}
+                      <Icon name="chevron_down" size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                    </button>
+                  </div>
+                  <span className="faint" style={{ fontSize: 12.5, flex: "none" }}>{q.marks ?? "?"} marks</span>
                 </div>
-                <span className="faint" style={{ fontSize: 12.5, flex: "none" }}>{q.marks ?? "?"} marks</span>
+                {open && (
+                  <div style={{ marginTop: 12 }}>
+                    {full
+                      ? <QuestionSolveCard question={fromBankQuestion(full)} reveal readOnly />
+                      : <p className="faint" style={{ fontSize: 13 }}>Loading full question…</p>}
+                  </div>
+                )}
               </div>
             );
           })}
