@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { Icon } from "@/components/propel/Icon";
 import PaperModal from "@/components/student/PaperModal";
 import DevQuestionEditor from "@/components/DevQuestionEditor";
+import DrawCanvas from "@/components/student/practice/DrawCanvas";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
   PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
@@ -105,7 +106,9 @@ const TOPIC_PAGE = 24;
 // of always paging through everything. All values stay <= the API's limit cap (60)
 // so a chosen count loads in a single request; "all" keeps the load-more paging.
 const TOPIC_COUNTS = [5, 10, 15, 20, 30, 50] as const;
-type TopicCount = (typeof TOPIC_COUNTS)[number] | "all";
+// a preset, a custom count (1–60, single request), or "all" (paged).
+type TopicCount = number | "all";
+const MAX_TOPIC_COUNT = 60;
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -755,15 +758,46 @@ function OpenPaperButton({ question }: { question: PracticeQuestion }) {
   );
 }
 
-function QuestionCard(props: {
+type QuestionCardProps = {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
-  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload"; schemeUnlocked?: boolean;
+  onGradeImage?: (file: File) => void; onDrawAnswer?: () => void; topicMode?: "type" | "upload" | "draw"; schemeUnlocked?: boolean;
   collapsed?: boolean; onToggleCollapsed?: () => void; onDeleted?: () => void;
-}) {
+};
+
+// Only this question's own answer slots matter to its card — ignore edits to other
+// questions so typing in one box doesn't re-render the whole list (the old lag).
+function sameOwnAnswers(a: Record<string, string>, b: Record<string, string>, id: string) {
+  if (a === b) return true;
+  const prefix = `${id}::`;
+  for (const k in a) if (k.startsWith(prefix) && a[k] !== b[k]) return false;
+  for (const k in b) if (k.startsWith(prefix) && b[k] !== a[k]) return false;
+  return true;
+}
+function questionCardEqual(prev: QuestionCardProps, next: QuestionCardProps) {
+  return (
+    prev.question === next.question &&
+    prev.mcqAnswer === next.mcqAnswer &&
+    prev.checked === next.checked &&
+    prev.showScheme === next.showScheme &&
+    prev.readOnly === next.readOnly &&
+    prev.showYear === next.showYear &&
+    prev.topicMode === next.topicMode &&
+    prev.schemeUnlocked === next.schemeUnlocked &&
+    prev.gradeResult === next.gradeResult &&
+    prev.gradingOne === next.gradingOne &&
+    prev.collapsed === next.collapsed &&
+    sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id)
+    // function props (onPartAnswer, onGradeOne…) are behaviourally stable per
+    // question, so we deliberately don't compare their identities here.
+  );
+}
+
+const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
   const { question } = props;
   const topicUpload = Boolean(props.onGradeOne) && props.topicMode === "upload";
+  const topicDraw = Boolean(props.onGradeOne) && props.topicMode === "draw";
   const collapsed = Boolean(props.collapsed);
   const [, devRev] = useState(0);   // force re-render after a dev edit saves
 
@@ -826,15 +860,21 @@ function QuestionCard(props: {
           {question.type === "mcq" ? (
             <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
           ) : (
-            // topic upload mode hides the answer boxes — you answer by uploading a photo
-            <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload} schemeUnlocked={props.schemeUnlocked} />
+            // upload/draw modes hide the answer boxes — you answer with a photo or sketch
+            <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload || topicDraw} schemeUnlocked={props.schemeUnlocked} />
           )}
 
-          {/* per-question AI marking (topic drills): solve here, or upload a photo */}
+          {/* per-question AI marking (topic drills): solve here, upload a photo, or draw */}
           {props.onGradeOne && (
             <div className="flex-col gap-10">
               {topicUpload ? (
                 <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
+              ) : topicDraw ? (
+                <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onDrawAnswer} disabled={props.gradingOne}>
+                  {props.gradingOne
+                    ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
+                    : <><Icon name="edit" size={14} /> {props.gradeResult ? "Draw again" : "Draw your answer"}</>}
+                </button>
               ) : (
                 <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
                   {props.gradingOne
@@ -853,7 +893,7 @@ function QuestionCard(props: {
       <DevQuestionEditor question={question} onSaved={() => devRev((n) => n + 1)} onDeleted={props.onDeleted} />
     </article>
   );
-}
+}, questionCardEqual);
 
 /* ---- small dotted upload box for a single topic question's handwritten answer ---- */
 function QuestionUploadBox({ busy, graded, onFile }: { busy: boolean; graded: boolean; onFile: (file: File) => void }) {
@@ -1013,6 +1053,24 @@ function PracticeInner() {
   const [papers, setPapers] = useState<AvailablePaper[]>([]);
   const [selectedPaperKey, setSelectedPaperKey] = useState(savedView?.paperKey || "");
   const [query, setQuery] = useState("");
+
+  // ---- guided flow: a stepped setup wizard → a focused (fullscreen) solve ----
+  const resumeReady =
+    (savedView?.mode === "topic" && Boolean(savedView?.subject && savedView?.topic)) ||
+    (savedView?.mode === "paper" && Boolean(savedView?.subject && savedView?.paperKey));
+  const [phase, setPhase] = useState<"setup" | "solving">(deepLinkRef.current || resumeReady ? "solving" : "setup");
+  const [wizardStep, setWizardStep] = useState<"subject" | "format" | "method" | "setup">(
+    savedView?.subject ? (savedView?.topic || savedView?.paperKey ? "setup" : "format") : "subject",
+  );
+  // how the student answers: type on screen / upload a photo / draw on a canvas
+  const [inputMethod, setInputMethod] = useState<"type" | "upload" | "draw">("type");
+  const [timedEnabled, setTimedEnabled] = useState(false);
+  const [timedMinutes, setTimedMinutes] = useState(60);
+  const [confirmTimed, setConfirmTimed] = useState(false);   // pre-lock confirm dialog
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // in-focus drawing target: a topic question (mark that one), or "paper" (add a page)
+  const [drawTarget, setDrawTarget] = useState<PracticeQuestion | "paper" | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Persist the view (filters + open paper) so returning to Practice restores it
   // exactly where the student left off (see the restore block above).
@@ -1606,12 +1664,6 @@ function PracticeInner() {
     void doSave({ status: next });
   }
 
-  // the student explicitly starts the exam clock (it never auto-runs)
-  function startTimer() {
-    setTimerStarted(true);
-    setTimerRunning(true);
-  }
-
   function handleTimerToggle() {
     const next = !timerRunning;
     if (next) setTimerStarted(true);
@@ -1844,8 +1896,6 @@ function PracticeInner() {
   const isQuestionOpen = (q: PracticeQuestion): boolean => openMap[q.id] ?? !collapsedByDefault(q);
   const toggleQuestionOpen = (q: PracticeQuestion) =>
     setOpenMap((prev) => ({ ...prev, [q.id]: !(prev[q.id] ?? !collapsedByDefault(q)) }));
-  // topic drills: solve every question on screen, or upload a photo per question
-  const [topicSolveMode, setTopicSolveMode] = useState<SolveMode>("digital");
   // schemes/answers can only be revealed once at least one question has been submitted
   const schemesUnlockable = practiceMode === "paper" ? Boolean(report) : (checked || Object.keys(oneResults).length > 0);
 
@@ -1981,31 +2031,391 @@ function PracticeInner() {
       ? `${selectedSubject} · ${selectedPaper.year} · ${selectedPaper.session.replace(/_/g, " ")} · ${selectedPaper.paper.replace(/_/g, " ")} · ${selectedPaper.variant.replace(/_/g, " ")}`
       : `${selectedSubject} · ${selectedYear || "—"}`;
 
-  return (
-    <div className="pr">
-      <div className="main flex-col gap-24">
-        {/* Header */}
-        <div className="row-between wrap" style={{ gap: 14, alignItems: "flex-end" }}>
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 12 }}>{paperLevel === "alevel" ? "A-Level" : "O-Level"} question bank</div>
-            <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Practice</h1>
-            <p className="muted mt-6" style={{ maxWidth: 560 }}>
-              Drill every unique question across all years by topic, or load a complete past paper exactly as it was sat.
-            </p>
-          </div>
+  /* ===================== guided flow: wizard + focus mode ===================== */
 
-          <div className="flex-col gap-10" style={{ display: "flex", alignItems: "flex-end" }}>
-            <div className="flex gap-8 wrap" style={{ justifyContent: "flex-end" }}>
-              {/* generate a timed mixed paper from the bank */}
-              <Link href="/student/generate" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
-                <Icon name="bolt" size={14} /> Generate a paper
-              </Link>
-              {/* separate flow: upload your own solved work and have Grok mark it */}
-              <Link href="/student/upload-check" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
-                <Icon name="upload" size={14} /> Upload &amp; mark
-              </Link>
+  // real browser fullscreen on the whole practice root (best-effort — the focus
+  // overlay already fills the viewport if the API is blocked/unavailable).
+  const requestAppFullscreen = useCallback(() => {
+    rootRef.current?.requestFullscreen?.().catch(() => {});
+  }, []);
+  const exitAppFullscreen = useCallback(() => {
+    if (typeof document !== "undefined" && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }, []);
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(typeof document !== "undefined" && Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  // the chosen answer method drives the solver's existing solve-mode flag
+  const applyInputMethod = (method: "type" | "upload" | "draw") => setSolveMode(method === "type" ? "digital" : "handwritten");
+
+  function startTimedCountdown(minutes: number) {
+    setTimerDuration(Math.max(1, Math.round(minutes)) * 60);
+    timerElapsedRef.current = 0;
+    setTimerStartElapsed(0);
+    setTimerNonce((n) => n + 1);
+    setTimerStarted(true);
+    setTimerRunning(true);
+  }
+
+  // suggested time: a full paper prefills its real Cambridge duration; a topic set
+  // gets ~2 min/question (clamped). The student can override it.
+  const suggestedMinutes = practiceMode === "paper" && selectedPaper
+    ? Math.round(paperDurationSeconds(selectedSubject, selectedPaper.paper, selectedPaper.isMcq) / 60)
+    : Math.max(10, Math.min(180, (topicCount === "all" ? (topicTotal || 10) : topicCount) * 2));
+
+  function startSolving() {
+    if (!ready) return;
+    applyInputMethod(inputMethod);
+    setPhase("solving");
+    if (timedEnabled) {
+      setConfirmTimed(true); // the confirm-lock dialog renders inside the overlay
+    } else {
+      setTimerRunning(false); setTimerStarted(false);
+      requestAppFullscreen(); // fired within the Start click (a user gesture)
+    }
+  }
+  function beginTimedSession() { // user confirmed the timed lock (a user gesture)
+    setConfirmTimed(false);
+    requestAppFullscreen();
+    startTimedCountdown(timedMinutes);
+  }
+  function leaveFocus() {
+    exitAppFullscreen();
+    setTimerRunning(false);
+    setConfirmTimed(false);
+    setPhase("setup");
+    setWizardStep("setup");
+  }
+  function handleFocusExit() {
+    if (timedEnabled && timerRunning && !window.confirm("End your timed session? Your answers are saved.")) return;
+    leaveFocus();
+  }
+  function onTimeUp() {
+    setTimerRunning(false);
+    if (practiceMode === "paper" && hasAnyAnswer && !grading && !report) void gradePaper();
+  }
+
+  async function onDrawSave(file: File) {
+    const target = drawTarget;
+    if (!target) return;
+    if (target === "paper") {
+      const dt = new DataTransfer(); dt.items.add(file);
+      setDrawTarget(null);
+      await handleFiles(dt.files);
+    } else {
+      await gradeOneFromImage(target, file);
+      setDrawTarget(null);
+    }
+  }
+
+  // wizard step machine (MCQ is answered on-screen, so it skips the "method" step)
+  const methodApplies = questionType !== "mcq";
+  const wizardSteps = [
+    { key: "subject", label: "Subject" },
+    { key: "format", label: practiceMode === "paper" ? "Paper" : "Topic" },
+    ...(methodApplies ? [{ key: "method", label: "Method" }] : []),
+    { key: "setup", label: "Start" },
+  ];
+  function goNext() {
+    if (wizardStep === "subject") { if (!questionType) handleTypeChange("structured"); setWizardStep("format"); }
+    else if (wizardStep === "format") setWizardStep(methodApplies ? "method" : "setup");
+    else if (wizardStep === "method") setWizardStep("setup");
+  }
+  function goBack() {
+    if (wizardStep === "setup") setWizardStep(methodApplies ? "method" : "format");
+    else if (wizardStep === "method") setWizardStep("format");
+    else if (wizardStep === "format") setWizardStep("subject");
+  }
+  const stepCanContinue = wizardStep === "subject" ? Boolean(selectedSubject) : wizardStep === "format" ? ready : true;
+  const isPresetCount = typeof topicCount === "number" && (TOPIC_COUNTS as readonly number[]).includes(topicCount);
+
+  function renderSetup() {
+    return (
+      <div className="card card-pad">
+        {loadingMeta ? (
+          <div className="flex items-center justify-center gap-8" style={{ minHeight: 160, color: "var(--ink-faint)", display: "flex" }}>
+            <Icon name="refresh" size={16} className="spin" /> Loading practice library…
+          </div>
+        ) : subjects.length === 0 ? (
+          selectedCount === 0 ? (
+            <EmptyState icon="book" title="Select your subjects first"
+              body="Pick your subjects in Settings → Manage subjects to practise them here."
+              cta="Manage subjects" onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))} />
+          ) : (
+            <EmptyState icon="book" title="No practice for these subjects yet"
+              body="We don't have practice questions for your selected subjects at this level yet — try your Past Papers, or switch level in Settings." />
+          )
+        ) : (
+          <>
+            <StepDots steps={wizardSteps} current={wizardStep} onJump={(k) => setWizardStep(k as typeof wizardStep)} />
+
+            {wizardStep === "subject" && (
+              <div className="flex-col gap-16" style={{ display: "flex" }}>
+                <div>
+                  <h2 className="card-title" style={{ fontSize: 18 }}>Choose a subject</h2>
+                  <p className="faint" style={{ fontSize: 13 }}>Pick what you want to practise.</p>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 10 }}>
+                  {subjects.map((s) => {
+                    const total = s.types.structured.total + s.types.mcq.total;
+                    return (
+                      <PickCard key={s.name} icon="book" title={s.name.trim()} sub={`${total.toLocaleString()} question${total === 1 ? "" : "s"}`}
+                        active={selectedSubject === s.name}
+                        onClick={() => {
+                          handleSubjectChange(s.name);
+                          if ((s.types.mcq.total ?? 0) > 0) handleTypeChange("structured"); // default to Questions; MCQs is a toggle on the next step
+                          setWizardStep("format");
+                        }} />
+                    );
+                  })}
+                </div>
+                {quickPresets.length > 0 && (
+                  <div className="flex-col gap-8" style={{ display: "flex" }}>
+                    <span className="eyebrow">Quick start</span>
+                    <div className="flex gap-8 wrap">
+                      {quickPresets.map((p) => (
+                        <button key={p.subject + p.type} className="chip" style={{ cursor: "pointer", padding: "8px 14px" }}
+                          onClick={() => { quickStart(p.subject, p.type, p.mode); setWizardStep("format"); }}>
+                          <Icon name="sparkles" size={13} style={{ color: "var(--crimson)" }} /> {p.subject} {p.type === "mcq" ? "MCQs" : "questions"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {wizardStep === "format" && (
+              <div className="flex-col gap-16" style={{ display: "flex" }}>
+                <div>
+                  <h2 className="card-title" style={{ fontSize: 18 }}>What do you want to solve?</h2>
+                  <p className="faint" style={{ fontSize: 13 }}>{selectedSubject.trim()}</p>
+                </div>
+                {subjectHasMcqs && (
+                  <div>
+                    <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Question type</span>
+                    <Segmented value={(questionType || "structured") as QuestionType} onChange={handleTypeChange}
+                      options={[{ value: "structured" as QuestionType, label: "Questions", icon: "file_text" }, { value: "mcq" as QuestionType, label: "MCQs", icon: "list" }]} />
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+                  <PickCard icon="sparkles" title="Topics" sub="Drill questions by topic across every year" active={practiceMode === "topic"} onClick={() => handleModeChange("topic")} />
+                  <PickCard icon="book" title="Full paper" sub="A complete past paper, exactly as it was sat" active={practiceMode === "paper"} onClick={() => handleModeChange("paper")} />
+                </div>
+                {practiceMode === "topic" ? (
+                  <div className="flex-col gap-8" style={{ display: "flex" }}>
+                    <span className="eyebrow">Topic {availableTopics.length > 0 && <span className="faint">· {availableTopics.length}</span>}</span>
+                    {loadingQuestions && !selectedTopic ? (
+                      <span className="faint" style={{ fontSize: 13 }}>Loading topics…</span>
+                    ) : availableTopics.length === 0 ? (
+                      <span className="faint" style={{ fontSize: 13 }}>No topics for this selection yet.</span>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 240, overflow: "auto", padding: 2 }}>
+                        {availableTopics.map((t) => {
+                          const on = selectedTopic === t.name;
+                          return (
+                            <button key={t.name} type="button" onClick={() => setSelectedTopic(t.name)} className="chip"
+                              style={{ cursor: "pointer", padding: "8px 12px", border: `1.5px solid ${on ? "var(--crimson)" : "var(--line-strong)"}`, background: on ? "var(--crimson-soft)" : "var(--surface)", color: on ? "var(--crimson)" : "var(--ink)", fontWeight: on ? 650 : 500 }}>
+                              {t.name} <span className="faint" style={{ marginLeft: 4 }}>({t.count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex gap-12 wrap items-end">
+                    <label style={{ flex: "0 0 130px" }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>Year</span>
+                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!questionType} style={selectStyle}>
+                        <option value="">Year</option>
+                        {availableYears.map((y) => <option key={y.year} value={y.year}>{y.year}</option>)}
+                      </select>
+                    </label>
+                    <label style={{ flex: "1 1 220px", minWidth: 180 }}>
+                      <span className="eyebrow" style={{ marginBottom: 6 }}>Paper</span>
+                      <select value={selectedPaperKey} onChange={(e) => setSelectedPaperKey(e.target.value)} disabled={!selectedYear || papers.length === 0} style={selectStyle}>
+                        <option value="">{selectedYear ? "Select paper" : "Pick year first"}</option>
+                        {papers.map((p) => <option key={p.key} value={p.key}>{p.session.replace(/_/g, " ")} · {p.paper.replace(/_/g, " ")} · {p.variant.replace(/_/g, " ")} ({p.count})</option>)}
+                      </select>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {wizardStep === "method" && (
+              <div className="flex-col gap-16" style={{ display: "flex" }}>
+                <div>
+                  <h2 className="card-title" style={{ fontSize: 18 }}>How will you answer?</h2>
+                  <p className="faint" style={{ fontSize: 13 }}>You can switch between typing and handwriting at any time while solving.</p>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
+                  <PickCard icon="pencil" title="Type" sub="Write answers in text boxes" active={inputMethod === "type"} onClick={() => setInputMethod("type")} />
+                  <PickCard icon="upload" title="Upload handwritten" sub="Photograph your written work" active={inputMethod === "upload"} onClick={() => setInputMethod("upload")} />
+                  <PickCard icon="edit" title="Draw" sub="Sketch your answer on a canvas" active={inputMethod === "draw"} onClick={() => setInputMethod("draw")} />
+                </div>
+              </div>
+            )}
+
+            {wizardStep === "setup" && (
+              <div className="flex-col gap-18" style={{ display: "flex" }}>
+                <div>
+                  <h2 className="card-title" style={{ fontSize: 18 }}>Set it up</h2>
+                  <p className="faint" style={{ fontSize: 13 }}>{summary}</p>
+                </div>
+                {practiceMode === "topic" && (
+                  <div className="flex-col gap-8" style={{ display: "flex" }}>
+                    <span className="eyebrow">How many questions</span>
+                    <div className="flex gap-8 wrap items-center">
+                      {TOPIC_COUNTS.map((n) => {
+                        const on = topicCount === n;
+                        return (
+                          <button key={n} type="button" onClick={() => setTopicCount(n)} className="chip"
+                            style={{ cursor: "pointer", padding: "8px 14px", minWidth: 44, justifyContent: "center", border: `1.5px solid ${on ? "var(--crimson)" : "var(--line-strong)"}`, background: on ? "var(--crimson-soft)" : "var(--surface)", color: on ? "var(--crimson)" : "var(--ink)", fontWeight: on ? 650 : 500 }}>{n}</button>
+                        );
+                      })}
+                      <button type="button" onClick={() => setTopicCount("all")} className="chip"
+                        style={{ cursor: "pointer", padding: "8px 14px", border: `1.5px solid ${topicCount === "all" ? "var(--crimson)" : "var(--line-strong)"}`, background: topicCount === "all" ? "var(--crimson-soft)" : "var(--surface)", color: topicCount === "all" ? "var(--crimson)" : "var(--ink)", fontWeight: topicCount === "all" ? 650 : 500 }}>All</button>
+                      <span className="faint" style={{ fontSize: 12.5, marginLeft: 2 }}>or</span>
+                      <input type="number" min={1} max={MAX_TOPIC_COUNT} placeholder="Custom" className="input" style={{ width: 92 }}
+                        value={typeof topicCount === "number" && !isPresetCount ? topicCount : ""}
+                        onChange={(e) => { const v = Number(e.target.value); setTopicCount(!v ? "all" : Math.max(1, Math.min(MAX_TOPIC_COUNT, v))); }} />
+                    </div>
+                  </div>
+                )}
+                <div className="flex-col gap-8" style={{ display: "flex" }}>
+                  <span className="eyebrow">Timing</span>
+                  <div className="flex gap-12 wrap items-center">
+                    <Segmented<"off" | "on"> value={timedEnabled ? "on" : "off"}
+                      onChange={(v) => { const on = v === "on"; setTimedEnabled(on); if (on) setTimedMinutes(suggestedMinutes); }}
+                      options={[{ value: "off", label: "Untimed", icon: "sparkles" }, { value: "on", label: "Timed", icon: "clock" }]} />
+                    {timedEnabled && (
+                      <label className="flex items-center gap-8">
+                        <input type="number" min={1} max={600} value={timedMinutes} className="input" style={{ width: 92 }}
+                          onChange={(e) => setTimedMinutes(Math.max(1, Math.min(600, Number(e.target.value) || 0)))} />
+                        <span className="faint" style={{ fontSize: 13 }}>minutes{practiceMode === "paper" && selectedPaper ? ` · exam time ${durationLabel(suggestedMinutes * 60)}` : ""}</span>
+                      </label>
+                    )}
+                  </div>
+                  <p className="faint" style={{ fontSize: 12 }}>
+                    {timedEnabled ? "You'll confirm, then enter a focused fullscreen and the clock starts. Answers autosave — leaving fullscreen won't stop the timer." : "A focused fullscreen with an exit button, top-right. No timer."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="row-between" style={{ marginTop: 20, gap: 10 }}>
+              <button className="btn btn-ghost" onClick={goBack} style={{ visibility: wizardStep === "subject" ? "hidden" : "visible" }}>
+                <Icon name="chevron_left" size={16} /> Back
+              </button>
+              {wizardStep === "setup" ? (
+                <button className="btn btn-primary btn-lg" onClick={startSolving} disabled={!ready}>
+                  <Icon name="play" size={16} fill="#fff" stroke={0} /> Start{timedEnabled ? ` · ${timedMinutes}m` : ""}
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={goNext} disabled={!stepCanContinue}>
+                  Continue <Icon name="arrow_right" size={16} />
+                </button>
+              )}
             </div>
-            {ready && (
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function renderFocus() {
+    const mcqMode = questionType === "mcq";
+    const drawTitle = drawTarget === "paper" ? "Draw a page of your working"
+      : drawTarget ? `Draw your answer — Q${(drawTarget as PracticeQuestion).questionNumber}` : "";
+    const drawSaving = drawTarget && drawTarget !== "paper" ? Boolean(oneGrading[(drawTarget as PracticeQuestion).id]) : uploadBusy;
+    return (
+      <div className="practice-focus" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--canvas)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* focus top bar */}
+        <div className="card" style={{ borderRadius: 0, borderWidth: "0 0 1px", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "10px clamp(12px,3vw,24px)", flex: "none" }}>
+          <div className="flex items-center gap-10" style={{ minWidth: 0 }}>
+            <button className="icon-btn" onClick={handleFocusExit} title={timedEnabled ? "End session" : "Leave focus mode"} style={{ width: 36, height: 36, border: "1px solid var(--line-strong)", flex: "none" }}>
+              <Icon name="x" size={18} />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <div className="eyebrow" style={{ color: "var(--crimson)" }}>
+                {practiceMode === "paper" ? "Full paper" : "Topic practice"}{timedEnabled ? " · Timed" : ""}{inputMethod === "draw" ? " · Draw" : inputMethod === "upload" ? " · Handwritten" : ""}
+              </div>
+              <div style={{ fontWeight: 650, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(52vw,420px)" }}>{summary}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-10 wrap" style={{ justifyContent: "flex-end" }}>
+            {timedEnabled && (
+              <TimerChip compact key={`${currentPaperKey || selectedTopic}|${timerNonce}`} running={timerRunning} durationSeconds={timerDuration}
+                initialElapsed={timerStartElapsed} onToggle={handleTimerToggle} onTick={(v) => { timerElapsedRef.current = v; }} onExpire={onTimeUp} />
+            )}
+            {reportStats ? (
+              <span className="badge teal" style={{ fontSize: 11.5 }}>{reportStats.answered}/{reportStats.total} answered</span>
+            ) : !mcqMode && solveMode === "digital" && totalUnits > 0 ? (
+              <div className="flex items-center gap-8"><span className="faint" style={{ fontSize: 12 }}>{answeredUnits}/{totalUnits}</span><div style={{ width: 60 }}><Bar value={totalUnits ? Math.round((answeredUnits / totalUnits) * 100) : 0} tone="teal" height={6} /></div></div>
+            ) : solveMode === "handwritten" && practiceMode === "paper" ? (
+              <span className="faint" style={{ fontSize: 12 }}>{uploads.length} file{uploads.length === 1 ? "" : "s"}</span>
+            ) : null}
+            {mcqMode && headerScore !== "—" && <span className="badge teal" style={{ fontSize: 11.5 }}>{headerScore}</span>}
+            {mcqMode && <CheckControls total={gradable.length} answered={gradableAnswered.length} onCheck={checkMcqs} size="sm" />}
+            {hasScheme && schemesUnlockable && (
+              <button onClick={() => setShowScheme((v) => !v)} className={"btn btn-sm " + (showScheme ? "btn-soft" : "btn-secondary")}>
+                <Icon name="shield" size={14} /> {showScheme ? "Hide" : mcqMode ? "Scheme" : "Answers"}
+              </button>
+            )}
+            {practiceMode === "paper" && (
+              <>
+                {!report && !mcqMode && (
+                  <Segmented value={solveMode} onChange={changeSolveMode}
+                    options={[{ value: "digital", label: "Type", icon: "pencil" }, { value: "handwritten", label: "Handwritten", icon: "upload" }]} />
+                )}
+                {savingState !== "idle" && (
+                  <span className="faint" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                    {savingState === "saving" ? "Saving…" : savingState === "saved" ? `Saved${lastSavedAt ? " · " + lastSavedAt : ""}` : "Offline"}
+                  </span>
+                )}
+                {report ? (
+                  <button className="btn btn-secondary btn-sm" onClick={() => { leaveFocus(); setReportOpen(true); }}><Icon name="file_text" size={14} /> Report · {report.earned}/{report.total}</button>
+                ) : (
+                  <>
+                    <button className="icon-btn" onClick={toggleCompleted} title={paperStatus === "completed" ? "Mark in progress" : "Mark done without grading"}
+                      style={{ width: 34, height: 34, border: "1px solid var(--line-strong)", color: paperStatus === "completed" ? "var(--teal-deep)" : "var(--ink-faint)" }}>
+                      <Icon name="check_circle" size={16} />
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || uploadBusy || !hasAnyAnswer}
+                      title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : "Mark this paper with AI"}>
+                      {grading ? <><Icon name="refresh" size={14} className="spin" /> Marking…</> : <><Icon name="award" size={14} /> Submit</>}
+                    </button>
+                  </>
+                )}
+                <button onClick={resetPractice} className="icon-btn" title="Reset answers" style={{ width: 34, height: 34, border: "1px solid var(--line-strong)" }}>
+                  <Icon name="rotate" size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* left-fullscreen notice (timed only) */}
+        {timedEnabled && !isFullscreen && !confirmTimed && (
+          <div className="flex items-center gap-8 wrap" style={{ flex: "none", padding: "8px clamp(12px,3vw,24px)", background: "var(--amber-soft)", color: "var(--amber-deep)", fontSize: 12.5, fontWeight: 600 }}>
+            <Icon name="alert" size={15} /> You left fullscreen — the timer is still running.
+            <button className="btn btn-sm btn-soft" onClick={requestAppFullscreen} style={{ marginLeft: "auto" }}>Re-enter fullscreen</button>
+          </div>
+        )}
+
+        {/* body */}
+        <div style={{ flex: 1, overflow: "auto", padding: "18px clamp(12px,3vw,28px) 72px" }}>
+          <div ref={resultsRef} style={{ maxWidth: 860, margin: "0 auto", width: "100%" }} className="flex-col gap-16">
+            {error && (
+              <div className="badge coral" style={{ fontSize: 13.5, padding: "10px 14px", alignSelf: "flex-start" }}>
+                <Icon name="alert" size={16} /> {error}
+              </div>
+            )}
+            {ready && !loadingQuestions && !openingLink && displayQuestions.length > 0 && (
               <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", padding: 6, gap: 2 }}>
                 {[
                   { label: "Questions", value: practiceMode === "topic" ? topicTotal : displayQuestions.length },
@@ -2014,322 +2424,131 @@ function PracticeInner() {
                 ].map((stat) => (
                   <div key={stat.label} style={{ padding: "8px 14px" }}>
                     <div className="eyebrow">{stat.label}</div>
-                    <div className="big-num" style={{ fontSize: 22 }}>{stat.value}</div>
+                    <div className="big-num" style={{ fontSize: 20 }}>{stat.value}</div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-        </div>
 
-        {error && (
-          <div className="badge coral" style={{ fontSize: 13.5, padding: "10px 14px", alignSelf: "flex-start" }}>
-            <Icon name="alert" size={16} /> {error}
-          </div>
-        )}
-
-        {/* Filter card */}
-        <div className="card card-pad">
-          {loadingMeta ? (
-            <div className="flex items-center justify-center gap-8" style={{ minHeight: 120, color: "var(--ink-faint)", display: "flex" }}>
-              <Icon name="refresh" size={16} className="spin" /> Loading practice library…
-            </div>
-          ) : subjects.length === 0 ? (
-            selectedCount === 0 ? (
-              <EmptyState
-                icon="book"
-                title="Select your subjects first"
-                body="Pick your subjects in Settings → Manage subjects to practise them here."
-                cta="Manage subjects"
-                onCta={() => window.dispatchEvent(new CustomEvent("propel:open-settings", { detail: "profile" }))}
-              />
-            ) : (
-              <EmptyState
-                icon="book"
-                title="No practice for these subjects yet"
-                body="We don't have practice questions for your selected subjects at this level yet — try your Past Papers, or switch level in Settings."
-              />
-            )
-          ) : (
-            <div className="flex-col gap-16">
-              <div className="flex gap-12 wrap items-end">
-                {/* Subject */}
-                <label style={{ flex: "1 1 200px", minWidth: 180 }}>
-                  <span className="eyebrow" style={{ marginBottom: 6 }}>Subject</span>
-                  <select value={selectedSubject} onChange={(e) => handleSubjectChange(e.target.value)} style={selectStyle}>
-                    <option value="">Select subject</option>
-                    {subjects.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-                  </select>
-                </label>
-
-                {/* Type */}
-                <div>
-                  <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>Question type</span>
-                  <Segmented value={questionType as QuestionType} onChange={(v) => handleTypeChange(v)}
-                    options={[
-                      { value: "structured" as QuestionType, label: "Questions", icon: "file_text" },
-                      // hide the MCQ tab for subjects whose bank has no MCQ papers
-                      ...(!selectedSubject || subjectHasMcqs ? [{ value: "mcq" as QuestionType, label: "MCQs", icon: "list" }] : []),
-                    ]} />
-                </div>
-
-                {/* Mode */}
-                <div>
-                  <span className="eyebrow" style={{ marginBottom: 6, display: "block" }}>Practice mode</span>
-                  <Segmented value={practiceMode} onChange={(v) => handleModeChange(v)}
-                    options={[{ value: "topic", label: "By topic", icon: "sparkles" }, { value: "paper", label: "Full paper", icon: "book" }]} />
-                </div>
+            {openingLink ? (
+              <div className="card flex items-center justify-center gap-8" style={{ minHeight: 280, color: "var(--ink-faint)", display: "flex" }}>
+                <Icon name="refresh" size={16} className="spin" /> Opening your paper…
               </div>
-
-              <div className="flex gap-12 wrap items-end">
-                {/* Mode-specific selectors */}
-                {practiceMode === "topic" ? (
-                  <>
-                    <label style={{ flex: "1 1 240px", minWidth: 200 }}>
-                      <span className="eyebrow" style={{ marginBottom: 6 }}>Topic</span>
-                      <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)} disabled={!currentSubject || !questionType || loadingQuestions} style={selectStyle}>
-                        <option value="">{!currentSubject ? "Select a subject first" : !questionType ? "Choose a question type first" : "Select a topic"}</option>
-                        {availableTopics.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
-                      </select>
-                    </label>
-                    {/* how many to solve — applies to both Questions and MCQs topic drills */}
-                    <label style={{ flex: "0 0 150px" }}>
-                      <span className="eyebrow" style={{ marginBottom: 6 }}>How many</span>
-                      <select
-                        value={String(topicCount)}
-                        onChange={(e) => setTopicCount(e.target.value === "all" ? "all" : (Number(e.target.value) as TopicCount))}
-                        disabled={!currentSubject || !questionType || loadingQuestions}
-                        style={selectStyle}
-                        title="How many questions to load for this topic"
-                      >
-                        {TOPIC_COUNTS.map((n) => <option key={n} value={n}>{n} questions</option>)}
-                        <option value="all">All questions</option>
-                      </select>
-                    </label>
-                  </>
-                ) : (
-                  <>
-                    <label style={{ flex: "0 0 130px" }}>
-                      <span className="eyebrow" style={{ marginBottom: 6 }}>Year</span>
-                      <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)} disabled={!currentSubject || !questionType} style={selectStyle}>
-                        <option value="">Year</option>
-                        {availableYears.map((y) => <option key={y.year} value={y.year}>{y.year}</option>)}
-                      </select>
-                    </label>
-                    <label style={{ flex: "1 1 220px", minWidth: 180 }}>
-                      <span className="eyebrow" style={{ marginBottom: 6 }}>Paper</span>
-                      <select value={selectedPaperKey} onChange={(e) => setSelectedPaperKey(e.target.value)} disabled={!selectedYear || papers.length === 0 || loadingQuestions} style={selectStyle}>
-                        <option value="">{selectedYear ? "Select paper" : "Pick year first"}</option>
-                        {papers.map((p) => <option key={p.key} value={p.key}>{p.session.replace(/_/g, " ")} · {p.paper.replace(/_/g, " ")} · {p.variant.replace(/_/g, " ")} ({p.count})</option>)}
-                      </select>
-                    </label>
-                  </>
+            ) : loadingQuestions ? (
+              <>{[0, 1, 2].map((i) => <QuestionSkeleton key={i} />)}</>
+            ) : !ready ? (
+              <div className="card card-pad flex-col gap-16" style={{ display: "flex" }}>
+                <EmptyState icon="file_text" title="Nothing selected" body="Head back to set up your practice session." />
+                <button className="btn btn-primary" onClick={leaveFocus} style={{ alignSelf: "center" }}><Icon name="chevron_left" size={15} /> Back to setup</button>
+              </div>
+            ) : displayQuestions.length > 0 ? (
+              <>
+                {practiceMode === "paper" && solveMode === "handwritten" && (
+                  <HandwrittenStudio uploads={uploads} busy={uploadBusy} progress={uploadProgress}
+                    questionCount={displayQuestions.length} onDraw={() => setDrawTarget("paper")}
+                    onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
                 )}
+                {practiceMode === "paper" && solveMode === "handwritten" && report?.extraction && (
+                  <ExtractionPanel extraction={report.extraction} />
+                )}
+                {displayQuestions.map((question) => (
+                  <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
+                    onDeleted={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
+                    mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checkedIds.has(question.id)} showScheme={showScheme}
+                    readOnly={practiceMode === "paper" && solveMode === "handwritten"}
+                    onMcqAnswer={(value) => { interactedRef.current = true; markTouched(question.id); setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
+                    onPartAnswer={(partKey, value) => { interactedRef.current = true; markTouched(question.id); setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
+                    onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
+                    onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
+                    onDrawAnswer={practiceMode === "topic" && question.type === "structured" ? () => setDrawTarget(question) : undefined}
+                    topicMode={inputMethod === "upload" ? "upload" : inputMethod === "draw" ? "draw" : "type"}
+                    schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
+                    gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
+                    gradingOne={Boolean(oneGrading[question.id])}
+                    collapsed={!isQuestionOpen(question)}
+                    onToggleCollapsed={() => toggleQuestionOpen(question)} />
+                ))}
 
-                {/* Search */}
-                <label style={{ flex: "1 1 200px", minWidth: 180 }}>
-                  <span className="eyebrow" style={{ marginBottom: 6 }}>Find</span>
-                  <div className="search">
-                    <Icon name="search" size={16} className="faint" />
-                    <input value={query} onChange={(e) => setQuery(e.target.value)} disabled={!ready || loadingQuestions}
-                      placeholder={selectedSubject ? `Search questions in ${selectedSubject.trim()}…` : "Search questions"} />
-                  </div>
-                </label>
+                {practiceMode === "topic" && topicCount === "all" && questions.length < topicTotal && !query.trim() && (
+                  <button onClick={loadMoreTopic} disabled={loadingMore} className="btn btn-secondary btn-block" style={{ height: 48 }}>
+                    {loadingMore ? <><Icon name="refresh" size={16} className="spin" /> Loading…</> : `Load more (${questions.length} of ${topicTotal})`}
+                  </button>
+                )}
+                {practiceMode === "topic" && topicCount !== "all" && questions.length < topicTotal && !query.trim() && (
+                  <button onClick={() => setTopicCount("all")} className="btn btn-ghost btn-block" style={{ height: 44 }}>
+                    <Icon name="layers" size={15} /> Showing {questions.length} of {topicTotal} — load all for this topic
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="card"><EmptyState icon="search" title="No questions found" body="Try another topic or paper." /></div>
+            )}
+          </div>
+        </div>
+
+        {/* timed-lock confirm (renders inside the overlay so it shows in real fullscreen) */}
+        {confirmTimed && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(10,12,16,.62)", display: "grid", placeItems: "center", padding: 20 }}>
+            <div className="card card-pad" style={{ maxWidth: 430, textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, margin: "0 auto 12px", display: "grid", placeItems: "center", background: "var(--crimson-soft)", color: "var(--crimson)" }}>
+                <Icon name="clock" size={26} />
               </div>
-
-              {ready && (
-                <div className="row-between wrap" style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-                  <p className="flex items-center gap-8 muted wrap" style={{ fontSize: 13.5 }}>
-                    <Icon name={practiceMode === "topic" ? "sparkles" : "file_text"} size={15} style={{ color: "var(--crimson)" }} />
-                    {summary}
-                    {practiceMode === "topic"
-                      ? topicTotal > 0 && <span className="faint">· {displayQuestions.length} of {topicTotal} unique across all years</span>
-                      : displayQuestions.length > 0 && <span className="faint">· {displayQuestions.length} question{displayQuestions.length === 1 ? "" : "s"}</span>}
-                    {/* live progress, counted by answerable sub-part (not whole question) */}
-                    {reportStats
-                      ? <span className="badge teal" style={{ fontSize: 11.5 }}>{reportStats.answered}/{reportStats.total} answered</span>
-                      : solveMode !== "handwritten" && totalUnits > 0 && <span className="badge neutral" style={{ fontSize: 11.5 }}>{answeredUnits}/{totalUnits} answered</span>}
-                  </p>
-                  <div className="flex gap-8 wrap items-center">
-                    {practiceMode === "topic" && questionType === "structured" && (
-                      <Segmented value={topicSolveMode} onChange={setTopicSolveMode}
-                        options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
-                    )}
-                    {questionType === "mcq" && (
-                      <CheckControls total={gradable.length} answered={gradableAnswered.length} onCheck={checkMcqs} />
-                    )}
-                    <button onClick={resetPractice} className="icon-btn" title="Reset answers" style={{ border: "1px solid var(--line-strong)" }}>
-                      <Icon name="rotate" size={17} />
-                    </button>
-                    <button onClick={resetFilters} className="btn btn-ghost btn-sm" title="Clear subject, topic and filters">
-                      <Icon name="x" size={14} /> Reset filters
-                    </button>
-                    {/* reveal is only offered once something is submitted — schemes stay hidden until then */}
-                    {hasScheme && schemesUnlockable && (
-                      <button onClick={() => setShowScheme((v) => !v)} className={"btn " + (showScheme ? "btn-soft" : "btn-secondary")}
-                        title="Reveal the marking scheme for questions you've already checked">
-                        <Icon name="shield" size={15} /> {showScheme ? "Hide answers" : questionType === "mcq" ? "Marking scheme" : "Answers"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Paper session bar — solve-mode toggle, exam timer, progress, completion */}
-        {practiceMode === "paper" && ready && selectedPaper && !loadingQuestions && displayQuestions.length > 0 && (
-          <div className="card" style={{ position: "sticky", top: 8, zIndex: 30, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "10px 16px" }}>
-            <div className="flex items-center gap-12 wrap">
-              <Segmented value={solveMode} onChange={changeSolveMode}
-                options={[{ value: "digital", label: "Solve here", icon: "pencil" }, { value: "handwritten", label: "Upload handwritten", icon: "upload" }]} />
-              {paperStatus !== "completed" && !timerStarted ? (
-                <button className="btn btn-primary btn-sm" onClick={startTimer} title={`Start the ${durationLabel(timerDuration)} exam clock`}>
-                  <Icon name="play" size={13} fill="#fff" stroke={0} /> Start paper · {durationLabel(timerDuration)}
-                </button>
-              ) : (
-                <TimerChip key={`${currentPaperKey}|${timerNonce}`} running={timerRunning} durationSeconds={timerDuration}
-                  initialElapsed={timerStartElapsed} onToggle={handleTimerToggle} onTick={(value) => { timerElapsedRef.current = value; }} />
-              )}
-            </div>
-            <div className="flex items-center gap-12 wrap">
-              {reportStats ? (
-                <div className="flex items-center gap-8">
-                  <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{reportStats.answered}/{reportStats.total} answered</span>
-                  <div style={{ width: 72 }}><Bar value={reportStats.total ? Math.round((reportStats.answered / reportStats.total) * 100) : 0} tone="teal" height={6} /></div>
-                </div>
-              ) : solveMode === "digital" ? (
-                <div className="flex items-center gap-8">
-                  <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{answeredUnits}/{totalUnits} answered</span>
-                  <div style={{ width: 72 }}><Bar value={totalUnits ? Math.round((answeredUnits / totalUnits) * 100) : 0} tone="teal" height={6} /></div>
-                </div>
-              ) : (
-                <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{uploads.length} file{uploads.length === 1 ? "" : "s"} uploaded</span>
-              )}
-              <span className="faint" style={{ fontSize: 11.5, minWidth: 54, textAlign: "right" }}>
-                {savingState === "saving" ? "Saving…" : savingState === "saved" ? `Draft saved${lastSavedAt ? " · " + lastSavedAt : ""}` : savingState === "error" ? "Offline" : ""}
-              </span>
-              {report && (
-                <span className="badge teal" title="Latest marks" style={{ whiteSpace: "nowrap" }}>
-                  <Icon name="award" size={13} /> {report.earned}/{report.total}
-                </span>
-              )}
-              {report ? (
-                <button className="btn btn-secondary btn-sm" onClick={() => setReportOpen(true)}>
-                  <Icon name="file_text" size={14} /> View report
-                </button>
-              ) : (
-                <button className="icon-btn" onClick={toggleCompleted} title={paperStatus === "completed" ? "Mark as in progress" : "Mark done without grading"}
-                  style={{ width: 34, height: 34, border: "1px solid var(--line-strong)", color: paperStatus === "completed" ? "var(--teal-deep)" : "var(--ink-faint)" }}>
-                  <Icon name="check_circle" size={16} />
-                </button>
-              )}
-              <button className="btn btn-primary btn-sm" onClick={gradePaper} disabled={grading || uploadBusy || !hasAnyAnswer}
-                title={!hasAnyAnswer ? (solveMode === "handwritten" ? "Upload your answers first" : "Answer at least one question first") : uploadBusy ? "Wait for the upload to finish" : "Mark this paper with AI"}>
-                {grading
-                  ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
-                  : <><Icon name="award" size={14} /> {report ? "Re-mark" : solveMode === "digital" && totalUnits > 0 ? `Submit for marking · ${answeredUnits}/${totalUnits}` : "Submit for marking"}</>}
-              </button>
+              <h3 style={{ fontSize: 19, marginBottom: 6 }}>Start timed session?</h3>
+              <p className="muted" style={{ fontSize: 13.5, marginBottom: 16 }}>
+                You&apos;ll enter fullscreen for {timedMinutes} minute{timedMinutes === 1 ? "" : "s"}. The clock starts now and your answers autosave. Leaving fullscreen won&apos;t stop the timer.
+              </p>
+              <div className="flex gap-10" style={{ justifyContent: "center" }}>
+                <button className="btn btn-ghost" onClick={leaveFocus}>Cancel</button>
+                <button className="btn btn-primary" onClick={beginTimedSession}><Icon name="play" size={15} fill="#fff" stroke={0} /> Begin · {timedMinutes}m</button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Sticky action bar for topic mode — stays visible while scrolling long lists */}
-        {practiceMode === "topic" && ready && !loadingQuestions && displayQuestions.length > 0 && (
-          <div className="card" style={{ position: "sticky", top: 8, zIndex: 25, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
-            <div className="flex items-center gap-8">
-              <span className="faint" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{answeredUnits}/{totalUnits} answered</span>
-              <div style={{ width: 80 }}><Bar value={totalUnits ? Math.round((answeredUnits / totalUnits) * 100) : 0} tone="teal" height={6} /></div>
-            </div>
-            <div className="flex gap-8 wrap items-center">
-              {questionType === "mcq" && (
-                <CheckControls total={gradable.length} answered={gradableAnswered.length} onCheck={checkMcqs} size="sm" />
-              )}
-              {hasScheme && schemesUnlockable && (
-                <button onClick={() => setShowScheme((v) => !v)} className={"btn btn-sm " + (showScheme ? "btn-soft" : "btn-secondary")}>
-                  <Icon name="shield" size={14} /> {showScheme ? "Hide answers" : questionType === "mcq" ? "Marking scheme" : "Answers"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Body — digital question paper, or the dedicated handwritten upload studio */}
-        <div className="flex-col gap-16">
-          {openingLink ? (
-            <div className="card flex items-center justify-center gap-8" style={{ minHeight: 320, color: "var(--ink-faint)", display: "flex" }}>
-              <Icon name="refresh" size={16} className="spin" /> Opening your paper…
-            </div>
-          ) : loadingQuestions ? (
-            <>{[0, 1, 2].map((i) => <QuestionSkeleton key={i} />)}</>
-          ) : !ready ? (
-            <div className="card card-pad flex-col gap-16" style={{ display: "flex" }}>
-              <EmptyState icon="file_text" title="Nothing selected yet"
-                body={practiceMode === "topic" ? "Pick a subject, question type and topic to start drilling." : "Pick a subject, year and a paper to load the full paper."} />
-              {quickPresets.length > 0 && (
-                <div className="flex-col items-center gap-10" style={{ display: "flex" }}>
-                  <span className="eyebrow">Quick start</span>
-                  <div className="flex gap-8 wrap" style={{ justifyContent: "center" }}>
-                    {quickPresets.map((p) => (
-                      <button key={p.subject} className="chip" style={{ cursor: "pointer", padding: "8px 14px" }}
-                        onClick={() => quickStart(p.subject, p.type, p.mode)}>
-                        <Icon name="sparkles" size={13} style={{ color: "var(--crimson)" }} /> Try {p.subject} {p.type === "mcq" ? "MCQs" : "questions"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : displayQuestions.length > 0 ? (
-            <div ref={resultsRef} className="flex-col gap-16" style={{ display: "flex" }}>
-              {practiceMode === "paper" && solveMode === "handwritten" && (
-                <HandwrittenStudio uploads={uploads} busy={uploadBusy} progress={uploadProgress}
-                  questionCount={displayQuestions.length}
-                  onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
-              )}
-              {practiceMode === "paper" && solveMode === "handwritten" && report?.extraction && (
-                <ExtractionPanel extraction={report.extraction} />
-              )}
-              {displayQuestions.map((question) => (
-                <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
-                  onDeleted={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
-                  mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checkedIds.has(question.id)} showScheme={showScheme}
-                  readOnly={practiceMode === "paper" && solveMode === "handwritten"}
-                  onMcqAnswer={(value) => { interactedRef.current = true; markTouched(question.id); setMcqAnswers((c) => ({ ...c, [question.id]: value })); }}
-                  onPartAnswer={(partKey, value) => { interactedRef.current = true; markTouched(question.id); setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
-                  onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
-                  onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
-                  topicMode={topicSolveMode === "handwritten" ? "upload" : "type"}
-                  // scheme only unlocks once this question is marked (topic) or the paper is graded (paper)
-                  schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
-                  gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
-                  gradingOne={Boolean(oneGrading[question.id])}
-                  // D — solved/marked questions open minimized with a dropdown (paper + topic)
-                  collapsed={!isQuestionOpen(question)}
-                  onToggleCollapsed={() => toggleQuestionOpen(question)} />
-              ))}
-
-              {/* paging only in "All" mode — a chosen count loads exactly that many */}
-              {practiceMode === "topic" && topicCount === "all" && questions.length < topicTotal && !query.trim() && (
-                <button onClick={loadMoreTopic} disabled={loadingMore} className="btn btn-secondary btn-block" style={{ height: 48 }}>
-                  {loadingMore ? <><Icon name="refresh" size={16} className="spin" /> Loading…</> : `Load more (${questions.length} of ${topicTotal})`}
-                </button>
-              )}
-              {/* chose a fixed count and more exist — offer to widen the set */}
-              {practiceMode === "topic" && topicCount !== "all" && questions.length < topicTotal && !query.trim() && (
-                <button onClick={() => setTopicCount("all")} className="btn btn-ghost btn-block" style={{ height: 44 }}>
-                  <Icon name="layers" size={15} /> Showing {questions.length} of {topicTotal} — load all for this topic
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="card">
-              <EmptyState icon="search" title="No questions found" body="Try another topic, paper, or search term." />
-            </div>
-          )}
-        </div>
+        <DrawCanvas open={drawTarget !== null} title={drawTitle} saving={drawSaving} onClose={() => setDrawTarget(null)} onSave={onDrawSave} />
       </div>
+    );
+  }
+
+  return (
+    <div className="pr" ref={rootRef}>
+      {phase === "setup" ? (
+        <div className="main flex-col gap-24">
+          {/* Header */}
+          <div className="row-between wrap" style={{ gap: 14, alignItems: "flex-end" }}>
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 12 }}>{paperLevel === "alevel" ? "A-Level" : "O-Level"} question bank</div>
+              <h1 style={{ fontSize: "clamp(26px,3.5vw,36px)" }}>Practice</h1>
+              <p className="muted mt-6" style={{ maxWidth: 560 }}>
+                Set up a focused session — pick a subject, a full paper or topic drill, how you&apos;ll answer, then go.
+              </p>
+            </div>
+            <div className="flex gap-8 wrap" style={{ justifyContent: "flex-end" }}>
+              {selectedSubject && (
+                <button className="btn btn-ghost btn-sm" onClick={() => { resetFilters(); setWizardStep("subject"); }}>
+                  <Icon name="rotate" size={14} /> Start over
+                </button>
+              )}
+              <Link href="/student/generate" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
+                <Icon name="bolt" size={14} /> Generate a paper
+              </Link>
+              <Link href="/student/upload-check" className="btn btn-secondary btn-sm" style={{ whiteSpace: "nowrap" }}>
+                <Icon name="upload" size={14} /> Upload &amp; mark
+              </Link>
+            </div>
+          </div>
+
+          {error && (
+            <div className="badge coral" style={{ fontSize: 13.5, padding: "10px 14px", alignSelf: "flex-start" }}>
+              <Icon name="alert" size={16} /> {error}
+            </div>
+          )}
+
+          {renderSetup()}
+        </div>
+      ) : (
+        renderFocus()
+      )}
 
       {/* AI marking report */}
       {portalMounted && reportOpen && report && selectedPaper && createPortal(
@@ -2775,11 +2994,11 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
 }
 
 /* ---- handwritten workspace: upload-only, replaces the digital paper ---- */
-function HandwrittenStudio({ uploads, busy, progress, questionCount, onFiles, onRemove }: {
+function HandwrittenStudio({ uploads, busy, progress, questionCount, onFiles, onRemove, onDraw }: {
   uploads: PracticeUpload[]; busy: boolean;
   progress: { current: number; total: number; name: string } | null;
   questionCount?: number;
-  onFiles: (files: FileList | null) => void; onRemove: (path: string) => void;
+  onFiles: (files: FileList | null) => void; onRemove: (path: string) => void; onDraw?: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -2819,6 +3038,12 @@ function HandwrittenStudio({ uploads, busy, progress, questionCount, onFiles, on
           </>
         )}
       </div>
+
+      {onDraw && (
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onDraw} disabled={busy}>
+          <Icon name="edit" size={14} /> Or draw a page here
+        </button>
+      )}
 
       {/* reading these answers depends entirely on scan quality — say so up front */}
       <p className="faint" style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 460, textAlign: "center", margin: 0 }}>
@@ -2873,14 +3098,20 @@ function QuestionSkeleton() {
 }
 
 /* ---- exam countdown chip: ticks locally, reports elapsed via onTick ---- */
-function TimerChip({ running, durationSeconds, initialElapsed, onToggle, onTick }: {
+function TimerChip({ running, durationSeconds, initialElapsed, onToggle, onTick, onExpire, compact }: {
   running: boolean; durationSeconds: number; initialElapsed: number;
-  onToggle: () => void; onTick: (elapsed: number) => void;
+  onToggle: () => void; onTick: (elapsed: number) => void; onExpire?: () => void; compact?: boolean;
 }) {
   const [elapsed, setElapsed] = useState(initialElapsed);
+  const expiredRef = useRef(initialElapsed >= durationSeconds);
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setElapsed((current) => { const next = current + 1; onTick(next); return next; }), 1000);
+    const id = setInterval(() => setElapsed((current) => {
+      const next = current + 1;
+      onTick(next);
+      if (!expiredRef.current && next >= durationSeconds) { expiredRef.current = true; onExpire?.(); }
+      return next;
+    }), 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
@@ -2895,11 +3126,64 @@ function TimerChip({ running, durationSeconds, initialElapsed, onToggle, onTick 
       <span style={{ fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums", color: over ? "var(--coral-bright)" : "var(--ink)" }}>
         {over ? `+${clockLabel(-remaining)}` : clockLabel(remaining)}
       </span>
-      <span className="faint" style={{ fontSize: 11, whiteSpace: "nowrap" }}>/ {durationLabel(durationSeconds)}</span>
+      {!compact && <span className="faint" style={{ fontSize: 11, whiteSpace: "nowrap" }}>/ {durationLabel(durationSeconds)}</span>}
       <button className="icon-btn" onClick={onToggle} aria-label={running ? "Pause timer" : "Start timer"}
         style={{ width: 26, height: 26, border: "1px solid var(--line)" }}>
         <Icon name={running ? "pause" : "play"} size={12} />
       </button>
+    </div>
+  );
+}
+
+/* ---- wizard: a big selectable choice tile ---- */
+function PickCard({ icon, title, sub, active, disabled, onClick, accent }: {
+  icon: string; title: string; sub?: string; active?: boolean; disabled?: boolean; onClick: () => void; accent?: string;
+}) {
+  const color = accent || "var(--crimson)";
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="card card-pad"
+      style={{
+        textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
+        display: "flex", alignItems: "center", gap: 14, width: "100%",
+        border: `1.5px solid ${active ? color : "var(--line-strong)"}`,
+        background: active ? "var(--crimson-soft)" : "var(--surface)",
+        boxShadow: active ? `0 0 0 3px ${color}22` : "none", transition: "all .14s",
+      }}>
+      <span style={{ width: 44, height: 44, borderRadius: 12, flex: "none", display: "grid", placeItems: "center", background: active ? color : "var(--surface-2)", color: active ? "#fff" : color }}>
+        <Icon name={icon} size={22} />
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontWeight: 650, fontSize: 15 }}>{title}</span>
+        {sub && <span className="faint" style={{ display: "block", fontSize: 12.5, marginTop: 2 }}>{sub}</span>}
+      </span>
+      {active && <Icon name="check_circle" size={20} style={{ color, marginLeft: "auto", flex: "none" }} />}
+    </button>
+  );
+}
+
+/* ---- wizard: step progress dots ---- */
+function StepDots({ steps, current, onJump }: { steps: { key: string; label: string }[]; current: string; onJump: (key: string) => void }) {
+  const idx = steps.findIndex((s) => s.key === current);
+  return (
+    <div className="flex items-center gap-6 wrap" style={{ marginBottom: 18 }}>
+      {steps.map((s, i) => {
+        const done = i < idx, active = i === idx;
+        return (
+          <div key={s.key} className="flex items-center gap-6">
+            <button type="button" onClick={() => (done ? onJump(s.key) : undefined)} disabled={!done && !active}
+              className="flex items-center gap-6"
+              style={{ background: "none", border: "none", padding: 0, cursor: done ? "pointer" : "default" }}>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700,
+                background: active ? "var(--crimson)" : done ? "var(--teal)" : "var(--surface-2)", color: active || done ? "#fff" : "var(--ink-faint)", flex: "none" }}>
+                {done ? <Icon name="check_circle" size={13} /> : i + 1}
+              </span>
+              <span className="eyebrow" style={{ color: active ? "var(--crimson)" : done ? "var(--ink)" : "var(--ink-faint)", whiteSpace: "nowrap" }}>{s.label}</span>
+            </button>
+            {i < steps.length - 1 && <span style={{ width: 16, height: 2, borderRadius: 2, background: done ? "var(--teal)" : "var(--line)", flex: "none" }} />}
+          </div>
+        );
+      })}
     </div>
   );
 }
