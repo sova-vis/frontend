@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/propel/Icon";
 import { CountUp, Modal, EmptyState, Segmented, useToast } from "@/components/propel/primitives";
 import { listClasses, createClass, updateClass, type TeacherClass } from "@/lib/teacherClasses";
+import { syllabusesForLevel, type SyllabusLevel } from "@/lib/syllabus";
+import { useClerkAuth } from "@/lib/useClerkAuth";
 
 export default function TeacherClassesPage() {
   const toast = useToast();
@@ -94,10 +96,35 @@ function ClassCard({ c }: { c: TeacherClass }) {
 }
 
 function CreateClassModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  // Limit the picker to the scope a school-admin assigned this teacher (§4.1):
+  // only their levels, and only the subjects of their assigned syllabus codes.
+  // A teacher with no assigned scope keeps free entry (independent teachers).
+  const { profile } = useClerkAuth();
+  const teacherCodes = useMemo(() => profile?.syllabus_codes ?? [], [profile]);
+  const scoped = teacherCodes.length > 0;
+  const levels = useMemo<SyllabusLevel[]>(() => {
+    const ls = (profile?.levels ?? []).filter((l): l is SyllabusLevel => l === "O" || l === "A");
+    return ls.length ? ls : ["O", "A"];
+  }, [profile]);
+
   const [f, setF] = useState({ name: "", subject: "", syllabus_code: "", year_group: "" });
-  const [level, setLevel] = useState<"O" | "A">("O");
+  const [level, setLevel] = useState<SyllabusLevel>("O");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
+
+  // Keep the chosen level within the allowed set (and clear the subject when it moves).
+  useEffect(() => { if (!levels.includes(level)) { setLevel(levels[0]); setF((s) => ({ ...s, subject: "", syllabus_code: "" })); } }, [levels, level]);
+
+  // The teacher's assigned syllabuses for this level — each option is subject + code.
+  const options = useMemo(() => (scoped ? syllabusesForLevel(level).filter((s) => teacherCodes.includes(s.code)) : []), [scoped, level, teacherCodes]);
+  // Auto-pick when they have exactly one assigned subject at this level.
+  useEffect(() => {
+    if (scoped && options.length === 1 && !f.syllabus_code) setF((s) => ({ ...s, subject: options[0].subject, syllabus_code: options[0].code }));
+  }, [scoped, options, f.syllabus_code]);
+  const chooseSubject = (code: string) => {
+    const s = options.find((o) => o.code === code);
+    setF((prev) => ({ ...prev, subject: s?.subject ?? "", syllabus_code: s?.code ?? "" }));
+  };
 
   const submit = async () => {
     if (!f.name.trim() || !f.subject.trim()) { setErr("Class name and subject are required."); return; }
@@ -116,12 +143,24 @@ function CreateClassModal({ onClose, onCreated }: { onClose: () => void; onCreat
       <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Class name</span><input className="input" value={f.name} onChange={set("name")} placeholder="e.g. 11B Biology" /></label>
       <div style={{ marginBottom: 12 }}>
         <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Level</span>
-        <Segmented options={[{ value: "O", label: "O Level" }, { value: "A", label: "A Level" }]} value={level} onChange={setLevel} />
+        <Segmented options={levels.map((l) => ({ value: l, label: `${l} Level` }))} value={level}
+          onChange={(l) => { setLevel(l); setF((s) => ({ ...s, subject: "", syllabus_code: "" })); }} />
       </div>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Subject</span><input className="input" value={f.subject} onChange={set("subject")} placeholder="Biology" /></label>
-        <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Syllabus code</span><input className="input mono" value={f.syllabus_code} onChange={set("syllabus_code")} placeholder="0610" /></label>
-      </div>
+      {scoped ? (
+        <label style={{ display: "block", marginBottom: 12 }}>
+          <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Subject</span>
+          <select className="input" value={f.syllabus_code} onChange={(e) => chooseSubject(e.target.value)} disabled={options.length === 0}>
+            <option value="">{options.length ? "Select a subject" : "No subjects assigned at this level"}</option>
+            {options.map((o) => <option key={o.code} value={o.code}>{o.subject} · {o.code}</option>)}
+          </select>
+          {options.length === 0 && <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>Ask your school admin to assign you a subject at this level.</p>}
+        </label>
+      ) : (
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Subject</span><input className="input" value={f.subject} onChange={set("subject")} placeholder="Biology" /></label>
+          <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Syllabus code</span><input className="input mono" value={f.syllabus_code} onChange={set("syllabus_code")} placeholder="0610" /></label>
+        </div>
+      )}
       <label style={{ display: "block", marginBottom: 12 }}><span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Year group <span className="faint">(optional)</span></span><input className="input" value={f.year_group} onChange={set("year_group")} placeholder="Year 11" /></label>
       {err && <p style={{ color: "var(--coral)", fontSize: 13 }}>{err}</p>}
       <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create class"}</button></div>
