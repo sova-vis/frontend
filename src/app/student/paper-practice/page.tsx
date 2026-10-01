@@ -763,6 +763,7 @@ type QuestionCardProps = {
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
   onGradeImage?: (file: File) => void; onDrawAnswer?: () => void; topicMode?: "type" | "upload" | "draw"; schemeUnlocked?: boolean;
+  submittedImage?: string;
   collapsed?: boolean; onToggleCollapsed?: () => void; onDeleted?: () => void;
 };
 
@@ -788,6 +789,7 @@ function questionCardEqual(prev: QuestionCardProps, next: QuestionCardProps) {
     prev.gradeResult === next.gradeResult &&
     prev.gradingOne === next.gradingOne &&
     prev.collapsed === next.collapsed &&
+    prev.submittedImage === next.submittedImage &&
     sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id)
     // function props (onPartAnswer, onGradeOne…) are behaviourally stable per
     // question, so we deliberately don't compare their identities here.
@@ -867,6 +869,14 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
           {/* per-question AI marking (topic drills): solve here, upload a photo, or draw */}
           {props.onGradeOne && (
             <div className="flex-col gap-10">
+              {props.submittedImage && (topicUpload || topicDraw) && (
+                <div className="flex-col gap-6" style={{ display: "flex" }}>
+                  <span className="eyebrow">Your submitted {topicDraw ? "drawing" : "photo"}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={props.submittedImage} alt="your submitted answer"
+                    style={{ maxWidth: "100%", maxHeight: 260, borderRadius: 12, border: "1px solid var(--line-strong)", background: "#fff", objectFit: "contain", alignSelf: "flex-start" }} />
+                </div>
+              )}
               {topicUpload ? (
                 <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
               ) : topicDraw ? (
@@ -1070,6 +1080,9 @@ function PracticeInner() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // in-focus drawing target: a topic question (mark that one), or "paper" (add a page)
   const [drawTarget, setDrawTarget] = useState<PracticeQuestion | "paper" | null>(null);
+  // the drawing/photo a topic question was answered with, kept for the session so
+  // the card shows what was submitted (object URLs, keyed by question id)
+  const [answerImages, setAnswerImages] = useState<Record<string, string>>({});
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Persist the view (filters + open paper) so returning to Practice restores it
@@ -1222,6 +1235,7 @@ function PracticeInner() {
     setCheckedIds(new Set());
     loggedIdsRef.current = new Set();
     setShowScheme(false);
+    setAnswerImages((prev) => { for (const u of Object.values(prev)) { try { URL.revokeObjectURL(u); } catch { /* noop */ } } return {}; });
     // reset the per-paper session shell; the restore effect re-hydrates it
     setSolveMode("digital");
     setPaperStatus("in_progress");
@@ -1919,6 +1933,11 @@ function PracticeInner() {
     if (!selectedSubject || oneGrading[q.id]) return;
     const problem = validateUploadFile(file);
     if (problem) { setError(problem); return; }
+    // keep the submitted drawing/photo so the question shows what was answered
+    setAnswerImages((prev) => {
+      if (prev[q.id]) { try { URL.revokeObjectURL(prev[q.id]); } catch { /* noop */ } }
+      return { ...prev, [q.id]: URL.createObjectURL(file) };
+    });
     setOneGrading((prev) => ({ ...prev, [q.id]: true }));
     setError("");
     try {
@@ -2036,7 +2055,9 @@ function PracticeInner() {
   // real browser fullscreen on the whole practice root (best-effort — the focus
   // overlay already fills the viewport if the API is blocked/unavailable).
   const requestAppFullscreen = useCallback(() => {
-    rootRef.current?.requestFullscreen?.().catch(() => {});
+    // fullscreen the whole document, not a nested node: the focus overlay is
+    // portaled to <body>, and a transformed ancestor would otherwise clip it.
+    document.documentElement?.requestFullscreen?.().catch(() => {});
   }, []);
   const exitAppFullscreen = useCallback(() => {
     if (typeof document !== "undefined" && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
@@ -2332,13 +2353,13 @@ function PracticeInner() {
     const drawTitle = drawTarget === "paper" ? "Draw a page of your working"
       : drawTarget ? `Draw your answer — Q${(drawTarget as PracticeQuestion).questionNumber}` : "";
     const drawSaving = drawTarget && drawTarget !== "paper" ? Boolean(oneGrading[(drawTarget as PracticeQuestion).id]) : uploadBusy;
-    return (
-      <div className="practice-focus" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--canvas)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    const overlay = (
+      <div className="pr practice-focus" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--canvas)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* focus top bar */}
         <div className="card" style={{ borderRadius: 0, borderWidth: "0 0 1px", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "10px clamp(12px,3vw,24px)", flex: "none" }}>
           <div className="flex items-center gap-10" style={{ minWidth: 0 }}>
-            <button className="icon-btn" onClick={handleFocusExit} title={timedEnabled ? "End session" : "Leave focus mode"} style={{ width: 36, height: 36, border: "1px solid var(--line-strong)", flex: "none" }}>
-              <Icon name="x" size={18} />
+            <button className="btn btn-ghost btn-sm" onClick={handleFocusExit} title={timedEnabled ? "End session and leave" : "Leave focus mode"} style={{ flex: "none", border: "1px solid var(--line-strong)" }}>
+              <Icon name="chevron_left" size={16} /> Exit
             </button>
             <div style={{ minWidth: 0 }}>
               <div className="eyebrow" style={{ color: "var(--crimson)" }}>
@@ -2465,6 +2486,7 @@ function PracticeInner() {
                     schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
                     gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
                     gradingOne={Boolean(oneGrading[question.id])}
+                    submittedImage={practiceMode === "topic" ? answerImages[question.id] : undefined}
                     collapsed={!isQuestionOpen(question)}
                     onToggleCollapsed={() => toggleQuestionOpen(question)} />
                 ))}
@@ -2508,6 +2530,10 @@ function PracticeInner() {
         <DrawCanvas open={drawTarget !== null} title={drawTitle} saving={drawSaving} onClose={() => setDrawTarget(null)} onSave={onDrawSave} />
       </div>
     );
+    // Portal to <body> so the overlay escapes any transformed/overflow ancestor in
+    // the student layout and genuinely covers the viewport (navbar hidden, the exit
+    // control always visible) — the bug where the focus bar scrolled out of reach.
+    return portalMounted ? createPortal(overlay, document.body) : overlay;
   }
 
   return (
