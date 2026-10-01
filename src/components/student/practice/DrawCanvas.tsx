@@ -31,6 +31,8 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const drawingRef = useRef(false);
+  const lastRef = useRef<{ x: number; y: number } | null>(null);
+  const midRef = useRef<{ x: number; y: number } | null>(null);
   const undoRef = useRef<ImageData[]>([]);
   const [tool, setTool] = useState<Tool>("pen");
   const [penSize, setPenSize] = useState<number>(PEN_SIZES[1]);
@@ -124,31 +126,46 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
     const ctx = ctxRef.current, canvas = canvasRef.current;
     if (!ctx || !canvas) return;
     e.preventDefault();
-    canvas.setPointerCapture?.(e.pointerId);
+    try { canvas.setPointerCapture?.(e.pointerId); } catch { /* pointer already gone */ }
     pushUndo();
     drawingRef.current = true;
-    const { x, y } = pointAt(e);
-    ctx.strokeStyle = tool === "eraser" ? "#ffffff" : "#15171c";
-    ctx.lineWidth = tool === "eraser" ? ERASER_SIZE : penSize;
+    const p = pointAt(e);
+    const ink = tool === "eraser" ? "#ffffff" : "#15171c";
+    const w = tool === "eraser" ? ERASER_SIZE : penSize;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = w;
+    lastRef.current = p;
+    midRef.current = p;
+    // a round dot so a single tap leaves a mark and short strokes start clean
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    // a dot for a single tap
-    ctx.lineTo(x + 0.01, y + 0.01);
-    ctx.stroke();
+    ctx.fillStyle = ink;
+    ctx.arc(p.x, p.y, w / 2, 0, Math.PI * 2);
+    ctx.fill();
     setDirty(true);
   };
   const onPointerMove = (e: ReactPointerEvent) => {
     if (!drawingRef.current) return;
     const ctx = ctxRef.current;
-    if (!ctx) return;
-    const { x, y } = pointAt(e);
-    ctx.lineTo(x, y);
+    const last = lastRef.current, prevMid = midRef.current;
+    if (!ctx || !last || !prevMid) return;
+    const p = pointAt(e);
+    // quadratic smoothing — curve from the previous midpoint, through the real
+    // point (as the control), to the new midpoint: turns the raw polyline into
+    // rounded, pen-like curves instead of straight angular segments.
+    const mid = { x: (last.x + p.x) / 2, y: (last.y + p.y) / 2 };
+    ctx.beginPath();
+    ctx.moveTo(prevMid.x, prevMid.y);
+    ctx.quadraticCurveTo(last.x, last.y, mid.x, mid.y);
     ctx.stroke();
+    lastRef.current = p;
+    midRef.current = mid;
   };
   const endStroke = (e: ReactPointerEvent) => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
-    canvasRef.current?.releasePointerCapture?.(e.pointerId);
+    lastRef.current = null;
+    midRef.current = null;
+    try { canvasRef.current?.releasePointerCapture?.(e.pointerId); } catch { /* noop */ }
   };
 
   const undo = () => {
@@ -192,7 +209,7 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
     >
       <div className="pr" style={{ margin: "auto", width: "100%", maxWidth: 960, display: "flex", flexDirection: "column", gap: 10, minHeight: 0, flex: 1 }}>
         {/* toolbar */}
-        <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "8px 12px" }}>
+        <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 16 }}>
           <div className="flex items-center gap-8" style={{ minWidth: 0 }}>
             <Icon name="edit" size={16} style={{ color: "var(--crimson)", flex: "none" }} />
             <span style={{ fontWeight: 650, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title || "Draw your answer"}</span>
@@ -221,7 +238,7 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
         </div>
 
         {/* drawing surface */}
-        <div ref={wrapRef} className="card" style={{ flex: 1, minHeight: 240, padding: 0, overflow: "hidden", background: "#fff", borderColor: "var(--line-strong)" }}>
+        <div ref={wrapRef} className="card" style={{ flex: 1, minHeight: 240, padding: 0, overflow: "hidden", background: "#fff", borderColor: "var(--line-strong)", borderRadius: 18 }}>
           <canvas
             ref={canvasRef}
             onPointerDown={onPointerDown}
