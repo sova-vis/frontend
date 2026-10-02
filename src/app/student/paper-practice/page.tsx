@@ -143,7 +143,9 @@ async function stitchLabeledDrawings(items: { label: string; file: File }[]): Pr
 async function stitchFromUrls(items: { label: string; url: string }[]): Promise<File> {
   const imgs = await Promise.all(items.map((it) => loadImage(it.url)));
   const PAD = 20, LABEL_H = 30, GAP = 18;
-  const width = Math.max(640, ...imgs.map((im) => im.naturalWidth));
+  // cap the width so stitching several high-res phone photos can't build a
+  // gigantic canvas; 1600px is plenty for the vision reader
+  const width = Math.min(1600, Math.max(640, ...imgs.map((im) => im.naturalWidth)));
   let height = PAD;
   const rows = imgs.map((im, i) => {
     const scale = Math.min(1, width / (im.naturalWidth || width));
@@ -644,12 +646,14 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
   );
 }
 
-function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, schemeUnlocked, drawMode, onRegisterDraw, onUnregisterDraw }: {
+function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, schemeUnlocked, drawMode, onRegisterDraw, onUnregisterDraw, uploadMode, uploadUrls, onUploadPart, onClearUpload }: {
   question: PracticeQuestion; answers: Record<string, string>; showScheme: boolean; onAnswer: (partKey: string, value: string) => void; readOnly?: boolean;
   schemeUnlocked?: boolean;
   drawMode?: boolean;
   onRegisterDraw?: (partKey: string, exporter: () => Promise<File | null>) => void;
   onUnregisterDraw?: (partKey: string) => void;
+  uploadMode?: boolean; uploadUrls?: Record<string, string>;
+  onUploadPart?: (partKey: string, file: File) => void; onClearUpload?: (partKey: string) => void;
 }) {
   // the model answer / mark scheme must stay hidden until the question is marked
   const revealScheme = showScheme && schemeUnlocked;
@@ -657,6 +661,11 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
   const drawArea = (partKey: string, label: string) => (
     <InlineDrawBox partKey={partKey} label={label}
       register={(k, e) => onRegisterDraw?.(k, e)} unregister={(k) => onUnregisterDraw?.(k)} />
+  );
+  // per-part photo upload (topic upload mode)
+  const uploadArea = (partKey: string, label: string) => (
+    <InlineUploadBox label={label} url={uploadUrls?.[partKey]}
+      onFile={(f) => onUploadPart?.(partKey, f)} onClear={() => onClearUpload?.(partKey)} />
   );
   return (
     <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
@@ -672,6 +681,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
       {/* the stem itself is answerable (dev-enabled) — its own box, above the parts */}
       {stemHasBox(question) && question.parts.length > 0 && (
         drawMode ? drawArea(`${question.id}::stem`, "")
+        : uploadMode ? uploadArea(`${question.id}::stem`, "")
         : !readOnly ? (
           <textarea value={answers[`${question.id}::stem`] ?? ""} onChange={(e) => onAnswer(`${question.id}::stem`, e.target.value)} placeholder="Write your answer…" className="textarea" />
         ) : (answers[`${question.id}::stem`] ?? "").trim() ? (
@@ -716,6 +726,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
                   </div>
                 )}
                 {drawMode ? drawArea(partKey, part.label || "")
+                : uploadMode ? uploadArea(partKey, part.label || "")
                 : !readOnly ? (
                   <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
                     className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
@@ -735,7 +746,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
             );
           })}
         </div>
-      ) : !stemHasBox(question) ? null : drawMode ? drawArea(`${question.id}::0`, "") : !readOnly ? (
+      ) : !stemHasBox(question) ? null : drawMode ? drawArea(`${question.id}::0`, "") : uploadMode ? uploadArea(`${question.id}::0`, "") : !readOnly ? (
         <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
       ) : (answers[`${question.id}::0`] ?? "").trim() ? (
         <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8,
@@ -839,6 +850,9 @@ type QuestionCardProps = {
   onGradeDrawn?: () => void;
   onRegisterDraw?: (partKey: string, exporter: () => Promise<File | null>) => void;
   onUnregisterDraw?: (partKey: string) => void;
+  // per-part photo upload (topic upload mode)
+  uploadUrls?: Record<string, string>; onGradeUploaded?: () => void;
+  onUploadPart?: (partKey: string, file: File) => void; onClearUpload?: (partKey: string) => void;
   collapsed?: boolean; onToggleCollapsed?: () => void; onDeleted?: () => void;
 };
 
@@ -865,7 +879,8 @@ function questionCardEqual(prev: QuestionCardProps, next: QuestionCardProps) {
     prev.gradingOne === next.gradingOne &&
     prev.collapsed === next.collapsed &&
     prev.submittedImage === next.submittedImage &&
-    sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id)
+    sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id) &&
+    sameOwnAnswers(prev.uploadUrls ?? {}, next.uploadUrls ?? {}, next.question.id)
     // function props (onPartAnswer, onGradeOne…) are behaviourally stable per
     // question, so we deliberately don't compare their identities here.
   );
@@ -906,6 +921,10 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
     : (Boolean(props.partAnswers[`${question.id}::0`]?.trim()) ? 1 : 0))
     + (stemUnit && Boolean(props.partAnswers[`${question.id}::stem`]?.trim()) ? 1 : 0);
 
+  // per-part photo uploads for this question (upload mode)
+  const uploadedCount = props.uploadUrls ? Object.keys(props.uploadUrls).filter((k) => k.startsWith(`${question.id}::`)).length : 0;
+  const anyUploaded = uploadedCount > 0;
+
   return (
     <article className="card card-pad flex-col gap-16">
       <div className="row-between wrap" style={{ gap: 10, cursor: collapsed ? "pointer" : "default" }}
@@ -937,10 +956,11 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
           {question.type === "mcq" ? (
             <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
           ) : (
-            // upload hides the answer boxes (photo); draw swaps them for per-part canvases
+            // draw swaps the answer boxes for per-part canvases; upload for per-part photo drops
             <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer}
               readOnly={props.readOnly || topicUpload || topicDraw} schemeUnlocked={props.schemeUnlocked}
-              drawMode={topicDraw} onRegisterDraw={props.onRegisterDraw} onUnregisterDraw={props.onUnregisterDraw} />
+              drawMode={topicDraw} onRegisterDraw={props.onRegisterDraw} onUnregisterDraw={props.onUnregisterDraw}
+              uploadMode={topicUpload} uploadUrls={props.uploadUrls} onUploadPart={props.onUploadPart} onClearUpload={props.onClearUpload} />
           )}
 
           {/* per-question AI marking (topic drills): solve here, upload a photo, or draw */}
@@ -955,7 +975,21 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
                 </div>
               )}
               {topicUpload ? (
-                <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
+                <>
+                  {/* the per-part upload areas live in the body above; this marks them */}
+                  <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeUploaded} disabled={props.gradingOne || !anyUploaded}
+                    title={anyUploaded ? "" : "Upload a photo for at least one part first"}>
+                    {props.gradingOne
+                      ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
+                      : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : totalParts > 1 ? `Mark my answer · ${uploadedCount}/${totalParts} uploaded` : "Mark my answer"}</>}
+                  </button>
+                  {totalParts > 1 && (
+                    <div className="flex-col gap-6" style={{ display: "flex" }}>
+                      <span className="eyebrow">Or upload your whole answer in one photo</span>
+                      <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
+                    </div>
+                  )}
+                </>
               ) : topicDraw ? (
                 <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeDrawn} disabled={props.gradingOne}>
                   {props.gradingOne
@@ -1005,6 +1039,43 @@ function QuestionUploadBox({ busy, graded, onFile }: { busy: boolean; graded: bo
         {busy ? "Marking your answer…" : graded ? "Upload another photo to re-mark" : "Upload a photo of your answer"}
       </div>
       <div className="faint" style={{ fontSize: 11, marginTop: 5 }}>JPG, PNG or PDF · maximum 15 MB</div>
+    </div>
+  );
+}
+
+/* ---- per-part photo upload (topic upload mode): a thumbnail once uploaded ---- */
+function InlineUploadBox({ label, url, onFile, onClear }: {
+  label: string; url?: string; onFile: (file: File) => void; onClear: () => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pick = (files: FileList | null) => { const f = files?.[0]; if (f) onFile(f); };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT_ATTR} style={{ display: "none" }}
+        onChange={(e) => { pick(e.target.files); e.currentTarget.value = ""; }} />
+      {url ? (
+        <div className="flex-col gap-6" style={{ display: "flex" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={`your uploaded answer${label ? ` for ${label}` : ""}`}
+            style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 10, border: "1px solid var(--line-strong)", background: "#fff", objectFit: "contain", alignSelf: "flex-start" }} />
+          <div className="flex gap-8">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => inputRef.current?.click()}><Icon name="upload" size={13} /> Replace</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClear}><Icon name="trash" size={13} /> Remove</button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files); }}
+          onClick={() => inputRef.current?.click()}
+          style={{ width: "100%", cursor: "pointer", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            borderRadius: 10, border: `2px dashed ${dragging ? "var(--crimson)" : "var(--line-strong)"}`,
+            background: dragging ? "var(--crimson-soft)" : "var(--surface)", color: "var(--crimson)", fontWeight: 600, fontSize: 13 }}>
+          <Icon name="upload" size={15} /> Upload a photo{label ? ` for ${label}` : ""}
+        </div>
+      )}
     </div>
   );
 }
@@ -1166,6 +1237,8 @@ function PracticeInner() {
   const unregisterDrawBox = useCallback((partKey: string) => {
     drawExportersRef.current.delete(partKey);
   }, []);
+  // per-part photo uploads for topic questions (upload mode), keyed by partKey
+  const [partUploads, setPartUploads] = useState<Record<string, { file: File; url: string }>>({});
   // the drawing/photo a topic question was answered with, kept for the session so
   // the card shows what was submitted (object URLs, keyed by question id)
   const [answerImages, setAnswerImages] = useState<Record<string, string>>({});
@@ -1322,6 +1395,7 @@ function PracticeInner() {
     loggedIdsRef.current = new Set();
     setShowScheme(false);
     setAnswerImages((prev) => { for (const u of Object.values(prev)) { try { URL.revokeObjectURL(u); } catch { /* noop */ } } return {}; });
+    setPartUploads((prev) => { for (const u of Object.values(prev)) { try { URL.revokeObjectURL(u.url); } catch { /* noop */ } } return {}; });
     // reset the per-paper session shell; the restore effect re-hydrates it
     setSolveMode("digital");
     setPaperStatus("in_progress");
@@ -1981,6 +2055,13 @@ function PracticeInner() {
     return map;
   }, [report]);
 
+  // partKey -> uploaded-photo thumbnail URL (upload mode); card compares own keys
+  const uploadUrls = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [k, v] of Object.entries(partUploads)) map[k] = v.url;
+    return map;
+  }, [partUploads]);
+
 
   const isQuestionFullyAnswered = (q: PracticeQuestion): boolean => {
     if (q.type === "mcq") return Boolean(mcqAnswers[q.id]?.trim());
@@ -2262,6 +2343,44 @@ function PracticeInner() {
       await gradeOneFromImage(q, file);
     } catch {
       setError("Couldn't prepare your answer. Please try again.");
+    }
+  }
+
+  // store / clear a per-part uploaded photo (upload mode)
+  function saveUpload(partKey: string, file: File) {
+    const problem = validateUploadFile(file);
+    if (problem) { setError(problem); return; }
+    setPartUploads((prev) => {
+      const old = prev[partKey];
+      if (old) { try { URL.revokeObjectURL(old.url); } catch { /* noop */ } }
+      return { ...prev, [partKey]: { file, url: URL.createObjectURL(file) } };
+    });
+  }
+  function clearUpload(partKey: string) {
+    setPartUploads((prev) => {
+      const old = prev[partKey];
+      if (!old) return prev;
+      try { URL.revokeObjectURL(old.url); } catch { /* noop */ }
+      const next = { ...prev }; delete next[partKey]; return next;
+    });
+  }
+
+  // Mark a topic question answered with PER-PART photos: stitch the uploaded parts
+  // into one labelled image (single part → used as-is) and grade it.
+  async function gradeUploadedQuestion(q: PracticeQuestion) {
+    if (oneGrading[q.id]) return;
+    try {
+      const items: { label: string; file: File }[] = [];
+      for (const slot of drawSlotsOf(q)) {
+        const up = partUploads[slot.partKey];
+        if (up) items.push({ label: slot.label, file: up.file });
+      }
+      if (items.length === 0) { setError("Upload a photo for at least one part first."); return; }
+      const needsLabels = items.length > 1 || Boolean(items[0].label);
+      const file = needsLabels ? await stitchLabeledDrawings(items) : items[0].file;
+      await gradeOneFromImage(q, file);
+    } catch {
+      setError("Couldn't prepare your upload. Please try again.");
     }
   }
 
@@ -2626,6 +2745,10 @@ function PracticeInner() {
                     onGradeDrawn={practiceMode === "topic" && question.type === "structured" ? () => gradeDrawnQuestion(question) : undefined}
                     onRegisterDraw={registerDrawBox}
                     onUnregisterDraw={unregisterDrawBox}
+                    onGradeUploaded={practiceMode === "topic" && question.type === "structured" ? () => gradeUploadedQuestion(question) : undefined}
+                    onUploadPart={saveUpload}
+                    onClearUpload={clearUpload}
+                    uploadUrls={practiceMode === "topic" ? uploadUrls : undefined}
                     topicMode={inputMethod === "upload" ? "upload" : inputMethod === "draw" ? "draw" : "type"}
                     schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
                     gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
