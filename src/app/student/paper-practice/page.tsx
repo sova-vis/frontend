@@ -973,7 +973,7 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
           )}
 
           {/* marking result — topic drill, or a reopened graded paper (D) — with part-wise model answers (C) */}
-          {props.gradeResult && <QuestionResultRow q={props.gradeResult} parts={question.parts} />}
+          {props.gradeResult && <QuestionResultRow q={props.gradeResult} parts={question.parts} onScreen={props.topicMode === "draw"} />}
         </>
       )}
       {/* Dev mode: in-place editor (self-hides unless dev is unlocked) */}
@@ -2028,7 +2028,7 @@ function PracticeInner() {
     setOneGrading((prev) => ({ ...prev, [q.id]: true }));
     setError("");
     try {
-      const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken);
+      const result = await gradeOneImage(selectedSubject, toGradeInput(q), file, getToken, inputMethod === "draw");
       markTouched(q.id); // keep it open right after marking; it collapses on reopen
       setOneResults((prev) => ({ ...prev, [q.id]: result }));
       const slotted = slotAnswersFromGraded(q, result);
@@ -2609,7 +2609,7 @@ function PracticeInner() {
                   )
                 )}
                 {practiceMode === "paper" && solveMode === "handwritten" && report?.extraction && (
-                  <ExtractionPanel extraction={report.extraction} />
+                  <ExtractionPanel extraction={report.extraction} onScreen={inputMethod === "draw"} />
                 )}
                 {/* draw-on-paper uses the PDF itself as the workspace — no second,
                     read-only copy of the questions below it */}
@@ -2727,6 +2727,7 @@ function PracticeInner() {
           meta={{ subject: selectedSubject, year: selectedPaper.year, session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant }}
           partsById={Object.fromEntries(questions.map((q) => [q.id, q.parts]))}
           onClose={() => setReportOpen(false)}
+          onScreen={inputMethod === "draw"}
         />,
         document.body,
       )}
@@ -2735,11 +2736,12 @@ function PracticeInner() {
 }
 
 /* ---- AI marking report modal ---- */
-function ReportModal({ report, meta, partsById, onClose }: {
+function ReportModal({ report, meta, partsById, onClose, onScreen }: {
   report: PracticeReport;
   meta: { subject: string; year: string; session: string; paper: string; variant: string };
   partsById?: Record<string, PracticePart[]>;
   onClose: () => void;
+  onScreen?: boolean;
 }) {
   const ringColor = report.percent >= 70 ? "var(--teal-deep)" : report.percent >= 45 ? "var(--amber-deep)" : "var(--coral-bright)";
   return (
@@ -2781,7 +2783,7 @@ function ReportModal({ report, meta, partsById, onClose }: {
           </div>
 
           {/* how the upload was read — only on handwritten attempts */}
-          {report.extraction && <ExtractionPanel extraction={report.extraction} />}
+          {report.extraction && <ExtractionPanel extraction={report.extraction} onScreen={onScreen} />}
 
           {/* focus areas */}
           {report.improvements.length > 0 && (
@@ -2799,7 +2801,7 @@ function ReportModal({ report, meta, partsById, onClose }: {
           {/* per-question breakdown */}
           <div className="flex-col gap-8">
             <div className="eyebrow" style={{ padding: "0 2px" }}>Question breakdown</div>
-            {report.perQuestion.map((q) => <QuestionResultRow key={q.id} q={q} parts={partsById?.[q.id]} />)}
+            {report.perQuestion.map((q) => <QuestionResultRow key={q.id} q={q} parts={partsById?.[q.id]} onScreen={onScreen} />)}
           </div>
         </div>
 
@@ -2819,7 +2821,7 @@ function ReportModal({ report, meta, partsById, onClose }: {
 }
 
 /* ---- handwritten attempts: what we read, and what we couldn't ---- */
-function ExtractionPanel({ extraction }: { extraction: ExtractionSummary }) {
+function ExtractionPanel({ extraction, onScreen }: { extraction: ExtractionSummary; onScreen?: boolean }) {
   const problems = extraction.unreadableCount + extraction.notFoundCount;
   const tone = extraction.paperMismatch || problems > 0
     ? { border: "var(--coral-soft)", fg: "var(--coral-bright)", icon: "alert" as const }
@@ -2840,7 +2842,7 @@ function ExtractionPanel({ extraction }: { extraction: ExtractionSummary }) {
       <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
         <Icon name={tone.icon} size={16} style={{ color: tone.fg }} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>
-          Read from your upload · {extraction.pageCount} page{extraction.pageCount === 1 ? "" : "s"}
+          Read from your {onScreen ? "writing" : "upload"} · {extraction.pageCount} page{extraction.pageCount === 1 ? "" : "s"}
         </span>
       </div>
 
@@ -2858,7 +2860,9 @@ function ExtractionPanel({ extraction }: { extraction: ExtractionSummary }) {
       {extraction.withheldMarks > 0 && (
         <p style={{ fontSize: 13, lineHeight: 1.5, marginTop: 10, color: "var(--coral-bright)" }}>
           <b>{extraction.withheldMarks} marks were not assessed</b> because those answers could not be read.
-          They are excluded from your score rather than counted as wrong — re-upload those pages more clearly to have them marked.
+          They are excluded from your score rather than counted as wrong — {onScreen
+            ? "write them more clearly on screen, or type them, to have them marked."
+            : "re-upload those pages more clearly to have them marked."}
         </p>
       )}
 
@@ -2874,7 +2878,7 @@ function ExtractionPanel({ extraction }: { extraction: ExtractionSummary }) {
 }
 
 /** Per-question read-back so the student can check the marks against their script. */
-function ExtractionDetail({ q }: { q: GradedQuestion }) {
+function ExtractionDetail({ q, onScreen }: { q: GradedQuestion; onScreen?: boolean }) {
   const flag = q.extractionFlag;
   if (!flag || flag === "not_found") return null;
 
@@ -2904,7 +2908,9 @@ function ExtractionDetail({ q }: { q: GradedQuestion }) {
       <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{q.extractedAnswer}</p>
       {low && (
         <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.45, color: "var(--amber-deep)" }}>
-          This was marked on the reading above. If it does not match what you wrote, re-upload a clearer photo of this page.
+          This was marked on the reading above. If it does not match what you wrote, {onScreen
+            ? "write it more clearly on screen, or use the Text tool to type it, then mark again."
+            : "re-upload a clearer photo of this page."}
         </p>
       )}
     </details>
@@ -3078,7 +3084,7 @@ function KeyPoints({ points }: { points: string[] }) {
   );
 }
 
-function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePart[] }) {
+function QuestionResultRow({ q, parts, onScreen }: { q: GradedQuestion; parts?: PracticePart[]; onScreen?: boolean }) {
   const tone = verdictColor(q.verdict);
   // A withheld question was never assessed, so showing "0 / 6" would read as a
   // zero the student earned. Show the marks as unassessed instead.
@@ -3121,7 +3127,7 @@ function QuestionResultRow({ q, parts }: { q: GradedQuestion; parts?: PracticePa
       </div>
       <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>{q.feedback}</p>
       {/* handwritten attempts: the transcription this mark was based on */}
-      <ExtractionDetail q={q} />
+      <ExtractionDetail q={q} onScreen={onScreen} />
       {/* Phase 1 — marks breakdown by assessment objective */}
       {q.breakdown && q.breakdown.length > 0 && <MarkBreakdown items={q.breakdown} />}
       {/* Answers — official scheme when on file, otherwise the examiner's model answer */}

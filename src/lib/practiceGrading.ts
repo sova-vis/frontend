@@ -88,18 +88,21 @@ export async function gradeOneQuestion(
   return data.result;
 }
 
-/** Grade one topic-drill question from a photo of a handwritten answer. */
+/** Grade one topic-drill question from a photo OR on-screen writing of the answer. */
 export async function gradeOneImage(
   subject: string,
   question: GradeQuestionInput,
   file: File,
   getToken?: GetTokenFn,
+  onScreen = false,
 ): Promise<GradedQuestion> {
   const token = await resolveClerkToken(getToken);
   const body = new FormData();
   body.append("subject", subject);
   body.append("question", JSON.stringify(question));
   body.append("file", file, file.name);
+  // on-screen writing is graded best-effort (no clearer photo to re-take)
+  if (onScreen) body.append("onScreen", "true");
   const response = await clerkFetch(`${apiBase()}/practice-grading/grade-one-image`, {
     method: "POST",
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
