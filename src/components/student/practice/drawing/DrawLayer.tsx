@@ -29,6 +29,10 @@ export interface DrawLayerHandle {
 }
 
 const MAX_UNDO = 30;
+// A concrete font stack — canvas `ctx.font` does NOT resolve CSS custom
+// properties (`var(--…)`), so using one silently falls back to a tiny 10px
+// default. Keep this a real family list, matched by the textarea preview below.
+const INK_FONT = 'Georgia, "Times New Roman", serif';
 
 type Props = {
   tool: DrawTool;
@@ -39,13 +43,15 @@ type Props = {
   /** When true, exports fill white behind the ink (for a blank answer sheet). */
   whiteExport?: boolean;
   onStatusChange?: (status: { dirty: boolean; canUndo: boolean }) => void;
+  /** Fires after each completed stroke / text stamp — lets the parent persist. */
+  onCommit?: () => void;
   className?: string;
   style?: CSSProperties;
   minHeight?: number;
 };
 
 const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
-  { tool, color, size, backgroundSrc, whiteExport, onStatusChange, className, style, minHeight = 240 },
+  { tool, color, size, backgroundSrc, whiteExport, onStatusChange, onCommit, className, style, minHeight = 240 },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -80,6 +86,9 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     const canvas = canvasRef.current, wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const rect = wrap.getBoundingClientRect();
+    // Skip while the box is effectively hidden (e.g. collapsed accordion) so we
+    // never resize the canvas down to nothing and wipe the drawing.
+    if (rect.width < 2 || rect.height < 2) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const wCss = Math.max(1, Math.floor(rect.width));
     const hCss = Math.max(1, Math.floor(rect.height));
@@ -89,7 +98,7 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     canvas.height = Math.floor(hCss * dpr);
     canvas.style.width = `${wCss}px`;
     canvas.style.height = `${hCss}px`;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.lineCap = "round";
@@ -103,14 +112,22 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
   }, []);
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const canvas = canvasRef.current;
-      if (canvas) { canvas.width = 0; canvas.height = 0; }
-      fit();
-    });
+    // Size the canvas as soon as, and whenever, it actually has a box. We fit now,
+    // next frame, and shortly after (to catch layout/animation settling), and keep
+    // a ResizeObserver on the wrap for any later size change (open/expand/resize).
+    // Belt-and-braces because a single rAF can be cancelled by React StrictMode's
+    // double-mount and a collapsed box can report a zero box on the first tick.
+    fit();
+    const raf = requestAnimationFrame(fit);
+    const t = setTimeout(fit, 80);
     const onResize = () => fit();
     window.addEventListener("resize", onResize);
-    return () => { cancelAnimationFrame(id); window.removeEventListener("resize", onResize); };
+    let ro: ResizeObserver | null = null;
+    if (wrapRef.current && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => fit());
+      ro.observe(wrapRef.current);
+    }
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener("resize", onResize); ro?.disconnect(); };
   }, [fit]);
 
   const pushUndo = useCallback(() => {
@@ -190,26 +207,26 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     const ctx = ctxRef.current;
     if (ctx) ctx.globalCompositeOperation = "source-over";
     try { canvasRef.current?.releasePointerCapture?.(e.pointerId); } catch { /* noop */ }
+    onCommit?.();
   };
 
   // Stamp the typed text onto the canvas at the box origin, then clear the input.
-  const commitText = useCallback(() => {
-    setTextBox((box) => {
-      const ctx = ctxRef.current;
-      const text = box?.value.trim();
-      if (ctx && box && text) {
-        pushUndo();
-        const fontPx = Math.max(14, Math.round(sizeRef.current * 4 + 10));
-        ctx.globalCompositeOperation = "source-over";
-        ctx.fillStyle = colorRef.current;
-        ctx.font = `600 ${fontPx}px var(--font-fraunces, Georgia, serif)`;
-        ctx.textBaseline = "top";
-        box.value.split("\n").forEach((line, i) => ctx.fillText(line, box.x, box.y + i * fontPx * 1.25));
-        setDirty(true);
-      }
-      return null;
-    });
-  }, [pushUndo, setDirty]);
+  const commitText = useCallback((value: string, at: { x: number; y: number }) => {
+    const ctx = ctxRef.current;
+    const text = value.trim();
+    if (ctx && text) {
+      pushUndo();
+      const fontPx = Math.max(14, Math.round(sizeRef.current * 4 + 10));
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = colorRef.current;
+      ctx.font = `600 ${fontPx}px ${INK_FONT}`;
+      ctx.textBaseline = "top";
+      value.split("\n").forEach((line, i) => ctx.fillText(line, at.x, at.y + i * fontPx * 1.25));
+      setDirty(true);
+      onCommit?.();
+    }
+    setTextBox(null);
+  }, [pushUndo, setDirty, onCommit]);
 
   const undo = useCallback(() => {
     const ctx = ctxRef.current;
@@ -298,9 +315,9 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
           autoFocus
           value={textBox.value}
           onChange={(e) => setTextBox((b) => (b ? { ...b, value: e.target.value } : b))}
-          onBlur={commitText}
+          onBlur={(e) => commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y })}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(); }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y }); }
             if (e.key === "Escape") { e.preventDefault(); setTextBox(null); }
           }}
           placeholder="Type…"
@@ -308,7 +325,7 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
           style={{
             position: "absolute", left: textBox.x, top: textBox.y, zIndex: 2,
             minWidth: 120, maxWidth: "70%", resize: "none", lineHeight: 1.25,
-            font: `600 ${Math.max(14, Math.round(size * 4 + 10))}px var(--font-fraunces, Georgia, serif)`,
+            font: `600 ${Math.max(14, Math.round(size * 4 + 10))}px ${INK_FONT}`,
             color, background: "rgba(255,255,255,.9)", border: `1.5px dashed ${color}`,
             borderRadius: 6, padding: "2px 6px", outline: "none",
           }}
