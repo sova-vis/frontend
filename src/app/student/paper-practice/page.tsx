@@ -2069,6 +2069,9 @@ function PracticeInner() {
           paperKey: currentPaperKey, subject: selectedSubject, year: selectedPaper.year,
           session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant,
           isMcq: selectedPaper.isMcq, solveMode, questions: buildGradeQuestions(),
+          // draw-on-paper: answers are written on the printed QP, so the marker keys
+          // them off the printed question numbers, not handwritten ones
+          onQuestionPaper: practiceMode === "paper" && inputMethod === "draw",
         },
         getToken,
       );
@@ -2250,11 +2253,15 @@ function PracticeInner() {
         const file = await drawExportersRef.current.get(slot.partKey)?.();
         if (file) drawn.push({ label: slot.label, file });
       }
-      if (drawn.length === 0) { setError("Draw at least one part before marking."); return; }
-      const file = drawn.length === 1 ? drawn[0].file : await stitchLabeledDrawings(drawn);
+      if (drawn.length === 0) { setError("Write your answer before marking."); return; }
+      // Stamp the part label onto each drawing so the marker slots it to the right
+      // sub-part — needed whenever there's more than one part, or a single labelled
+      // part (e.g. only (b) answered). A lone unlabelled answer goes as-is.
+      const needsLabels = drawn.length > 1 || Boolean(drawn[0].label);
+      const file = needsLabels ? await stitchLabeledDrawings(drawn) : drawn[0].file;
       await gradeOneFromImage(q, file);
     } catch {
-      setError("Couldn't prepare your drawing. Please try again.");
+      setError("Couldn't prepare your answer. Please try again.");
     }
   }
 
@@ -2403,7 +2410,7 @@ function PracticeInner() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
                   <PickCard icon="pencil" title="Type" sub="Write answers in text boxes" active={inputMethod === "type"} onClick={() => setInputMethod("type")} />
                   <PickCard icon="upload" title="Upload handwritten" sub="Photograph your written work" active={inputMethod === "upload"} onClick={() => setInputMethod("upload")} />
-                  <PickCard icon="edit" title="Draw" sub="Sketch your answer on a canvas" active={inputMethod === "draw"} onClick={() => setInputMethod("draw")} />
+                  <PickCard icon="edit" title="Write on screen" sub="Write or sketch your answer on screen" active={inputMethod === "draw"} onClick={() => setInputMethod("draw")} />
                 </div>
               </div>
             )}
@@ -2477,7 +2484,7 @@ function PracticeInner() {
 
   function renderFocus() {
     const mcqMode = questionType === "mcq";
-    const drawTitle = drawTarget ? "Draw a page of your working" : "";
+    const drawTitle = drawTarget ? "Write a page of your working on screen" : "";
     const drawSaving = drawTarget ? uploadBusy : false;
     const overlay = (
       <div className="pr practice-focus" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--canvas)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -2489,7 +2496,7 @@ function PracticeInner() {
             </button>
             <div style={{ minWidth: 0 }}>
               <div className="eyebrow" style={{ color: "var(--crimson)" }}>
-                {practiceMode === "paper" ? "Full paper" : "Topic practice"}{timedEnabled ? " · Timed" : ""}{inputMethod === "draw" ? " · Draw" : inputMethod === "upload" ? " · Handwritten" : ""}
+                {practiceMode === "paper" ? "Full paper" : "Topic practice"}{timedEnabled ? " · Timed" : ""}{inputMethod === "draw" ? " · Write on screen" : inputMethod === "upload" ? " · Handwritten" : ""}
               </div>
               <div style={{ fontWeight: 650, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(52vw,420px)" }}>{summary}</div>
             </div>
@@ -3204,7 +3211,7 @@ function HandwrittenStudio({ uploads, busy, progress, questionCount, onFiles, on
 
       {onDraw && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={onDraw} disabled={busy}>
-          <Icon name="edit" size={14} /> Or draw a page here
+          <Icon name="edit" size={14} /> Or write a page on screen
         </button>
       )}
 

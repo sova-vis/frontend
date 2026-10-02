@@ -103,7 +103,7 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
     <div
       role="dialog"
       aria-modal="false"
-      aria-label={title || "Draw your answer"}
+      aria-label={title || "Write your answer on screen"}
       onPointerMove={onMove}
       onPointerUp={endMove}
       onPointerCancel={endMove}
@@ -120,7 +120,7 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
           borderBottom: "1px solid var(--line)", cursor: "grab", userSelect: "none", touchAction: "none", flex: "none" }}>
         <Icon name="edit" size={15} style={{ color: "var(--crimson)", flex: "none" }} />
         <span style={{ fontWeight: 650, fontSize: 13, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title || "Draw your answer"}
+          {title || "Write your answer on screen"}
         </span>
         <span className="faint" style={{ fontSize: 11, flex: "none" }}><Icon name="move" size={13} /> drag</span>
         <button className="icon-btn" aria-label="Close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}
@@ -148,11 +148,11 @@ export default function DrawCanvas({ open, title, onClose, onSave, saving }: {
       {/* actions */}
       <div className="flex items-center gap-8 wrap" style={{ justifyContent: "flex-end", padding: "8px 10px", borderTop: "1px solid var(--line)", flex: "none" }}>
         <span className="faint" style={{ fontSize: 11.5, marginRight: "auto" }}>
-          {tool === "text" ? "Tap to add text." : status.dirty ? "Marked like a handwritten photo." : "Draw your working."}
+          {tool === "text" ? "Tap to add text." : status.dirty ? "Marked like a handwritten photo." : "Write your working on screen."}
         </span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}><Icon name="x" size={14} /> Cancel</button>
         <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={!status.dirty || saving}>
-          {saving ? <><Icon name="refresh" size={14} className="spin" /> Saving…</> : <><Icon name="check_circle" size={14} /> Use drawing</>}
+          {saving ? <><Icon name="refresh" size={14} className="spin" /> Saving…</> : <><Icon name="check_circle" size={14} /> Use this</>}
         </button>
       </div>
 

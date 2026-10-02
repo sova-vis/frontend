@@ -107,8 +107,8 @@ export default function PaperDrawStudio({
         const code = e instanceof Error ? e.message : "";
         setErrorMsg(
           code === "not_found"
-            ? "We couldn't find this paper's PDF to draw on."
-            : "Couldn't open the paper to draw on. You can switch to Upload instead.",
+            ? "We couldn't find this paper's PDF to write on."
+            : "Couldn't open the paper to write on. You can switch to Upload instead.",
         );
         setState("error");
       }
@@ -145,7 +145,7 @@ export default function PaperDrawStudio({
   if (state === "loading") {
     return (
       <div className="card flex items-center justify-center gap-8" style={{ minHeight: 260, color: "var(--ink-faint)", display: "flex" }}>
-        <Icon name="refresh" size={16} className="spin" /> Opening the paper to draw on…
+        <Icon name="refresh" size={16} className="spin" /> Opening the paper to write on…
       </div>
     );
   }

@@ -34,6 +34,8 @@ export interface GradeRequest {
   isMcq: boolean;
   solveMode: SolveMode;
   questions: GradeQuestionInput[];
+  /** Answers were written directly on the printed question paper (draw-on-paper). */
+  onQuestionPaper?: boolean;
 }
 
 function apiBase(): string {

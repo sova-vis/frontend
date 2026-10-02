@@ -47,7 +47,7 @@ export default function InlineDrawBox({ partKey, label, register, unregister }: 
     return () => unregister(partKey);
   }, [partKey, register, unregister]);
 
-  const title = `Draw your answer${label ? ` for ${label}` : ""}`;
+  const title = `Write your answer${label ? ` for ${label}` : ""}`;
   const H = tall ? TALL_H : BASE_H;
 
   return (
@@ -59,7 +59,7 @@ export default function InlineDrawBox({ partKey, label, register, unregister }: 
         <Icon name="edit" size={15} style={{ color: "var(--crimson)", flex: "none" }} />
         <span style={{ fontWeight: 600, fontSize: 13, color: open ? "var(--crimson)" : "var(--ink)", flex: 1 }}>{title}</span>
         {status.dirty && <span className="badge teal" style={{ fontSize: 10.5, flex: "none" }}><Icon name="check_circle" size={12} /> answered</span>}
-        <span className="faint" style={{ fontSize: 11.5, flex: "none" }}>{open ? "Hide" : "Draw"}</span>
+        <span className="faint" style={{ fontSize: 11.5, flex: "none" }}>{open ? "Hide" : "Write"}</span>
         <Icon name={open ? "chevron_down" : "chevron_right"} size={16} style={{ color: "var(--ink-faint)", flex: "none" }} />
       </button>
 
