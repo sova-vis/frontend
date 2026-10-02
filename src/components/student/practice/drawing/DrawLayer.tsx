@@ -71,6 +71,8 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
   sizeRef.current = size;
 
   const [textBox, setTextBox] = useState<{ x: number; y: number; value: string } | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const textOpenedAtRef = useRef(0);
 
   const emit = useCallback(() => {
     onStatusChange?.({ dirty: dirtyRef.current, canUndo: undoRef.current.length > 0 });
@@ -130,6 +132,15 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener("resize", onResize); ro?.disconnect(); };
   }, [fit]);
 
+  // When a text box opens, focus it on the next frame (more reliable than
+  // autoFocus when it's created from a pointer handler).
+  const textOpen = textBox !== null;
+  useEffect(() => {
+    if (!textOpen) return;
+    const id = requestAnimationFrame(() => textRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [textOpen]);
+
   const pushUndo = useCallback(() => {
     const ctx = ctxRef.current, canvas = canvasRef.current;
     if (!ctx || !canvas) return;
@@ -164,7 +175,12 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     if (!ctx || !canvas) return;
     // text tool: drop an input where you click; the stroke tools draw.
     if (toolRef.current === "text") {
+      // preventDefault stops the click from immediately stealing focus back to the
+      // canvas/body, which would blur the fresh textarea and close it before the
+      // student can type a single character.
+      e.preventDefault();
       const p = pointAt(e);
+      textOpenedAtRef.current = Date.now();
       setTextBox({ x: p.x, y: p.y, value: "" });
       return;
     }
@@ -312,10 +328,20 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
       />
       {textBox && (
         <textarea
+          ref={textRef}
           autoFocus
           value={textBox.value}
           onChange={(e) => setTextBox((b) => (b ? { ...b, value: e.target.value } : b))}
-          onBlur={(e) => commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y })}
+          onBlur={(e) => {
+            // The click that opens the box can fire a spurious blur before the
+            // student types — if it's empty and brand-new, keep the box open and
+            // re-focus instead of closing it.
+            if (!e.currentTarget.value.trim() && Date.now() - textOpenedAtRef.current < 450) {
+              requestAnimationFrame(() => textRef.current?.focus());
+              return;
+            }
+            commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y });
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y }); }
             if (e.key === "Escape") { e.preventDefault(); setTextBox(null); }
