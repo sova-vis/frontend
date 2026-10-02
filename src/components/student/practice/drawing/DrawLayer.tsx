@@ -1,19 +1,21 @@
 "use client";
 
 /**
- * DrawLayer — a single controlled ink surface.
+ * DrawLayer — a single controlled ink surface, plus movable/resizable text boxes.
  *
- * The canvas itself is TRANSPARENT and holds only the student's ink, so it can
- * be laid directly over a white sheet (topic answers) or over a rendered
- * past-paper page (full-paper draw) without hiding what's underneath. The
- * eraser removes ink (destination-out) rather than painting white, so it works
- * over any background. On export we composite the chosen background (a white
- * sheet, or the page image) under the ink into one PNG — exactly what the
- * handwritten-answer vision pipeline expects.
+ * The canvas itself is TRANSPARENT and holds only the student's pen/eraser ink,
+ * so it can be laid directly over a white sheet (topic answers) or over a
+ * rendered past-paper page (full-paper) without hiding what's underneath. The
+ * eraser removes ink (destination-out) rather than painting white.
  *
- * Tool / colour / size are controlled by the parent (so one toolbar can drive
- * several layers — e.g. every page of a paper). Undo / clear / export are
- * exposed through a ref.
+ * TEXT is NOT rasterised as you type — each text box is a real, editable overlay
+ * you can drag to move and resize to expand. On export we (a) draw the ink and
+ * (b) render each text box's typed text onto the composite PNG, so the marker
+ * sees a clean, legible answer. `getText()` also returns the typed text so it can
+ * be graded directly.
+ *
+ * Tool / colour / size are controlled by the parent; undo / clear / export /
+ * getText are exposed through a ref.
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
@@ -24,15 +26,25 @@ export interface DrawLayerHandle {
   undo: () => void;
   clear: () => void;
   isDirty: () => boolean;
-  /** Composite the background + ink into a PNG blob (null if nothing to export). */
+  /** Composite the background + ink + text into a PNG blob (null if empty). */
   toBlob: (opts?: { background?: "white" | "transparent" }) => Promise<Blob | null>;
+  /** The typed text across all text boxes, top-to-bottom (for direct grading). */
+  getText: () => string;
 }
+
+type TextBox = { id: string; x: number; y: number; text: string; color: string; fontPx: number };
 
 const MAX_UNDO = 30;
 // A concrete font stack — canvas `ctx.font` does NOT resolve CSS custom
 // properties (`var(--…)`), so using one silently falls back to a tiny 10px
-// default. Keep this a real family list, matched by the textarea preview below.
+// default. Keep this a real family list, matched by the textarea styling.
 const INK_FONT = 'Georgia, "Times New Roman", serif';
+const nextId = () => `t${Date.now()}${Math.round(Math.random() * 1e4)}`;
+// grow a text box's height to fit its content so nothing is clipped
+const autoGrow = (el: HTMLTextAreaElement) => {
+  el.style.height = "auto";
+  el.style.height = `${Math.max(36, el.scrollHeight)}px`;
+};
 
 type Props = {
   tool: DrawTool;
@@ -43,7 +55,7 @@ type Props = {
   /** When true, exports fill white behind the ink (for a blank answer sheet). */
   whiteExport?: boolean;
   onStatusChange?: (status: { dirty: boolean; canUndo: boolean }) => void;
-  /** Fires after each completed stroke / text stamp — lets the parent persist. */
+  /** Fires after a completed stroke / text edit — lets the parent persist. */
   onCommit?: () => void;
   className?: string;
   style?: CSSProperties;
@@ -70,27 +82,26 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
   colorRef.current = color;
   sizeRef.current = size;
 
-  const [textBox, setTextBox] = useState<{ x: number; y: number; value: string } | null>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const textOpenedAtRef = useRef(0);
+  // text boxes (persistent, movable, resizable)
+  const [boxes, setBoxes] = useState<TextBox[]>([]);
+  const boxesRef = useRef<TextBox[]>([]);
+  boxesRef.current = boxes;
+  const taRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const moveRef = useRef<{ id: string; px: number; py: number; ox: number; oy: number } | null>(null);
 
   const emit = useCallback(() => {
-    onStatusChange?.({ dirty: dirtyRef.current, canUndo: undoRef.current.length > 0 });
+    const textDirty = boxesRef.current.some((b) => b.text.trim());
+    onStatusChange?.({ dirty: dirtyRef.current || textDirty, canUndo: undoRef.current.length > 0 });
   }, [onStatusChange]);
-  const setDirty = useCallback((value: boolean) => {
-    dirtyRef.current = value;
-    emit();
-  }, [emit]);
+  const setInkDirty = useCallback((value: boolean) => { dirtyRef.current = value; emit(); }, [emit]);
 
-  // Size the ink canvas to its box at the device pixel ratio, preserving the
-  // existing ink across a resize.
+  // Size the ink canvas to its box at the device pixel ratio, preserving ink.
   const fit = useCallback(() => {
     const canvas = canvasRef.current, wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const rect = wrap.getBoundingClientRect();
-    // Skip while the box is effectively hidden (e.g. collapsed accordion) so we
-    // never resize the canvas down to nothing and wipe the drawing.
-    if (rect.width < 2 || rect.height < 2) return;
+    if (rect.width < 2 || rect.height < 2) return; // hidden/collapsed — don't wipe
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const wCss = Math.max(1, Math.floor(rect.width));
     const hCss = Math.max(1, Math.floor(rect.height));
@@ -114,11 +125,6 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
   }, []);
 
   useEffect(() => {
-    // Size the canvas as soon as, and whenever, it actually has a box. We fit now,
-    // next frame, and shortly after (to catch layout/animation settling), and keep
-    // a ResizeObserver on the wrap for any later size change (open/expand/resize).
-    // Belt-and-braces because a single rAF can be cancelled by React StrictMode's
-    // double-mount and a collapsed box can report a zero box on the first tick.
     fit();
     const raf = requestAnimationFrame(fit);
     const t = setTimeout(fit, 80);
@@ -132,14 +138,12 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener("resize", onResize); ro?.disconnect(); };
   }, [fit]);
 
-  // When a text box opens, focus it on the next frame (more reliable than
-  // autoFocus when it's created from a pointer handler).
-  const textOpen = textBox !== null;
+  // focus a newly-created text box on the next frame
   useEffect(() => {
-    if (!textOpen) return;
-    const id = requestAnimationFrame(() => textRef.current?.focus());
+    if (!focusId) return;
+    const id = requestAnimationFrame(() => taRefs.current.get(focusId)?.focus());
     return () => cancelAnimationFrame(id);
-  }, [textOpen]);
+  }, [focusId]);
 
   const pushUndo = useCallback(() => {
     const ctx = ctxRef.current, canvas = canvasRef.current;
@@ -147,7 +151,7 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     try {
       undoRef.current.push({ image: ctx.getImageData(0, 0, canvas.width, canvas.height), dirty: dirtyRef.current });
       if (undoRef.current.length > MAX_UNDO) undoRef.current.shift();
-    } catch { /* tainted canvas won't happen on a same-origin layer */ }
+    } catch { /* same-origin, won't taint */ }
   }, []);
 
   const pointAt = (e: ReactPointerEvent) => {
@@ -173,15 +177,15 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
   const onPointerDown = (e: ReactPointerEvent) => {
     const ctx = ctxRef.current, canvas = canvasRef.current;
     if (!ctx || !canvas) return;
-    // text tool: drop an input where you click; the stroke tools draw.
+    // text tool: drop a NEW text box where you click (clicking an existing box is
+    // handled by the box itself, since it sits above the canvas).
     if (toolRef.current === "text") {
-      // preventDefault stops the click from immediately stealing focus back to the
-      // canvas/body, which would blur the fresh textarea and close it before the
-      // student can type a single character.
       e.preventDefault();
       const p = pointAt(e);
-      textOpenedAtRef.current = Date.now();
-      setTextBox({ x: p.x, y: p.y, value: "" });
+      const id = nextId();
+      const fontPx = Math.max(16, Math.round(sizeRef.current * 4 + 10));
+      setBoxes((prev) => [...prev, { id, x: p.x, y: p.y, text: "", color: colorRef.current, fontPx }]);
+      setFocusId(id);
       return;
     }
     e.preventDefault();
@@ -196,7 +200,7 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     ctx.beginPath();
     ctx.arc(p.x, p.y, w / 2, 0, Math.PI * 2);
     ctx.fill();
-    setDirty(true);
+    setInkDirty(true);
   };
 
   const onPointerMove = (e: ReactPointerEvent) => {
@@ -205,7 +209,6 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     const last = lastRef.current, prevMid = midRef.current;
     if (!ctx || !last || !prevMid) return;
     const p = pointAt(e);
-    // quadratic smoothing: midpoint-to-midpoint with the real point as control
     const mid = { x: (last.x + p.x) / 2, y: (last.y + p.y) / 2 };
     ctx.beginPath();
     ctx.moveTo(prevMid.x, prevMid.y);
@@ -226,23 +229,33 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
     onCommit?.();
   };
 
-  // Stamp the typed text onto the canvas at the box origin, then clear the input.
-  const commitText = useCallback((value: string, at: { x: number; y: number }) => {
-    const ctx = ctxRef.current;
-    const text = value.trim();
-    if (ctx && text) {
-      pushUndo();
-      const fontPx = Math.max(14, Math.round(sizeRef.current * 4 + 10));
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = colorRef.current;
-      ctx.font = `600 ${fontPx}px ${INK_FONT}`;
-      ctx.textBaseline = "top";
-      value.split("\n").forEach((line, i) => ctx.fillText(line, at.x, at.y + i * fontPx * 1.25));
-      setDirty(true);
-      onCommit?.();
-    }
-    setTextBox(null);
-  }, [pushUndo, setDirty, onCommit]);
+  /* ---- text box editing / moving / deleting ---- */
+  const setBoxText = (id: string, text: string) => {
+    setBoxes((prev) => prev.map((b) => (b.id === id ? { ...b, text } : b)));
+    // emit after state flushes so the parent's "dirty" tracks typed text
+    requestAnimationFrame(emit);
+  };
+  const deleteBox = (id: string) => {
+    taRefs.current.delete(id);
+    setBoxes((prev) => prev.filter((b) => b.id !== id));
+    requestAnimationFrame(() => { emit(); onCommit?.(); });
+  };
+  const startMove = (e: ReactPointerEvent, id: string) => {
+    e.preventDefault(); e.stopPropagation();
+    const b = boxesRef.current.find((x) => x.id === id);
+    if (!b) return;
+    moveRef.current = { id, px: e.clientX, py: e.clientY, ox: b.x, oy: b.y };
+    try { (e.currentTarget as Element).setPointerCapture?.(e.pointerId); } catch { /* fine */ }
+  };
+  const onMoveDrag = (e: ReactPointerEvent) => {
+    const m = moveRef.current, wrap = wrapRef.current;
+    if (!m || !wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const nx = Math.max(0, Math.min(m.ox + (e.clientX - m.px), rect.width - 40));
+    const ny = Math.max(0, Math.min(m.oy + (e.clientY - m.py), rect.height - 20));
+    setBoxes((prev) => prev.map((b) => (b.id === m.id ? { ...b, x: nx, y: ny } : b)));
+  };
+  const endMove = () => { if (moveRef.current) { moveRef.current = null; onCommit?.(); } };
 
   const undo = useCallback(() => {
     const ctx = ctxRef.current;
@@ -259,15 +272,59 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
 
   const clear = useCallback(() => {
     const ctx = ctxRef.current, canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    pushUndo();
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-    setTextBox(null);
-    setDirty(false);
-  }, [pushUndo, setDirty]);
+    if (ctx && canvas) {
+      pushUndo();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+    taRefs.current.clear();
+    setBoxes([]);
+    setInkDirty(false);
+  }, [pushUndo, setInkDirty]);
+
+  const getText = useCallback(() => {
+    return [...boxesRef.current]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((b) => b.text.trim())
+      .filter(Boolean)
+      .join("\n");
+  }, []);
+
+  // draw each text box's typed text onto the output canvas (wrapped to its width)
+  const renderText = (octx: CanvasRenderingContext2D, dpr: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    octx.textBaseline = "top";
+    octx.globalCompositeOperation = "source-over";
+    for (const b of boxesRef.current) {
+      const text = b.text.trim();
+      if (!text) continue;
+      const ta = taRefs.current.get(b.id);
+      const r = ta?.getBoundingClientRect();
+      const x = (r ? r.left - canvasRect.left : b.x) + 4;
+      const y = (r ? r.top - canvasRect.top : b.y) + 4;
+      const maxW = ((r?.width ?? 200) - 10) * dpr;
+      const fontPx = b.fontPx * dpr;
+      octx.font = `600 ${fontPx}px ${INK_FONT}`;
+      octx.fillStyle = b.color;
+      let line = 0;
+      for (const para of b.text.split("\n")) {
+        const words = para.split(" ");
+        let cur = "";
+        const flush = () => { octx.fillText(cur, x * dpr, y * dpr + line * fontPx * 1.3); line++; cur = ""; };
+        for (const word of words) {
+          const test = cur ? `${cur} ${word}` : word;
+          if (octx.measureText(test).width > maxW && cur) flush();
+          else cur = test;
+          if (!cur) cur = word;
+        }
+        flush();
+      }
+    }
+  };
 
   const toBlob = useCallback<DrawLayerHandle["toBlob"]>((opts) => {
     return new Promise((resolve) => {
@@ -278,8 +335,10 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
       out.height = canvas.height;
       const octx = out.getContext("2d");
       if (!octx) { resolve(null); return; }
-      const paintInk = () => {
+      const dpr = canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
+      const paint = () => {
         octx.drawImage(canvas, 0, 0);
+        renderText(octx, dpr);
         out.toBlob((b) => resolve(b), "image/png");
       };
       const wantWhite = (opts?.background ?? (whiteExport ? "white" : "transparent")) === "white";
@@ -289,25 +348,29 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
         img.onload = () => {
           if (wantWhite) { octx.fillStyle = "#ffffff"; octx.fillRect(0, 0, out.width, out.height); }
           octx.drawImage(img, 0, 0, out.width, out.height);
-          paintInk();
+          paint();
         };
         img.onerror = () => {
           if (wantWhite) { octx.fillStyle = "#ffffff"; octx.fillRect(0, 0, out.width, out.height); }
-          paintInk();
+          paint();
         };
         img.src = backgroundSrc;
       } else {
         if (wantWhite) { octx.fillStyle = "#ffffff"; octx.fillRect(0, 0, out.width, out.height); }
-        paintInk();
+        paint();
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backgroundSrc, whiteExport]);
 
   useImperativeHandle(ref, () => ({
-    undo, clear, isDirty: () => dirtyRef.current, toBlob,
-  }), [undo, clear, toBlob]);
+    undo, clear,
+    isDirty: () => dirtyRef.current || boxesRef.current.some((b) => b.text.trim()),
+    toBlob, getText,
+  }), [undo, clear, toBlob, getText]);
 
   const cursor = tool === "text" ? "text" : "crosshair";
+  const editing = tool === "text";
 
   return (
     <div ref={wrapRef} className={className}
@@ -326,37 +389,38 @@ const DrawLayer = forwardRef<DrawLayerHandle, Props>(function DrawLayer(
         onPointerLeave={endStroke}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "none", cursor }}
       />
-      {textBox && (
-        <textarea
-          ref={textRef}
-          autoFocus
-          value={textBox.value}
-          onChange={(e) => setTextBox((b) => (b ? { ...b, value: e.target.value } : b))}
-          onBlur={(e) => {
-            // The click that opens the box can fire a spurious blur before the
-            // student types — if it's empty and brand-new, keep the box open and
-            // re-focus instead of closing it.
-            if (!e.currentTarget.value.trim() && Date.now() - textOpenedAtRef.current < 450) {
-              requestAnimationFrame(() => textRef.current?.focus());
-              return;
-            }
-            commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y });
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value, { x: textBox.x, y: textBox.y }); }
-            if (e.key === "Escape") { e.preventDefault(); setTextBox(null); }
-          }}
-          placeholder="Type…"
-          rows={1}
-          style={{
-            position: "absolute", left: textBox.x, top: textBox.y, zIndex: 2,
-            minWidth: 120, maxWidth: "70%", resize: "none", lineHeight: 1.25,
-            font: `600 ${Math.max(14, Math.round(size * 4 + 10))}px ${INK_FONT}`,
-            color, background: "rgba(255,255,255,.9)", border: `1.5px dashed ${color}`,
-            borderRadius: 6, padding: "2px 6px", outline: "none",
-          }}
-        />
-      )}
+      {boxes.map((b) => (
+        <div key={b.id} style={{ position: "absolute", left: b.x, top: b.y, zIndex: 3, pointerEvents: editing ? "auto" : "none" }}>
+          {editing && (
+            <div className="flex items-center" style={{ position: "absolute", top: -20, left: 0, gap: 6, height: 18 }}>
+              <span onPointerDown={(e) => startMove(e, b.id)} onPointerMove={onMoveDrag} onPointerUp={endMove} onPointerCancel={endMove}
+                title="Drag to move"
+                style={{ cursor: "move", fontSize: 11, fontWeight: 700, color: "#fff", background: b.color, borderRadius: 5, padding: "1px 7px", touchAction: "none", userSelect: "none", whiteSpace: "nowrap" }}>
+                ⠿ move
+              </span>
+              <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => deleteBox(b.id)} aria-label="Delete text"
+                style={{ cursor: "pointer", width: 18, height: 18, borderRadius: 5, border: "none", background: "rgba(0,0,0,.55)", color: "#fff", fontSize: 12, lineHeight: 1, display: "grid", placeItems: "center" }}>×</button>
+            </div>
+          )}
+          <textarea
+            ref={(el) => { if (el) { taRefs.current.set(b.id, el); autoGrow(el); } else taRefs.current.delete(b.id); }}
+            value={b.text}
+            readOnly={!editing}
+            onChange={(e) => { setBoxText(b.id, e.target.value); autoGrow(e.currentTarget); }}
+            onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); (e.currentTarget as HTMLTextAreaElement).blur(); } }}
+            placeholder="Type your answer…"
+            rows={1}
+            style={{
+              display: "block", minWidth: 140, minHeight: 36, width: 220, boxSizing: "border-box",
+              resize: editing ? "horizontal" : "none", lineHeight: 1.3, overflow: "hidden",
+              font: `600 ${b.fontPx}px ${INK_FONT}`, color: b.color,
+              background: editing ? "rgba(255,255,255,.92)" : "transparent",
+              border: editing ? `1.5px dashed ${b.color}` : "none",
+              borderRadius: 6, padding: "3px 6px", outline: "none",
+            }}
+          />
+        </div>
+      ))}
     </div>
   );
 });
