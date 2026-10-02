@@ -10,6 +10,7 @@ export const ICON_PATHS: Record<string, string> = {
   dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v15"/><path d="M6 17h14"/><path d="M6 21a2 2 0 0 1-2-2 2 2 0 0 1 2-2h14v4Z"/>',
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  type: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
   sparkles: '<path d="M12 3l1.6 4.8L18 9.4l-4.4 1.6L12 16l-1.6-5L6 9.4l4.4-1.6Z"/><path d="M19 14l.7 2.1L22 17l-2.3.9L19 20l-.7-2.1L16 17l2.3-.9Z"/>',
   check_circle: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
   flame: '<path d="M12 3c.6 3 2.2 4.2 3.5 5.6C16.8 10 18 11.6 18 14a6 6 0 0 1-12 0c0-1.6.6-3 1.7-4.2.4 .9 1.1 1.4 1.9 1.5C8.8 8.2 10 6 12 3Z"/>',

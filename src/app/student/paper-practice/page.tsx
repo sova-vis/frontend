@@ -10,6 +10,7 @@ import { Icon } from "@/components/propel/Icon";
 import PaperModal from "@/components/student/PaperModal";
 import DevQuestionEditor from "@/components/DevQuestionEditor";
 import DrawCanvas from "@/components/student/practice/DrawCanvas";
+import PaperDrawStudio from "@/components/student/practice/PaperDrawStudio";
 import { Segmented, EmptyState, Bar } from "@/components/propel/primitives";
 import {
   PracticeProgress, PracticeUpload, PracticeReport, GradedQuestion, MarkCategory, SolveMode, PracticeStatus,
@@ -109,6 +110,59 @@ const TOPIC_COUNTS = [5, 10, 15, 20, 30, 50] as const;
 // a preset, a custom count (1–60, single request), or "all" (paged).
 type TopicCount = number | "all";
 const MAX_TOPIC_COUNT = 60;
+
+// In-focus drawing target: a blank page for a full-paper handwritten upload, or a
+// single part of a topic question (each part is drawn on its own small canvas).
+type DrawTarget =
+  | { kind: "paper" }
+  | { kind: "part"; q: PracticeQuestion; partKey: string; label: string }
+  | null;
+
+/** Load an image from an object URL as an <img> (for client-side compositing). */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+/**
+ * Stitch several part drawings into one tall, labelled PNG so a multi-part topic
+ * answer can be marked in a single vision call — each part keeps its label so the
+ * reader slots the handwriting against the right sub-part.
+ */
+async function stitchLabeledDrawings(items: { label: string; url: string }[]): Promise<File> {
+  const imgs = await Promise.all(items.map((it) => loadImage(it.url)));
+  const PAD = 20, LABEL_H = 30, GAP = 18;
+  const width = Math.max(640, ...imgs.map((im) => im.naturalWidth));
+  let height = PAD;
+  const rows = imgs.map((im, i) => {
+    const scale = Math.min(1, width / (im.naturalWidth || width));
+    const h = Math.round((im.naturalHeight || 200) * scale);
+    const top = height + (items[i].label ? LABEL_H : 0);
+    height = top + h + GAP;
+    return { im, h, top, hasLabel: Boolean(items[i].label) };
+  });
+  height += PAD - GAP;
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = Math.max(height, 200);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textBaseline = "alphabetic";
+  rows.forEach((row, i) => {
+    if (row.hasLabel) {
+      ctx.fillStyle = "#15171c";
+      ctx.font = "700 20px Georgia, serif";
+      ctx.fillText(items[i].label, PAD, row.top - 8);
+    }
+    ctx.drawImage(row.im, 0, row.top, width, row.h);
+  });
+  const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png"));
+  return new File([blob], `drawing-${Date.now()}.png`, { type: "image/png" });
+}
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -583,12 +637,39 @@ function McqBody({ question, answer, checked, showScheme, onAnswer, readOnly }: 
   );
 }
 
-function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, schemeUnlocked }: {
+function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, schemeUnlocked, drawMode, drawUrls, onDrawPart, onClearPart }: {
   question: PracticeQuestion; answers: Record<string, string>; showScheme: boolean; onAnswer: (partKey: string, value: string) => void; readOnly?: boolean;
   schemeUnlocked?: boolean;
+  drawMode?: boolean; drawUrls?: Record<string, string>;
+  onDrawPart?: (partKey: string, label: string) => void; onClearPart?: (partKey: string) => void;
 }) {
   // the model answer / mark scheme must stay hidden until the question is marked
   const revealScheme = showScheme && schemeUnlocked;
+  // per-part drawing surface (topic draw mode): a thumbnail once drawn, else a prompt
+  const drawArea = (partKey: string, label: string) => {
+    const url = drawUrls?.[partKey];
+    return (
+      <div style={{ marginTop: 8 }}>
+        {url ? (
+          <div className="flex-col gap-6" style={{ display: "flex" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={`your drawing${label ? ` for ${label}` : ""}`}
+              style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 10, border: "1px solid var(--line-strong)", background: "#fff", objectFit: "contain", alignSelf: "flex-start" }} />
+            <div className="flex gap-8">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onDrawPart?.(partKey, label)}><Icon name="edit" size={13} /> Redraw</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onClearPart?.(partKey)}><Icon name="trash" size={13} /> Clear</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => onDrawPart?.(partKey, label)}
+            style={{ width: "100%", cursor: "pointer", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              borderRadius: 10, border: "2px dashed var(--line-strong)", background: "var(--surface)", color: "var(--crimson)", fontWeight: 600, fontSize: 13 }}>
+            <Icon name="edit" size={15} /> Draw your answer{label ? ` for ${label}` : ""}
+          </button>
+        )}
+      </div>
+    );
+  };
   return (
     <div className="flex-col gap-16" style={{ display: "flex", padding: "4px 2px" }}>
       {question.questionText && <p style={{ whiteSpace: "pre-wrap", fontSize: 18, lineHeight: 1.5, fontFamily: "var(--font-fraunces), serif" }}>{question.questionText}</p>}
@@ -602,7 +683,8 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
 
       {/* the stem itself is answerable (dev-enabled) — its own box, above the parts */}
       {stemHasBox(question) && question.parts.length > 0 && (
-        !readOnly ? (
+        drawMode ? drawArea(`${question.id}::stem`, "")
+        : !readOnly ? (
           <textarea value={answers[`${question.id}::stem`] ?? ""} onChange={(e) => onAnswer(`${question.id}::stem`, e.target.value)} placeholder="Write your answer…" className="textarea" />
         ) : (answers[`${question.id}::stem`] ?? "").trim() ? (
           <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--line)" }}>{answers[`${question.id}::stem`]}</p>
@@ -645,7 +727,8 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
                     {partFigures.map((image, i) => <QuestionImage key={`${partKey}-img-${i}`} image={image} />)}
                   </div>
                 )}
-                {!readOnly ? (
+                {drawMode ? drawArea(partKey, part.label || "")
+                : !readOnly ? (
                   <textarea value={answers[partKey] ?? ""} onChange={(e) => onAnswer(partKey, e.target.value)} placeholder="Write your answer…"
                     className="textarea" style={{ marginTop: 8, minHeight: 90 }} />
                 ) : (answers[partKey] ?? "").trim() ? (
@@ -664,7 +747,7 @@ function StructuredBody({ question, answers, showScheme, onAnswer, readOnly, sch
             );
           })}
         </div>
-      ) : !stemHasBox(question) ? null : !readOnly ? (
+      ) : !stemHasBox(question) ? null : drawMode ? drawArea(`${question.id}::0`, "") : !readOnly ? (
         <textarea value={answers[`${question.id}::0`] ?? ""} onChange={(e) => onAnswer(`${question.id}::0`, e.target.value)} placeholder="Write your answer…" className="textarea" />
       ) : (answers[`${question.id}::0`] ?? "").trim() ? (
         <p style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.55, padding: "8px 10px", borderRadius: 8,
@@ -762,8 +845,11 @@ type QuestionCardProps = {
   question: PracticeQuestion; showYear: boolean; mcqAnswer?: string; partAnswers: Record<string, string>;
   checked: boolean; showScheme: boolean; onMcqAnswer: (value: string) => void; onPartAnswer: (partKey: string, value: string) => void;
   readOnly?: boolean; onGradeOne?: () => void; gradeResult?: GradedQuestion; gradingOne?: boolean;
-  onGradeImage?: (file: File) => void; onDrawAnswer?: () => void; topicMode?: "type" | "upload" | "draw"; schemeUnlocked?: boolean;
+  onGradeImage?: (file: File) => void; topicMode?: "type" | "upload" | "draw"; schemeUnlocked?: boolean;
   submittedImage?: string;
+  // per-part drawing (topic draw mode)
+  drawUrls?: Record<string, string>; onDrawPart?: (partKey: string, label: string) => void;
+  onClearPart?: (partKey: string) => void; onGradeDrawn?: () => void;
   collapsed?: boolean; onToggleCollapsed?: () => void; onDeleted?: () => void;
 };
 
@@ -790,7 +876,8 @@ function questionCardEqual(prev: QuestionCardProps, next: QuestionCardProps) {
     prev.gradingOne === next.gradingOne &&
     prev.collapsed === next.collapsed &&
     prev.submittedImage === next.submittedImage &&
-    sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id)
+    sameOwnAnswers(prev.partAnswers, next.partAnswers, next.question.id) &&
+    sameOwnAnswers(prev.drawUrls ?? {}, next.drawUrls ?? {}, next.question.id)
     // function props (onPartAnswer, onGradeOne…) are behaviourally stable per
     // question, so we deliberately don't compare their identities here.
   );
@@ -831,6 +918,11 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
     : (Boolean(props.partAnswers[`${question.id}::0`]?.trim()) ? 1 : 0))
     + (stemUnit && Boolean(props.partAnswers[`${question.id}::stem`]?.trim()) ? 1 : 0);
 
+  // per-part drawings for this question (topic draw mode)
+  const drawnKeys = props.drawUrls ? Object.keys(props.drawUrls).filter((k) => k.startsWith(`${question.id}::`)) : [];
+  const drawnCount = drawnKeys.length;
+  const anyDrawn = drawnCount > 0;
+
   return (
     <article className="card card-pad flex-col gap-16">
       <div className="row-between wrap" style={{ gap: 10, cursor: collapsed ? "pointer" : "default" }}
@@ -862,16 +954,18 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
           {question.type === "mcq" ? (
             <McqBody question={question} answer={props.mcqAnswer} checked={props.checked} showScheme={props.showScheme} onAnswer={props.onMcqAnswer} readOnly={props.readOnly} />
           ) : (
-            // upload/draw modes hide the answer boxes — you answer with a photo or sketch
-            <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer} readOnly={props.readOnly || topicUpload || topicDraw} schemeUnlocked={props.schemeUnlocked} />
+            // upload hides the answer boxes (photo); draw swaps them for per-part canvases
+            <StructuredBody question={question} answers={props.partAnswers} showScheme={props.showScheme} onAnswer={props.onPartAnswer}
+              readOnly={props.readOnly || topicUpload || topicDraw} schemeUnlocked={props.schemeUnlocked}
+              drawMode={topicDraw} drawUrls={props.drawUrls} onDrawPart={props.onDrawPart} onClearPart={props.onClearPart} />
           )}
 
           {/* per-question AI marking (topic drills): solve here, upload a photo, or draw */}
           {props.onGradeOne && (
             <div className="flex-col gap-10">
-              {props.submittedImage && (topicUpload || topicDraw) && (
+              {props.submittedImage && topicUpload && (
                 <div className="flex-col gap-6" style={{ display: "flex" }}>
-                  <span className="eyebrow">Your submitted {topicDraw ? "drawing" : "photo"}</span>
+                  <span className="eyebrow">Your submitted photo</span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={props.submittedImage} alt="your submitted answer"
                     style={{ maxWidth: "100%", maxHeight: 260, borderRadius: 12, border: "1px solid var(--line-strong)", background: "#fff", objectFit: "contain", alignSelf: "flex-start" }} />
@@ -880,10 +974,11 @@ const QuestionCard = memo(function QuestionCard(props: QuestionCardProps) {
               {topicUpload ? (
                 <QuestionUploadBox busy={Boolean(props.gradingOne)} onFile={(file) => props.onGradeImage?.(file)} graded={Boolean(props.gradeResult)} />
               ) : topicDraw ? (
-                <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onDrawAnswer} disabled={props.gradingOne}>
+                <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeDrawn} disabled={props.gradingOne || !anyDrawn}
+                  title={anyDrawn ? "" : "Draw at least one part first"}>
                   {props.gradingOne
                     ? <><Icon name="refresh" size={14} className="spin" /> Marking…</>
-                    : <><Icon name="edit" size={14} /> {props.gradeResult ? "Draw again" : "Draw your answer"}</>}
+                    : <><Icon name="award" size={14} /> {props.gradeResult ? "Re-mark my answer" : totalParts > 1 ? `Mark my answer · ${drawnCount}/${totalParts} drawn` : "Mark my answer"}</>}
                 </button>
               ) : (
                 <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }} onClick={props.onGradeOne} disabled={props.gradingOne}>
@@ -1078,8 +1173,12 @@ function PracticeInner() {
   const [timedMinutes, setTimedMinutes] = useState(60);
   const [confirmTimed, setConfirmTimed] = useState(false);   // pre-lock confirm dialog
   const [isFullscreen, setIsFullscreen] = useState(false);
-  // in-focus drawing target: a topic question (mark that one), or "paper" (add a page)
-  const [drawTarget, setDrawTarget] = useState<PracticeQuestion | "paper" | null>(null);
+  // in-focus drawing target: a blank page (full-paper handwritten), or one part of
+  // a topic question (per-part canvases)
+  const [drawTarget, setDrawTarget] = useState<DrawTarget>(null);
+  // per-part drawings for topic questions, keyed by partKey (`${id}::${index}` or
+  // `${id}::stem`); each holds the File + an object URL for the thumbnail
+  const [partDrawings, setPartDrawings] = useState<Record<string, { file: File; url: string }>>({});
   // the drawing/photo a topic question was answered with, kept for the session so
   // the card shows what was submitted (object URLs, keyed by question id)
   const [answerImages, setAnswerImages] = useState<Record<string, string>>({});
@@ -1236,6 +1335,7 @@ function PracticeInner() {
     loggedIdsRef.current = new Set();
     setShowScheme(false);
     setAnswerImages((prev) => { for (const u of Object.values(prev)) { try { URL.revokeObjectURL(u); } catch { /* noop */ } } return {}; });
+    setPartDrawings((prev) => { for (const d of Object.values(prev)) { try { URL.revokeObjectURL(d.url); } catch { /* noop */ } } return {}; });
     // reset the per-paper session shell; the restore effect re-hydrates it
     setSolveMode("digital");
     setPaperStatus("in_progress");
@@ -1895,6 +1995,13 @@ function PracticeInner() {
     return map;
   }, [report]);
 
+  // partKey -> thumbnail URL, for the per-part draw areas (memo card compares own keys)
+  const drawUrls = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [k, v] of Object.entries(partDrawings)) map[k] = v.url;
+    return map;
+  }, [partDrawings]);
+
   const isQuestionFullyAnswered = (q: PracticeQuestion): boolean => {
     if (q.type === "mcq") return Boolean(mcqAnswers[q.id]?.trim());
     if (q.parts.length) return q.parts.every((part, i) => isHeaderPart(q.parts, part.label) || Boolean(partAnswers[`${q.id}::${i}`]?.trim()));
@@ -2038,6 +2145,17 @@ function PracticeInner() {
     }
   }
 
+  // Full-paper "draw on the paper": composited page images come in, get uploaded
+  // through the normal handwritten pipeline, then the paper is marked.
+  async function submitDrawnPaper(files: File[]) {
+    if (!files.length || !currentPaperKey) return;
+    const dt = new DataTransfer();
+    for (const f of files) dt.items.add(f);
+    await handleFiles(dt.files);
+    await gradePaper();
+    setReportOpen(true); // the PDF is the workspace, so surface the report straight away
+  }
+
   useEffect(() => {
     if (!justGradedRef.current || !report) return;
     justGradedRef.current = false;
@@ -2106,8 +2224,10 @@ function PracticeInner() {
     exitAppFullscreen();
     setTimerRunning(false);
     setConfirmTimed(false);
+    setDrawTarget(null);
     setPhase("setup");
-    setWizardStep("setup");
+    // land back on the subject picker, as requested — a clean restart point
+    setWizardStep("subject");
   }
   function handleFocusExit() {
     if (timedEnabled && timerRunning && !window.confirm("End your timed session? Your answers are saved.")) return;
@@ -2121,13 +2241,58 @@ function PracticeInner() {
   async function onDrawSave(file: File) {
     const target = drawTarget;
     if (!target) return;
-    if (target === "paper") {
+    if (target.kind === "paper") {
       const dt = new DataTransfer(); dt.items.add(file);
       setDrawTarget(null);
       await handleFiles(dt.files);
     } else {
-      await gradeOneFromImage(target, file);
+      // stash this part's drawing; it's marked when the student taps "Mark my answer"
+      setPartDrawings((prev) => {
+        const old = prev[target.partKey];
+        if (old) { try { URL.revokeObjectURL(old.url); } catch { /* noop */ } }
+        return { ...prev, [target.partKey]: { file, url: URL.createObjectURL(file) } };
+      });
       setDrawTarget(null);
+    }
+  }
+
+  // Ordered answerable slots of a topic question, for per-part drawing. A stem box
+  // (when the stem itself is answerable alongside parts) comes first; header parts
+  // that only introduce sub-parts are skipped.
+  function drawSlotsOf(q: PracticeQuestion): { partKey: string; label: string }[] {
+    if (q.parts.length === 0) return [{ partKey: `${q.id}::0`, label: "" }];
+    const slots: { partKey: string; label: string }[] = [];
+    if (stemHasBox(q)) slots.push({ partKey: `${q.id}::stem`, label: "" });
+    q.parts.forEach((part, index) => {
+      if (!isHeaderPart(q.parts, part.label)) slots.push({ partKey: `${q.id}::${index}`, label: part.label || "" });
+    });
+    return slots;
+  }
+
+  function clearPartDrawing(partKey: string) {
+    setPartDrawings((prev) => {
+      const old = prev[partKey];
+      if (!old) return prev;
+      try { URL.revokeObjectURL(old.url); } catch { /* noop */ }
+      const next = { ...prev }; delete next[partKey]; return next;
+    });
+  }
+
+  // Mark a drawn topic question: stitch its per-part drawings into one labelled
+  // image (single part → used as-is) and run it through the handwritten pipeline.
+  async function gradeDrawnQuestion(q: PracticeQuestion) {
+    if (oneGrading[q.id]) return;
+    const drawn = drawSlotsOf(q)
+      .map((s) => ({ ...s, img: partDrawings[s.partKey] }))
+      .filter((s): s is { partKey: string; label: string; img: { file: File; url: string } } => Boolean(s.img));
+    if (drawn.length === 0) { setError("Draw at least one part before marking."); return; }
+    try {
+      const file = drawn.length === 1
+        ? drawn[0].img.file
+        : await stitchLabeledDrawings(drawn.map((d) => ({ label: d.label, url: d.img.url })));
+      await gradeOneFromImage(q, file);
+    } catch {
+      setError("Couldn't prepare your drawing. Please try again.");
     }
   }
 
@@ -2350,9 +2515,10 @@ function PracticeInner() {
 
   function renderFocus() {
     const mcqMode = questionType === "mcq";
-    const drawTitle = drawTarget === "paper" ? "Draw a page of your working"
-      : drawTarget ? `Draw your answer — Q${(drawTarget as PracticeQuestion).questionNumber}` : "";
-    const drawSaving = drawTarget && drawTarget !== "paper" ? Boolean(oneGrading[(drawTarget as PracticeQuestion).id]) : uploadBusy;
+    const drawTitle = !drawTarget ? ""
+      : drawTarget.kind === "paper" ? "Draw a page of your working"
+      : `Draw your answer${drawTarget.label ? ` — ${drawTarget.label}` : ""} · Q${drawTarget.q.questionNumber}`;
+    const drawSaving = drawTarget?.kind === "paper" ? uploadBusy : false;
     const overlay = (
       <div className="pr practice-focus" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "var(--canvas)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* focus top bar */}
@@ -2389,7 +2555,7 @@ function PracticeInner() {
             )}
             {practiceMode === "paper" && (
               <>
-                {!report && !mcqMode && (
+                {!report && !mcqMode && inputMethod !== "draw" && (
                   <Segmented value={solveMode} onChange={changeSolveMode}
                     options={[{ value: "digital", label: "Type", icon: "pencil" }, { value: "handwritten", label: "Handwritten", icon: "upload" }]} />
                 )}
@@ -2465,14 +2631,23 @@ function PracticeInner() {
             ) : displayQuestions.length > 0 ? (
               <>
                 {practiceMode === "paper" && solveMode === "handwritten" && (
-                  <HandwrittenStudio uploads={uploads} busy={uploadBusy} progress={uploadProgress}
-                    questionCount={displayQuestions.length} onDraw={() => setDrawTarget("paper")}
-                    onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
+                  inputMethod === "draw" && selectedPaper ? (
+                    <PaperDrawStudio subject={selectedSubject}
+                      paper={{ year: selectedPaper.year, session: selectedPaper.session, paper: selectedPaper.paper, variant: selectedPaper.variant }}
+                      level={paperLevel} busy={grading || uploadBusy} graded={Boolean(report)} onSubmit={submitDrawnPaper} />
+                  ) : (
+                    <HandwrittenStudio uploads={uploads} busy={uploadBusy} progress={uploadProgress}
+                      questionCount={displayQuestions.length} onDraw={() => setDrawTarget({ kind: "paper" })}
+                      onFiles={(files) => void handleFiles(files)} onRemove={(path) => void handleRemoveUpload(path)} />
+                  )
                 )}
                 {practiceMode === "paper" && solveMode === "handwritten" && report?.extraction && (
                   <ExtractionPanel extraction={report.extraction} />
                 )}
-                {displayQuestions.map((question) => (
+                {/* draw-on-paper uses the PDF itself as the workspace — no second,
+                    read-only copy of the questions below it */}
+                {!(practiceMode === "paper" && solveMode === "handwritten" && inputMethod === "draw") &&
+                 displayQuestions.map((question) => (
                   <QuestionCard key={question.id} question={question} showYear={practiceMode === "topic"}
                     onDeleted={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
                     mcqAnswer={mcqAnswers[question.id]} partAnswers={partAnswers} checked={checkedIds.has(question.id)} showScheme={showScheme}
@@ -2481,7 +2656,10 @@ function PracticeInner() {
                     onPartAnswer={(partKey, value) => { interactedRef.current = true; markTouched(question.id); setPartAnswers((c) => ({ ...c, [partKey]: value })); }}
                     onGradeOne={practiceMode === "topic" && question.type === "structured" ? () => gradeOne(question) : undefined}
                     onGradeImage={practiceMode === "topic" && question.type === "structured" ? (file) => gradeOneFromImage(question, file) : undefined}
-                    onDrawAnswer={practiceMode === "topic" && question.type === "structured" ? () => setDrawTarget(question) : undefined}
+                    onGradeDrawn={practiceMode === "topic" && question.type === "structured" ? () => gradeDrawnQuestion(question) : undefined}
+                    onDrawPart={(partKey, label) => setDrawTarget({ kind: "part", q: question, partKey, label })}
+                    onClearPart={clearPartDrawing}
+                    drawUrls={practiceMode === "topic" ? drawUrls : undefined}
                     topicMode={inputMethod === "upload" ? "upload" : inputMethod === "draw" ? "draw" : "type"}
                     schemeUnlocked={practiceMode === "topic" ? Boolean(oneResults[question.id]) : Boolean(report)}
                     gradeResult={practiceMode === "topic" ? oneResults[question.id] : resultById[question.id]}
