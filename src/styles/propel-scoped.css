@@ -371,6 +371,23 @@
 
 .pr .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
 
+/* ---- Editorial (ed-*) components used inside the .pr shell ----
+   The Custom Questions page (and its modal) use the editorial component classes
+   while living inside the .pr teacher shell. .pr redefines --crimson/--surface/
+   --line/--ink as HEX, which breaks Tailwind's `rgb(var(--x)/a)` colour utilities
+   those classes rely on → backgrounds drop to transparent (invisible crimson
+   buttons + washed-out cards in light mode). Re-assert the fills with the .pr hex
+   tokens. Scoped to .pr, so ed-* on the student side is unaffected. */
+.pr .ed-btn-primary { background: var(--crimson); color: #fff; }
+.pr .ed-btn-primary:hover { background: var(--crimson-deep); }
+.pr .ed-btn-ghost { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.pr .ed-btn-ghost:hover { background: var(--surface-2); }
+.pr .ed-btn-ink { background: var(--ink); color: var(--surface); }
+.pr .ed-card, .pr .ed-card-soft { background: var(--surface); border: 1px solid var(--line); }
+.pr .ed-input { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.pr .ed-input::placeholder { color: var(--ink-soft); }
+.pr .ed-pill-neutral { background: var(--surface-2); color: var(--ink-soft); }
+
 .pr .btn-soft { background: var(--crimson-soft); color: var(--crimson); }
 
 .pr .btn-soft:hover { background: color-mix(in srgb, var(--crimson-soft) 70%, var(--crimson) 12%); }
