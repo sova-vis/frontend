@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/propel/Icon";
 import { CountUp, Modal, EmptyState, Segmented, useToast } from "@/components/propel/primitives";
-import { listClasses, createClass, updateClass, type TeacherClass } from "@/lib/teacherClasses";
+import { listClasses, createClass, updateClass, archiveClass, type TeacherClass } from "@/lib/teacherClasses";
 import { teacherSubjectsForLevel, standardCodeForSubject, type SyllabusLevel } from "@/lib/syllabus";
 import { subjectSlug } from "@/lib/studentSubjects";
 import { useClerkAuth } from "@/lib/useClerkAuth";
@@ -14,18 +14,29 @@ export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<TeacherClass[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  const load = () => { setErr(null); listClasses(false).then(setClasses).catch((e) => setErr(e.message)); };
+  // Load archived classes too, so an accidentally-archived class can be restored
+  // from here (archive is reversible — §3.4 — but there was no UI to undo it).
+  const load = () => { setErr(null); listClasses(true).then(setClasses).catch((e) => setErr(e.message)); };
   useEffect(load, []);
 
-  const totals = useMemo(() => {
-    const c = classes ?? [];
-    return {
-      classes: c.length,
-      students: c.reduce((a, x) => a + (x.student_count ?? 0), 0),
-      pending: c.reduce((a, x) => a + (x.pending_count ?? 0), 0),
-    };
-  }, [classes]);
+  const active = useMemo(() => (classes ?? []).filter((c) => !c.archived), [classes]);
+  const archived = useMemo(() => (classes ?? []).filter((c) => c.archived), [classes]);
+
+  const totals = useMemo(() => ({
+    classes: active.length,
+    students: active.reduce((a, x) => a + (x.student_count ?? 0), 0),
+    pending: active.reduce((a, x) => a + (x.pending_count ?? 0), 0),
+  }), [active]);
+
+  const restore = async (c: TeacherClass) => {
+    setRestoringId(c.id);
+    try { await archiveClass(c.id, false); toast(`"${c.name}" restored`, "check_circle"); load(); }
+    catch (e) { toast((e as Error).message, "alert"); }
+    finally { setRestoringId(null); }
+  };
 
   return (
     <>
@@ -48,11 +59,42 @@ export default function TeacherClassesPage() {
 
       {classes === null ? (
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>{[0, 1, 2].map((i) => <div key={i} className="sk" style={{ height: 180, borderRadius: 18 }} />)}</div>
-      ) : classes.length === 0 ? (
+      ) : active.length === 0 ? (
         <div className="card"><EmptyState icon="users" title="No classes yet" body="Create your first class to get a join code students can use to request access." cta="Create a class" onCta={() => setCreateOpen(true)} /></div>
       ) : (
         <div className="grid stagger" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-          {classes.map((c) => <ClassCard key={c.id} c={c} />)}
+          {active.map((c) => <ClassCard key={c.id} c={c} />)}
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <button className="btn btn-ghost" onClick={() => setShowArchived((v) => !v)} style={{ color: "var(--ink-soft)" }}>
+            <Icon name={showArchived ? "chevron_down" : "chevron_right"} size={16} /> Archived classes ({archived.length})
+          </button>
+          {showArchived && (
+            <div className="grid stagger" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", marginTop: 14 }}>
+              {archived.map((c) => (
+                <div key={c.id} className="card card-pad" style={{ opacity: 0.9 }}>
+                  <div className="row-between" style={{ marginBottom: 10 }}>
+                    <div className="card-title" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                    <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-faint)", border: "1px solid var(--line)" }}>Archived</span>
+                  </div>
+                  <div className="flex items-center gap-6 wrap">
+                    <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{c.subject}</span>
+                    <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{c.level === "A" ? "A Level" : "O Level"}</span>
+                  </div>
+                  <div className="hr" style={{ margin: "14px 0" }} />
+                  <div className="row-between">
+                    <span className="muted" style={{ fontSize: 13 }}>{c.student_count ?? 0} student{(c.student_count ?? 0) === 1 ? "" : "s"}</span>
+                    <button className="btn btn-primary" onClick={() => void restore(c)} disabled={restoringId === c.id}>
+                      <Icon name="rotate" size={15} /> {restoringId === c.id ? "Restoring…" : "Restore"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

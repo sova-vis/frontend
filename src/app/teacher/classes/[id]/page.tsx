@@ -39,7 +39,14 @@ export default function ClassDetailPage() {
   };
   const regen = async () => { try { setCls(await regenerateJoinCode(id)); toast("New code generated", "refresh"); } catch (e) { toast((e as Error).message, "alert"); } };
   const toggleJoin = async () => { if (!cls) return; try { setCls(await setJoinEnabled(id, !cls.join_enabled)); } catch (e) { toast((e as Error).message, "alert"); } };
-  const archive = async () => { try { await archiveClass(id, true); toast("Class archived", "check_circle"); window.location.href = "/teacher/classes"; } catch (e) { toast((e as Error).message, "alert"); } };
+  // Two-step so a stray click can't archive a class (it's reversible from the
+  // Classes page's "Archived" section, but this avoids the surprise entirely).
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const archive = async () => {
+    if (!confirmArchive) { setConfirmArchive(true); setTimeout(() => setConfirmArchive(false), 3500); return; }
+    try { await archiveClass(id, true); toast("Class archived", "check_circle"); window.location.href = "/teacher/classes"; }
+    catch (e) { toast((e as Error).message, "alert"); }
+  };
 
   if (err && !cls) return <p style={{ color: "var(--coral)" }}>{err}</p>;
   if (!cls) return <div className="sk" style={{ height: 320, borderRadius: 18 }} />;
@@ -63,7 +70,7 @@ export default function ClassDetailPage() {
         </div>
         <div className="flex gap-8 wrap" style={{ flex: "none" }}>
           <Link href={`/teacher/assignments/new?class_id=${cls.id}`} className="btn btn-primary"><Icon name="plus" size={16} /> New assignment</Link>
-          <button className="btn btn-ghost" onClick={archive} style={{ color: "var(--ink-soft)" }}><Icon name="layers" size={16} /> Archive</button>
+          <button className="btn btn-ghost" onClick={archive} style={{ color: confirmArchive ? "var(--coral)" : "var(--ink-soft)" }}><Icon name="layers" size={16} /> {confirmArchive ? "Click again to archive" : "Archive"}</button>
         </div>
       </div>
 
