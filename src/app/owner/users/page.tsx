@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/propel/Icon";
 import { CountUp, Segmented, Modal, useToast } from "@/components/propel/primitives";
 import { apiCall } from "@/lib/api";
+import { deleteUserAccount } from "@/lib/owner";
 
 interface UserRow {
   clerk_id: string;
@@ -37,6 +38,11 @@ function planLabel(r: UserRow) {
 function roleTone(role: string) {
   return role === "admin" || role === "owner" ? "crimson" : role === "school_admin" ? "purple" : role === "teacher" ? "teal" : "neutral";
 }
+function cascadeNote(role: string) {
+  if (role === "teacher") return "all their classes, assignments and submissions";
+  if (role === "school_admin") return "their admin access to the school";
+  return "their submissions, enrolments and practice data";
+}
 
 export default function OwnerUsersPage() {
   const toast = useToast();
@@ -56,6 +62,8 @@ export default function OwnerUsersPage() {
   };
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<UserRow | null>(null);
+  const [delTarget, setDelTarget] = useState<UserRow | null>(null);
+  const [delEmail, setDelEmail] = useState("");
 
   const load = useCallback(async () => {
     const res = await apiCall("/admin/users-billing");
@@ -104,6 +112,17 @@ export default function OwnerUsersPage() {
       setConfirm(null);
       await load();
     } catch { toast("Could not update. Try again.", "alert"); }
+    finally { setBusyId(null); }
+  };
+
+  const deleteUser = async (r: UserRow) => {
+    setBusyId(r.clerk_id);
+    try {
+      await deleteUserAccount(r.clerk_id, delEmail.trim());
+      toast("Account deleted", "check_circle");
+      setDelTarget(null); setDelEmail("");
+      await load();
+    } catch (e) { toast(e instanceof Error ? e.message : "Could not delete the account.", "alert"); }
     finally { setBusyId(null); }
   };
 
@@ -189,9 +208,15 @@ export default function OwnerUsersPage() {
                     <td style={{ padding: "10px 12px" }} className="mono">{typeof r.days_left === "number" ? `${r.days_left}d` : "—"}</td>
                     <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }} className="muted">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      {r.is_pro
-                        ? <button className="btn btn-ghost btn-sm" style={{ color: "var(--coral)" }} onClick={() => setConfirm(r)}><Icon name="x" size={14} /> {r.billing_status === "trialing" ? "End trial" : "Cancel Pro"}</button>
-                        : <span className="faint">—</span>}
+                      <div className="flex gap-8" style={{ justifyContent: "flex-end", alignItems: "center" }}>
+                        {r.is_pro && <button className="btn btn-ghost btn-sm" style={{ color: "var(--coral)" }} onClick={() => setConfirm(r)}><Icon name="x" size={14} /> {r.billing_status === "trialing" ? "End trial" : "Cancel Pro"}</button>}
+                        {r.role !== "admin" && r.role !== "owner" && (
+                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--coral)" }} onClick={() => { setDelTarget(r); setDelEmail(""); }} title="Permanently delete this account">
+                            <Icon name="trash" size={14} /> Delete
+                          </button>
+                        )}
+                        {!r.is_pro && (r.role === "admin" || r.role === "owner") && <span className="faint">—</span>}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -213,6 +238,26 @@ export default function OwnerUsersPage() {
             <button className="btn btn-ghost" onClick={() => setConfirm(null)} disabled={busyId === confirm.clerk_id}>Keep it</button>
             <button className="btn btn-block" style={{ background: "var(--coral)", color: "#fff" }} onClick={() => revoke(confirm)} disabled={busyId === confirm.clerk_id}>
               {busyId === confirm.clerk_id ? "Working…" : confirm.billing_status === "trialing" ? "End trial" : "Cancel Pro"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {delTarget && (
+        <Modal open onClose={() => { setDelTarget(null); setDelEmail(""); }}>
+          <h3 className="card-title" style={{ fontSize: 19 }}>Delete this account?</h3>
+          <p className="muted" style={{ marginTop: 8 }}>
+            This permanently deletes <strong>{delTarget.email || delTarget.full_name || "this user"}</strong>{" "}
+            (<span style={{ textTransform: "capitalize" }}>{delTarget.role.replace("_", " ")}</span>) and {cascadeNote(delTarget.role)}. This cannot be undone.
+          </p>
+          <label className="eyebrow" style={{ display: "block", margin: "14px 0 6px" }}>Type the account email to confirm</label>
+          <input className="input" value={delEmail} onChange={(e) => setDelEmail(e.target.value)} placeholder={delTarget.email || ""} autoFocus />
+          <div className="flex gap-10 mt-16">
+            <button className="btn btn-ghost" onClick={() => { setDelTarget(null); setDelEmail(""); }} disabled={busyId === delTarget.clerk_id}>Cancel</button>
+            <button className="btn btn-block" style={{ background: "var(--coral)", color: "#fff" }}
+              onClick={() => deleteUser(delTarget)}
+              disabled={busyId === delTarget.clerk_id || delEmail.trim().toLowerCase() !== (delTarget.email || "").toLowerCase()}>
+              {busyId === delTarget.clerk_id ? "Deleting…" : "Delete account"}
             </button>
           </div>
         </Modal>

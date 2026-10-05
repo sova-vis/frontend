@@ -171,6 +171,16 @@ export async function deleteSchool(id: string, confirm: string): Promise<SchoolD
   }));
 }
 
+// Permanently delete ANY account (teacher / school-admin / student) and cascade its
+// data. `confirm` must be the exact account email. Owner/admin accounts can't be deleted.
+export async function deleteUserAccount(clerkId: string, confirm: string): Promise<{ ok: boolean; role: string; email: string }> {
+  return json(await apiCall(`/owner/users/${encodeURIComponent(clerkId)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm }),
+  }));
+}
+
 // Platform-wide user roster (roles + billing), used for the owner overview stats
 // and the Users tab. Served by /admin/users-billing.
 export interface BillingUser {
