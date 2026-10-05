@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/propel/Icon";
 import { Modal, EmptyState, useToast } from "@/components/propel/primitives";
 import { listTeachers, createTeacher, bulkTeachers, updateTeacher, resetTeacherPassword, removeTeacher, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
-import { syllabusesForLevel } from "@/lib/syllabus";
+import { teacherSubjectToken, parseTeacherSubjectToken, teacherSubjectLabel, normalizeTeacherSubjectTokens } from "@/lib/syllabus";
+import { loadLevelSubjects, type LevelSubject, type Lv } from "@/lib/librarySubjects";
 
 export default function TeachersPage() {
   const toast = useToast();
@@ -63,7 +64,7 @@ export default function TeachersPage() {
                       </div>
                       <div className="muted" style={{ fontSize: 13 }}>{t.email}</div>
                       <div className="flex items-center gap-6 wrap mt-6">
-                        {(t.syllabus_codes ?? []).slice(0, 6).map((c) => <span key={c} className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{c}</span>)}
+                        {(t.syllabus_codes ?? []).slice(0, 6).map((c) => <span key={c} className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{teacherSubjectLabel(c)}</span>)}
                         {(t.levels ?? []).map((l) => <span key={l} className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{l}</span>)}
                         {(!t.syllabus_codes?.length && !t.levels?.length) && <span className="faint" style={{ fontSize: 12.5 }}>No subjects assigned</span>}
                       </div>
@@ -231,7 +232,7 @@ function ResetPasswordModal({ teacher, onClose }: { teacher: Teacher; onClose: (
 function EditTeacherModal({ teacher, onClose, onDone }: { teacher: Teacher; onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState(teacher.full_name || "");
   const [levels, setLevels] = useState<string[]>((teacher.levels ?? []).filter((l) => l === "O" || l === "A"));
-  const [codes, setCodes] = useState<string[]>(teacher.syllabus_codes ?? []);
+  const [codes, setCodes] = useState<string[]>(() => normalizeTeacherSubjectTokens(teacher.syllabus_codes ?? []));
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const submit = async () => {
     setBusy(true); setErr(null);
@@ -252,26 +253,40 @@ function EditTeacherModal({ teacher, onClose, onDone }: { teacher: Teacher; onCl
   );
 }
 
-// Level → subjects picker (§4.1). Toggle O Level and/or A Level; each reveals its
-// real syllabuses to tick. Reports the chosen levels + syllabus codes.
+// Level → subjects picker (§4.1). Toggle O Level and/or A Level; each reveals the
+// REAL subjects we have in the past-paper library (same source as the student
+// Settings/Past Papers tabs, via loadLevelSubjects) so the options always match.
+// Reports the chosen levels + level-qualified subject tokens ("O:Physics").
 function SubjectLevelPicker({ levels, codes, onLevels, onCodes }: {
   levels: string[]; codes: string[]; onLevels: (l: string[]) => void; onCodes: (c: string[]) => void;
 }) {
-  const toggleLevel = (lv: "O" | "A") => {
+  const [lib, setLib] = useState<LevelSubject[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    loadLevelSubjects("Both").then((r) => { if (active) setLib(r); }).catch(() => { if (active) setLib([]); });
+    return () => { active = false; };
+  }, []);
+
+  const subjectsFor = (lv: Lv) => (lib ?? []).filter((s) => s.levels.includes(lv)).map((s) => s.name);
+  const toggleLevel = (lv: Lv) => {
     if (levels.includes(lv)) {
       onLevels(levels.filter((x) => x !== lv));
-      const lvCodes = new Set(syllabusesForLevel(lv).map((s) => s.code));
-      onCodes(codes.filter((c) => !lvCodes.has(c)));
+      // Drop only this level's selections (tokens are level-qualified).
+      onCodes(codes.filter((c) => parseTeacherSubjectToken(c).level !== lv));
     } else {
       onLevels([...levels, lv]);
     }
   };
-  const toggleCode = (code: string) => onCodes(codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code]);
+  const toggleSubject = (lv: Lv, name: string) => {
+    const tok = teacherSubjectToken(lv, name);
+    onCodes(codes.includes(tok) ? codes.filter((c) => c !== tok) : [...codes, tok]);
+  };
   return (
     <div className="grid" style={{ gap: 10 }}>
       {(["O", "A"] as const).map((lv) => {
         const on = levels.includes(lv);
-        const chosen = syllabusesForLevel(lv).filter((s) => codes.includes(s.code)).length;
+        const names = subjectsFor(lv);
+        const chosen = codes.filter((c) => parseTeacherSubjectToken(c).level === lv).length;
         return (
           <div key={lv} style={{ border: `1px solid ${on ? "var(--crimson)" : "var(--line)"}`, borderRadius: 12, padding: 12 }}>
             <button type="button" onClick={() => toggleLevel(lv)} className="row-between" style={{ width: "100%" }}>
@@ -284,19 +299,25 @@ function SubjectLevelPicker({ levels, codes, onLevels, onCodes }: {
               </span>
             </button>
             {on && (
-              <div className="flex wrap gap-6" style={{ marginTop: 12 }}>
-                {syllabusesForLevel(lv).map((s) => {
-                  const sel = codes.includes(s.code);
-                  return (
-                    <button key={s.code} type="button" onClick={() => toggleCode(s.code)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
-                        ...(sel ? { background: "var(--crimson)", color: "#fff", border: "1px solid var(--crimson)" } : { background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }) }}>
-                      {sel && <Icon name="check_circle" size={13} />}
-                      {s.subject} <span className="mono" style={{ opacity: 0.7, fontSize: 11 }}>{s.code}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              lib === null ? (
+                <p className="faint" style={{ fontSize: 12.5, marginTop: 12 }}>Loading subjects…</p>
+              ) : names.length === 0 ? (
+                <p className="faint" style={{ fontSize: 12.5, marginTop: 12 }}>No subjects found in the library for this level.</p>
+              ) : (
+                <div className="flex wrap gap-6" style={{ marginTop: 12 }}>
+                  {names.map((name) => {
+                    const sel = codes.includes(teacherSubjectToken(lv, name));
+                    return (
+                      <button key={name} type="button" onClick={() => toggleSubject(lv, name)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                          ...(sel ? { background: "var(--crimson)", color: "#fff", border: "1px solid var(--crimson)" } : { background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }) }}>
+                        {sel && <Icon name="check_circle" size={13} />}
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         );

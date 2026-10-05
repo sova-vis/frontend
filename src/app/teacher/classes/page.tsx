@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Icon } from "@/components/propel/Icon";
 import { CountUp, Modal, EmptyState, Segmented, useToast } from "@/components/propel/primitives";
 import { listClasses, createClass, updateClass, type TeacherClass } from "@/lib/teacherClasses";
-import { syllabusesForLevel, type SyllabusLevel } from "@/lib/syllabus";
+import { teacherSubjectsForLevel, standardCodeForSubject, type SyllabusLevel } from "@/lib/syllabus";
+import { subjectSlug } from "@/lib/studentSubjects";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 
 export default function TeacherClassesPage() {
@@ -115,15 +116,18 @@ function CreateClassModal({ onClose, onCreated }: { onClose: () => void; onCreat
   // Keep the chosen level within the allowed set (and clear the subject when it moves).
   useEffect(() => { if (!levels.includes(level)) { setLevel(levels[0]); setF((s) => ({ ...s, subject: "", syllabus_code: "" })); } }, [levels, level]);
 
-  // The teacher's assigned syllabuses for this level — each option is subject + code.
-  const options = useMemo(() => (scoped ? syllabusesForLevel(level).filter((s) => teacherCodes.includes(s.code)) : []), [scoped, level, teacherCodes]);
+  // The teacher's assigned subjects for this level (reads new name tokens AND
+  // legacy numeric codes). A standard Cambridge code is attached when one exists,
+  // otherwise a slug — so library-only subjects (no code) still get a class code.
+  const options = useMemo<string[]>(() => (scoped ? teacherSubjectsForLevel(teacherCodes, level) : []), [scoped, level, teacherCodes]);
+  const codeFor = (name: string) => standardCodeForSubject(name, level) || subjectSlug(name);
   // Auto-pick when they have exactly one assigned subject at this level.
   useEffect(() => {
-    if (scoped && options.length === 1 && !f.syllabus_code) setF((s) => ({ ...s, subject: options[0].subject, syllabus_code: options[0].code }));
-  }, [scoped, options, f.syllabus_code]);
-  const chooseSubject = (code: string) => {
-    const s = options.find((o) => o.code === code);
-    setF((prev) => ({ ...prev, subject: s?.subject ?? "", syllabus_code: s?.code ?? "" }));
+    if (scoped && options.length === 1 && !f.subject) setF((s) => ({ ...s, subject: options[0], syllabus_code: codeFor(options[0]) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scoped, options, f.subject, level]);
+  const chooseSubject = (name: string) => {
+    setF((prev) => ({ ...prev, subject: name, syllabus_code: name ? codeFor(name) : "" }));
   };
 
   const submit = async () => {
@@ -149,9 +153,9 @@ function CreateClassModal({ onClose, onCreated }: { onClose: () => void; onCreat
       {scoped ? (
         <label style={{ display: "block", marginBottom: 12 }}>
           <span className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Subject</span>
-          <select className="input" value={f.syllabus_code} onChange={(e) => chooseSubject(e.target.value)} disabled={options.length === 0}>
+          <select className="input" value={f.subject} onChange={(e) => chooseSubject(e.target.value)} disabled={options.length === 0}>
             <option value="">{options.length ? "Select a subject" : "No subjects assigned at this level"}</option>
-            {options.map((o) => <option key={o.code} value={o.code}>{o.subject} · {o.code}</option>)}
+            {options.map((name) => <option key={name} value={name}>{name}</option>)}
           </select>
           {options.length === 0 && <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>Ask your school admin to assign you a subject at this level.</p>}
         </label>
