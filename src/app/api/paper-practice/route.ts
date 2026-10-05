@@ -236,6 +236,42 @@ const META_TTL_MS = 5 * 60 * 1000;
 const META_CACHE_HEADERS = { "Cache-Control": "private, max-age=120, stale-while-revalidate=600" };
 const metaCacheByLevel = new Map<string, { at: number; subjects: ReturnType<typeof buildSubjectMeta> }>();
 
+// Drive/display subject names (shown in the teacher subject picker, student
+// Settings and the Past Papers browser) occasionally differ from the ingested
+// question bank's own subject name — e.g. the O-Level Drive folder "English" is
+// stored in the bank as "English Language", and A-Level "Global Perspectives &
+// Research" as "Global Perspectives". Resolve a requested name onto the real bank
+// subject so Full-paper / By-topic practice AND the teacher assignment builder
+// find questions instead of 404-ing with "Subject not found".
+const SUBJECT_ALIASES: Record<string, string> = {
+  english: "english language",
+  "global perspectives & research": "global perspectives",
+  "global perspectives and research": "global perspectives",
+};
+
+function normalizeSubjectName(s: string): string {
+  return s.toLowerCase().replace(/&/g, " and ").replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function resolveBankSubject(raw: string, subjects: { name: string }[]): string {
+  const want = raw.trim().toLowerCase();
+  // 1. Exact (case-insensitive) — the common path, every already-matching subject.
+  const exact = subjects.find((s) => s.name.toLowerCase() === want);
+  if (exact) return exact.name;
+  // 2. Explicit alias for a known Drive↔bank naming difference.
+  const alias = SUBJECT_ALIASES[want] ?? SUBJECT_ALIASES[normalizeSubjectName(raw)];
+  if (alias) {
+    const hit = subjects.find((s) => normalizeSubjectName(s.name) === normalizeSubjectName(alias));
+    if (hit) return hit.name;
+  }
+  // 3. Normalised equality / prefix — also catches legacy bracketed names such as
+  //    "Mathematics (Syllabus D)" → "Mathematics".
+  const n = normalizeSubjectName(raw);
+  const hit = subjects.find((s) => normalizeSubjectName(s.name) === n)
+    || subjects.find((s) => { const sn = normalizeSubjectName(s.name); return !!sn && (sn.startsWith(`${n} `) || n.startsWith(`${sn} `)); });
+  return hit ? hit.name : raw;
+}
+
 async function getSubjectsMeta(supabase: SupabaseClient, level: string) {
   const cached = metaCacheByLevel.get(level);
   if (cached && Date.now() - cached.at < META_TTL_MS) return cached.subjects;
@@ -581,13 +617,17 @@ export async function GET(request: Request) {
 
   for (const supabase of supabaseClients) {
     try {
-      // ---- Data requests: resolve via ilike, skipping the full metadata scan.
-      // The frontend always sends the canonical subject name from the subject list.
+      // ---- Data requests. Resolve the requested name onto the real bank subject
+      // first (the picker/Settings may send a Drive name like "English" that the
+      // bank stores as "English Language"). getSubjectsMeta is cached per level.
       if (rawSubject) {
+        const subjectList = await getSubjectsMeta(supabase, level);
+        const subject = resolveBankSubject(rawSubject, subjectList);
+
         // Available-papers picker (available_papers view).
         if (wantPapers) {
-          const papers = await fetchAvailablePapers(supabase, rawSubject, typeParam, validYear, level);
-          return NextResponse.json({ subject: rawSubject, papers });
+          const papers = await fetchAvailablePapers(supabase, subject, typeParam, validYear, level);
+          return NextResponse.json({ subject, papers });
         }
 
         // Topic practice: unique questions for a topic across all years (deduped,
@@ -595,15 +635,15 @@ export async function GET(request: Request) {
         if (mode === "topic" && typeParam && topic) {
           const limit = Math.min(Math.max(Number.parseInt(searchParams.get("limit") || "24", 10) || 24, 1), 60);
           const offset = Math.max(Number.parseInt(searchParams.get("offset") || "0", 10) || 0, 0);
-          const { questions, total } = await fetchTopicQuestions(supabase, rawSubject, typeParam, topic, limit, offset, level);
-          return NextResponse.json({ subject: rawSubject, type: typeParam, topic, questions, total, offset, limit, mode: "topic" });
+          const { questions, total } = await fetchTopicQuestions(supabase, subject, typeParam, topic, limit, offset, level);
+          return NextResponse.json({ subject, type: typeParam, topic, questions, total, offset, limit, mode: "topic" });
         }
 
         // Whole paper via the fetch_paper RPC.
         if (validYear && session && paper) {
           const questions = await fetchWholePaper(
             supabase,
-            rawSubject,
+            subject,
             validYear,
             session,
             paper,
@@ -611,7 +651,7 @@ export async function GET(request: Request) {
             level,
           );
           return NextResponse.json({
-            subject: rawSubject,
+            subject,
             year: yearParam,
             session,
             paper,
@@ -624,8 +664,8 @@ export async function GET(request: Request) {
 
         // Year + type browse (still available; the two-mode UI uses topic/paper).
         if (typeParam && validYear) {
-          const questions = await fetchQuestions(supabase, rawSubject, typeParam, validYear, variant, topic, level);
-          return NextResponse.json({ subject: rawSubject, type: typeParam, year: yearParam, questions, total: questions.length });
+          const questions = await fetchQuestions(supabase, subject, typeParam, validYear, variant, topic, level);
+          return NextResponse.json({ subject, type: typeParam, year: yearParam, questions, total: questions.length });
         }
       }
 
@@ -634,7 +674,8 @@ export async function GET(request: Request) {
       if (!rawSubject) {
         return NextResponse.json({ subjects }, { headers: META_CACHE_HEADERS });
       }
-      const subjectMeta = subjects.find((s) => s.name.toLowerCase() === rawSubject.toLowerCase());
+      const resolvedName = resolveBankSubject(rawSubject, subjects);
+      const subjectMeta = subjects.find((s) => s.name.toLowerCase() === resolvedName.toLowerCase());
       if (!subjectMeta) {
         return NextResponse.json({ error: "Subject not found." }, { status: 404 });
       }
