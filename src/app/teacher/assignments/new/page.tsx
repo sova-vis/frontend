@@ -136,6 +136,9 @@ function Builder() {
   return (
     <>
       <style>{`
+        /* The assignment builder is a focused work tool — suppress the ambient
+           corner gradient "blobs" here (scoped to this page; reverts on leave). */
+        .pr::before { display: none !important; }
         .asn-grid { display:grid; grid-template-columns: minmax(0,1fr); gap:20px; align-items:start; }
         @media (min-width: 980px){ .asn-grid { grid-template-columns: minmax(0,1fr) 320px; } .asn-cart { position: sticky; top: 88px; } }
       `}</style>

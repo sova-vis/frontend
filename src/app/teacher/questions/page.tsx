@@ -85,7 +85,12 @@ export default function CustomQuestionsPage() {
         {loading ? (
           <div className="h-40 rounded-[1.25rem] bg-surface-soft animate-pulse" />
         ) : questions.length === 0 ? (
-          <div className="ed-card p-10 text-center text-ink-muted">No custom questions yet.</div>
+          <div className="ed-card p-10 text-center">
+            <p className="text-ink-muted">No custom questions yet.</p>
+            <button onClick={() => setShowForm(true)} className="ed-btn-primary mt-4 px-4 py-2.5 mx-auto">
+              <Plus size={16} /> New question
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
             {questions.map((q) => (

@@ -48,6 +48,7 @@ export default function TakeAssignmentPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [result, setResult] = useState<StudentResult | null>(null);
   const startRef = useRef<number>(0);
 
@@ -148,9 +149,24 @@ export default function TakeAssignmentPage() {
     }).length;
   }, [answers, data]);
 
-  const submit = async () => {
+  // Return to wherever the student opened this from (their classroom or the
+  // assignments list) instead of always dumping them on the orphan list page;
+  // fall back to the classroom so this is never a dead-end.
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else router.push("/student/classroom");
+  };
+
+  // Submit now asks for confirmation in a centered on-page modal (not a native
+  // browser confirm that pops at the top of the window).
+  const submit = () => {
+    if (!submissionId || submitting) return;
+    setConfirmOpen(true);
+  };
+
+  const doSubmit = async () => {
     if (!submissionId) return;
-    if (!window.confirm("Submit your answers? You won't be able to edit after submitting.")) return;
+    setConfirmOpen(false);
     setSubmitting(true);
     try {
       const seconds = Math.round((Date.now() - startRef.current) / 1000);
@@ -178,7 +194,7 @@ export default function TakeAssignmentPage() {
     return (
       <div className="min-h-screen bg-paper px-4 py-16 text-center text-ink">
         <p className="text-ink-muted">{error || "Assignment not available."}</p>
-        <button onClick={() => router.push("/student/assignments")} className="ed-btn-ghost mt-4 px-4 py-2 mx-auto">
+        <button onClick={goBack} className="ed-btn-ghost mt-4 px-4 py-2 mx-auto">
           Back
         </button>
       </div>
@@ -201,9 +217,24 @@ export default function TakeAssignmentPage() {
           </div>
         </div>
       )}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/50 backdrop-blur-sm p-4" onClick={() => setConfirmOpen(false)}>
+          <div className="ed-card p-6 text-center max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-crimson-soft text-crimson-ink">
+              <CheckCircle2 size={30} />
+            </div>
+            <h2 className="font-display text-lg font-semibold mt-4">Submit your answers?</h2>
+            <p className="text-ink-muted text-sm mt-1">You won&apos;t be able to edit after submitting.</p>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setConfirmOpen(false)} className="ed-btn-ghost flex-1 justify-center py-2.5">Cancel</button>
+              <button onClick={() => void doSubmit()} disabled={submitting} className="ed-btn-primary flex-1 justify-center py-2.5">{submitting ? "Submitting…" : "Submit"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-3xl mx-auto space-y-5">
-        <button onClick={() => router.push("/student/assignments")} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1">
-          <ChevronLeft size={15} /> Assignments
+        <button onClick={goBack} className="text-sm text-ink-muted hover:text-ink inline-flex items-center gap-1">
+          <ChevronLeft size={15} /> Back
         </button>
 
         <div className="ed-card p-5 flex flex-wrap items-center justify-between gap-3 sticky top-2 z-10">
