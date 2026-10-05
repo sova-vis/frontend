@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Share2, Trash2, X } from "lucide-react";
+import { ArrowLeft, ImagePlus, Plus, Share2, Trash2, X } from "lucide-react";
 import { Reveal } from "@/components/ui/Motion";
 import {
   Criterion,
+  CustomImage,
+  CustomPart,
   CustomQuestion,
   CustomQuestionType,
   createCustomQuestion,
@@ -14,6 +16,40 @@ import {
   updateCustomQuestion,
 } from "@/lib/customQuestions";
 import { TeacherClass, listClasses } from "@/lib/teacherClasses";
+
+// Figures are stored inline as data URLs. Downscale on the client so a phone photo
+// doesn't bloat the request/DB — long edge capped, re-encoded as JPEG.
+async function fileToDownscaledDataUrl(file: File, maxDim = 1400, quality = 0.82): Promise<string> {
+  const readAsDataUrl = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("read failed"));
+      fr.readAsDataURL(f);
+    });
+  const original = await readAsDataUrl(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("decode failed"));
+      i.src = original;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    if (scale >= 1 && original.length < 400_000) return original;
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return original;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return original;
+  }
+}
 
 export default function CustomQuestionsPage() {
   const [questions, setQuestions] = useState<CustomQuestion[]>([]);
@@ -100,7 +136,11 @@ export default function CustomQuestionsPage() {
                     <div className="flex items-center gap-2 flex-wrap text-xs text-ink-faint">
                       <span className="ed-pill-mint text-[0.6rem]">{q.subject}</span>
                       {q.topic && <span className="ed-pill-gold text-[0.6rem]">{q.topic}</span>}
-                      <span>{q.marks} marks · {q.criteria.length} criteria</span>
+                      <span>
+                        {q.marks} marks · {q.criteria.length} criteria
+                        {q.parts?.length ? ` · ${q.parts.length} part${q.parts.length > 1 ? "s" : ""}` : ""}
+                        {(() => { const n = (q.images?.length ?? 0) + (q.parts?.reduce((s, p) => s + (p.images?.length ?? 0), 0) ?? 0); return n ? ` · ${n} figure${n > 1 ? "s" : ""}` : ""; })()}
+                      </span>
                       {!q.is_owner && <span className="ed-pill-neutral text-[0.6rem]">Shared</span>}
                     </div>
                     <p className="text-sm text-ink mt-1.5">{q.question_text}</p>
@@ -163,6 +203,9 @@ function QuestionForm({
   const [questionText, setQuestionText] = useState("");
   const [type, setType] = useState<CustomQuestionType>("structured");
   const [criteria, setCriteria] = useState<Criterion[]>([{ criterion_text: "", marks: 1 }]);
+  const [images, setImages] = useState<CustomImage[]>([]);
+  const [parts, setParts] = useState<{ label: string; body: string; marks: number | ""; images: CustomImage[] }[]>([]);
+  const [imgBusy, setImgBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -172,6 +215,33 @@ function QuestionForm({
     setCriteria((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   const addCriterion = () => setCriteria((prev) => [...prev, { criterion_text: "", marks: 1 }]);
   const removeCriterion = (i: number) => setCriteria((prev) => prev.filter((_, idx) => idx !== i));
+
+  type DraftPart = { label: string; body: string; marks: number | ""; images: CustomImage[] };
+  const addPart = () => setParts((prev) => [...prev, { label: `(${String.fromCharCode(97 + prev.length)})`, body: "", marks: "", images: [] }]);
+  const setPart = (i: number, patch: Partial<DraftPart>) =>
+    setParts((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  const removePart = (i: number) => setParts((prev) => prev.filter((_, idx) => idx !== i));
+
+  const uploadImages = async (files: FileList | null, target: "question" | number) => {
+    if (!files || files.length === 0) return;
+    setImgBusy(true);
+    try {
+      const imgs: CustomImage[] = [];
+      for (const f of Array.from(files)) {
+        if (!f.type.startsWith("image/")) continue;
+        imgs.push({ data_url: await fileToDownscaledDataUrl(f), alt: f.name.replace(/\.[^.]+$/, "") });
+      }
+      if (imgs.length === 0) return;
+      if (target === "question") setImages((prev) => [...prev, ...imgs]);
+      else setParts((prev) => prev.map((p, idx) => (idx === target ? { ...p, images: [...p.images, ...imgs] } : p)));
+    } finally {
+      setImgBusy(false);
+    }
+  };
+  const removeImage = (target: "question" | number, imgIdx: number) => {
+    if (target === "question") setImages((prev) => prev.filter((_, i) => i !== imgIdx));
+    else setParts((prev) => prev.map((p, idx) => (idx === target ? { ...p, images: p.images.filter((_, i) => i !== imgIdx) } : p)));
+  };
 
   const submit = async () => {
     const cleaned = criteria.filter((c) => c.criterion_text.trim());
@@ -188,6 +258,10 @@ function QuestionForm({
         question_text: questionText.trim(),
         question_type: type,
         criteria: cleaned.map((c, i) => ({ criterion_text: c.criterion_text.trim(), marks: Number(c.marks) || 0, order_index: i })),
+        images,
+        parts: parts
+          .map((p) => ({ label: p.label.trim(), body: p.body.trim(), marks: p.marks === "" ? null : Number(p.marks), images: p.images }))
+          .filter((p) => p.body || p.images.length > 0),
       });
       onCreated(created);
     } catch (err) {
@@ -243,6 +317,40 @@ function QuestionForm({
           </div>
 
           <div>
+            <label className="ed-label">Figures <span className="font-normal text-ink-faint">(optional)</span></label>
+            <ImageRow images={images} onAdd={(files) => void uploadImages(files, "question")} onRemove={(i) => removeImage("question", i)} busy={imgBusy} />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="ed-label">Parts <span className="font-normal text-ink-faint">(optional — split into (a), (b)…)</span></label>
+              <button onClick={addPart} className="ed-btn-ghost px-3 py-1.5 text-xs">
+                <Plus size={13} /> Add part
+              </button>
+            </div>
+            {parts.length === 0 ? (
+              <p className="text-xs text-ink-faint">Single-prompt question. Add parts to break it into (a), (b), … each with its own figures.</p>
+            ) : (
+              <div className="space-y-3">
+                {parts.map((p, i) => (
+                  <div key={i} className="rounded-xl border border-line p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input value={p.label} onChange={(e) => setPart(i, { label: e.target.value })} placeholder="(a)" className="ed-input px-2 py-1.5 text-sm w-16" />
+                      <input type="number" min={0} value={p.marks} onChange={(e) => setPart(i, { marks: e.target.value === "" ? "" : Number(e.target.value) })} placeholder="marks" className="ed-input px-2 py-1.5 text-sm w-20" />
+                      <span className="flex-1" />
+                      <button onClick={() => removePart(i)} className="p-1 text-ink-faint hover:text-crimson" title="Remove part">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <textarea value={p.body} onChange={(e) => setPart(i, { body: e.target.value })} rows={2} placeholder="Part prompt…" className="ed-input px-3 py-2 text-sm resize-none" />
+                    <ImageRow images={p.images} onAdd={(files) => void uploadImages(files, i)} onRemove={(idx) => removeImage(i, idx)} busy={imgBusy} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
             <div className="flex items-center justify-between mb-2">
               <label className="ed-label">Mark scheme criteria</label>
               <span className="text-xs text-ink-muted">Total: <span className="font-semibold text-ink">{total}</span> marks</span>
@@ -283,12 +391,50 @@ function QuestionForm({
             <button onClick={onClose} className="ed-btn-ghost flex-1 justify-center py-2.5">
               Cancel
             </button>
-            <button onClick={() => void submit()} disabled={saving} className="ed-btn-primary flex-1 justify-center py-2.5">
+            <button onClick={() => void submit()} disabled={saving || imgBusy} className="ed-btn-primary flex-1 justify-center py-2.5">
               {saving ? "Saving…" : "Save question"}
             </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Thumbnails + an upload tile for a question's or part's figures.
+function ImageRow({ images, onAdd, onRemove, busy }: {
+  images: CustomImage[];
+  onAdd: (files: FileList | null) => void;
+  onRemove: (i: number) => void;
+  busy?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      {images.map((im, i) => (
+        <div key={i} className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={im.data_url} alt={im.alt || "figure"} className="h-16 w-16 rounded-lg border border-line object-cover" />
+          <button onClick={() => onRemove(i)} className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-ink text-paper" title="Remove">
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className="ed-btn-ghost flex h-16 w-16 flex-col justify-center gap-1 p-0 text-[0.65rem]"
+      >
+        <ImagePlus size={16} /> {busy ? "…" : "Add"}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => { onAdd(e.target.files); if (inputRef.current) inputRef.current.value = ""; }}
+      />
     </div>
   );
 }

@@ -12,6 +12,21 @@ export interface Criterion {
   order_index?: number;
 }
 
+/** A figure attached to a question or one of its parts (stored inline as a data URL). */
+export interface CustomImage {
+  data_url: string;
+  alt?: string;
+  caption?: string | null;
+}
+
+/** A labelled sub-part: (a), (b)… — its own prompt, optional marks, own figures. */
+export interface CustomPart {
+  label: string;
+  body: string;
+  marks: number | null;
+  images: CustomImage[];
+}
+
 export interface CustomQuestion {
   id: string;
   owner_clerk_id: string;
@@ -26,6 +41,8 @@ export interface CustomQuestion {
   created_at: string;
   is_owner?: boolean;
   criteria: Criterion[];
+  images: CustomImage[];
+  parts: CustomPart[];
 }
 
 export interface CreateCustomQuestionInput {
@@ -36,6 +53,8 @@ export interface CreateCustomQuestionInput {
   question_text: string;
   question_type: CustomQuestionType;
   criteria: Criterion[];
+  images?: CustomImage[];
+  parts?: CustomPart[];
   shared_to_institution?: boolean;
 }
 
@@ -92,6 +111,8 @@ export function customToPicked(q: CustomQuestion): PickedQuestion {
       subject: q.subject,
       text: q.question_text.slice(0, 400),
       custom: true,
+      images: q.images ?? [],
+      parts: q.parts ?? [],
     },
   };
 }

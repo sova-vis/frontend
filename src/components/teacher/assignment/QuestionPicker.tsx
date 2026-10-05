@@ -330,6 +330,8 @@ function CustomBrowse({
                   <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>Custom</span>
                   {q.topic && <span className="chip-tag" style={{ background: "var(--surface)", border: "1px solid var(--line)", color: "var(--ink-soft)" }}>{q.topic}</span>}
                   <span>{q.marks} marks</span>
+                  {q.parts?.length ? <span>· {q.parts.length} part{q.parts.length > 1 ? "s" : ""}</span> : null}
+                  {(() => { const n = (q.images?.length ?? 0) + (q.parts?.reduce((s, p) => s + (p.images?.length ?? 0), 0) ?? 0); return n ? <span>· {n} figure{n > 1 ? "s" : ""}</span> : null; })()}
                 </div>
                 <p style={{ fontSize: 13.5, color: "var(--ink)", marginTop: 5, ...clamp2 }}>{q.question_text || "(no text)"}</p>
               </div>
