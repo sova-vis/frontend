@@ -97,8 +97,14 @@ export default function PlannerPage() {
   useEffect(() => {
     apiCall("/datesheet?scope=personal").then((r) => (r.ok ? r.json() : null)).then((d: { papers?: { subject: string; date: string | null; date_start: string | null }[] } | null) => {
       if (!d?.papers) return;
+      // Each subject's NEXT UPCOMING paper (earliest date from today onward); fall
+      // back to its earliest paper if the whole session has already passed (the
+      // planner then treats that as "no date" so the subject is still scheduled).
+      const today = new Date().toISOString().slice(0, 10);
+      const bySubj: Record<string, string[]> = {};
+      for (const p of d.papers) { const date = p.date || p.date_start; if (!date) continue; (bySubj[p.subject] = bySubj[p.subject] || []).push(date); }
       const map: Record<string, string> = {};
-      for (const p of d.papers) { const date = p.date || p.date_start; if (!date) continue; if (!map[p.subject] || date < map[p.subject]) map[p.subject] = date; }
+      for (const [subj, dates] of Object.entries(bySubj)) { dates.sort(); map[subj] = dates.find((dt) => dt >= today) || dates[0]; }
       setExamBySubjectRaw(map);
     }).catch(() => {});
   }, []);

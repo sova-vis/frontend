@@ -34,12 +34,19 @@ export function buildIntelligentPlan(input: PlanInput): PlanSession[] {
   const today = new Date(new Date().toDateString());
   const t0 = today.getTime();
   const weakSet = new Set(input.weakSubjects.map((s) => s.toLowerCase()));
-  const examMs = (s: string) => { const d = input.examDateBySubject[s]; const ms = d ? new Date(d).getTime() : NaN; return Number.isNaN(ms) ? null : ms; };
+  // A date already in the past (a stale / last-session datesheet entry) is treated
+  // as "no date": the subject stays eligible and the horizon doesn't collapse to
+  // the past — otherwise selecting all subjects could still yield an empty plan.
+  const examMs = (s: string) => { const d = input.examDateBySubject[s]; const ms = d ? new Date(d).getTime() : NaN; return Number.isNaN(ms) || ms < t0 ? null : ms; };
 
-  // Horizon: up to the last exam, capped; fall back to 8 weeks if no dates.
+  // Horizon: always plan at least the default window (8 weeks) so a full schedule
+  // shows even when the nearest exams are imminent (otherwise the plan collapsed to
+  // a few days); extend to the last upcoming exam if it is later, capped at maxWeeks.
   const maxDays = (input.maxWeeks ?? 12) * 7;
   const examDays = subjects.map(examMs).filter((x): x is number => x != null);
-  const horizon = examDays.length ? Math.min(t0 + maxDays * DAY, Math.max(...examDays)) : t0 + Math.min(maxDays, 56) * DAY;
+  const defaultHorizon = t0 + Math.min(maxDays, 56) * DAY;
+  const lastExam = examDays.length ? Math.max(...examDays) : 0;
+  const horizon = Math.min(t0 + maxDays * DAY, Math.max(defaultHorizon, lastExam));
 
   // Weight: weaker subjects and sooner exams get more sessions.
   const weights: Record<string, number> = {};
@@ -69,8 +76,15 @@ export function buildIntelligentPlan(input: PlanInput): PlanSession[] {
     const eligible = subjects.filter((s) => { const e = examMs(s); return e == null || e >= t; });
     if (!eligible.length) break;
 
-    // Weighted round-robin: the subject furthest behind its share goes next.
-    const pick = eligible.reduce((a, b) => (assigned[a] / weights[a] <= assigned[b] / weights[b] ? a : b));
+    // Weighted round-robin: the subject furthest behind its share goes next. Ties
+    // (e.g. everyone at 0 on day one) go to the more urgent subject — higher weight
+    // = sooner exam / flagged weak — so imminent-exam subjects aren't starved by a
+    // subject that merely sits earlier in the list.
+    const pick = eligible.reduce((a, b) => {
+      const ra = assigned[a] / weights[a];
+      const rb = assigned[b] / weights[b];
+      return ra < rb || (ra === rb && weights[a] >= weights[b]) ? a : b;
+    });
     assigned[pick] += 1;
 
     const topics = topicsFor(pick);
