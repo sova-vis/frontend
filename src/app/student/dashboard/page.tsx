@@ -100,7 +100,10 @@ export default function StudentDashboard() {
       window.removeEventListener("propel:attempts-change", onChange);
     };
   }, [getToken]);
-  const weakSpots = useMemo(() => weakestTopics(attempts, 1).slice(0, 5), [attempts]);
+  // Full per-topic accuracy list (every practiced topic), so WeakPointsBySubject
+  // can compute real per-subject mastery — slicing to 5 here left most topics
+  // with no data, so "overall mastery" always read 0%.
+  const weakSpots = useMemo(() => weakestTopics(attempts, 1), [attempts]);
   const momentum = useMemo(() => momentumScore(attempts), [attempts]);
   // Snapchat-style streak: consecutive days with practice activity (today may be
   // pending without breaking it).
