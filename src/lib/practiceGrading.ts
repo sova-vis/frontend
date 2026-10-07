@@ -42,19 +42,36 @@ function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 }
 
+// Marking does two sequential AI calls (transcribe → grade), each up to ~60s on
+// the server. Cap the client wait so a stalled/overloaded AI provider surfaces a
+// clear, retryable error instead of an endless "Marking…" spinner.
+const GRADE_TIMEOUT_MS = 150_000;
+function gradeError(e: unknown): Error {
+  if (e instanceof DOMException && e.name === "AbortError") {
+    return new Error("Marking is taking too long — the AI service is busy right now. Please try again in a moment.");
+  }
+  return e instanceof Error ? e : new Error("Grading failed. Please try again.");
+}
+
 export async function gradePractice(
   request: GradeRequest,
   getToken?: GetTokenFn,
 ): Promise<{ report: PracticeReport; item: PracticeProgress }> {
   const token = await resolveClerkToken(getToken);
-  const response = await clerkFetch(`${apiBase()}/practice-grading/grade`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(request),
-  }, getToken);
+  let response: Response;
+  try {
+    response = await clerkFetch(`${apiBase()}/practice-grading/grade`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(GRADE_TIMEOUT_MS),
+    }, getToken);
+  } catch (e) {
+    throw gradeError(e);
+  }
   if (!response.ok) {
     // The API's message already names each file it could not read, so the
     // student knows which upload to replace rather than just "grading failed".
@@ -72,14 +89,20 @@ export async function gradeOneQuestion(
   getToken?: GetTokenFn,
 ): Promise<GradedQuestion> {
   const token = await resolveClerkToken(getToken);
-  const response = await clerkFetch(`${apiBase()}/practice-grading/grade-one`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ subject, question }),
-  }, getToken);
+  let response: Response;
+  try {
+    response = await clerkFetch(`${apiBase()}/practice-grading/grade-one`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ subject, question }),
+      signal: AbortSignal.timeout(GRADE_TIMEOUT_MS),
+    }, getToken);
+  } catch (e) {
+    throw gradeError(e);
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Grading failed. Please try again.");
@@ -103,11 +126,17 @@ export async function gradeOneImage(
   body.append("file", file, file.name);
   // on-screen writing is graded best-effort (no clearer photo to re-take)
   if (onScreen) body.append("onScreen", "true");
-  const response = await clerkFetch(`${apiBase()}/practice-grading/grade-one-image`, {
-    method: "POST",
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body,
-  }, getToken);
+  let response: Response;
+  try {
+    response = await clerkFetch(`${apiBase()}/practice-grading/grade-one-image`, {
+      method: "POST",
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body,
+      signal: AbortSignal.timeout(GRADE_TIMEOUT_MS),
+    }, getToken);
+  } catch (e) {
+    throw gradeError(e);
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || "Grading failed. Please try again.");
