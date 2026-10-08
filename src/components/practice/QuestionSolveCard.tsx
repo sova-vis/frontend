@@ -375,7 +375,7 @@ function UploadBox({ upload, onFile }: { upload?: { thumb?: string; confidence?:
           <img src={upload.thumb} alt="your answer" style={{ height: 80, width: 80, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)" }} />
           <p style={{ fontSize: 12, flex: 1, color: upload.status === "failed" ? "var(--coral)" : "var(--teal-deep)" }}>
             {upload.status === "failed"
-              ? "Couldn't read that clearly — try a sharper photo, or type it below."
+              ? "Saved your photo — we couldn't auto-read it this time. You can type your answer below."
               : `Read your answer${upload.confidence != null ? ` (${Math.round(upload.confidence * 100)}% legible)` : ""}. Check and edit below.`}
           </p>
         </div>

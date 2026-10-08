@@ -12,6 +12,7 @@ import {
   uploadHandwritten,
 } from "@/lib/submissions";
 import { StudentResult, getStudentResult } from "@/lib/feedbackRelease";
+import { fileToDownscaledDataUrl } from "@/lib/image";
 import VoiceNote from "@/components/teacher/VoiceNote";
 import AnswerAnnotator from "@/components/teacher/AnswerAnnotator";
 import QuestionSolveCard, { fromStudentQuestion } from "@/components/practice/QuestionSolveCard";
@@ -123,32 +124,43 @@ export default function TakeAssignmentPage() {
   const [mode, setMode] = useState<Record<string, "type" | "upload">>({});
   const [uploads, setUploads] = useState<Record<string, { thumb?: string; confidence?: number; status?: string; busy?: boolean }>>({});
 
-  const handleUpload = (aqId: string, file: File) => {
+  const handleUpload = async (aqId: string, file: File) => {
     if (!submissionId) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = String(reader.result || "");
-      setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, busy: true } }));
-      try {
-        const r = await uploadHandwritten(submissionId, aqId, dataUrl);
-        setText(aqId, r.ocr_text || "");
-        setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, confidence: r.ocr_confidence, status: r.ocr_status, busy: false } }));
-      } catch {
-        setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, status: "failed", busy: false } }));
-      }
-    };
-    reader.readAsDataURL(file);
+    setUploads((u) => ({ ...u, [aqId]: { ...(u[aqId] || {}), busy: true } }));
+    // Downscale before upload: a raw phone photo (several MB) exceeds the API body
+    // limit and is rejected with 413 before it can be stored, so the teacher never
+    // gets it and the student sees "couldn't read". A bounded JPEG fixes both.
+    let dataUrl: string;
+    try {
+      dataUrl = await fileToDownscaledDataUrl(file);
+    } catch {
+      setUploads((u) => ({ ...u, [aqId]: { status: "failed", busy: false } }));
+      return;
+    }
+    setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, busy: true } }));
+    try {
+      const r = await uploadHandwritten(submissionId, aqId, dataUrl);
+      setText(aqId, r.ocr_text || "");
+      setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, confidence: r.ocr_confidence, status: r.ocr_status, busy: false } }));
+    } catch {
+      // Keep the thumb so the student sees their photo is attached even if the
+      // auto-read failed; the image is still submitted for the teacher to review.
+      setUploads((u) => ({ ...u, [aqId]: { thumb: dataUrl, status: "failed", busy: false } }));
+    }
   };
 
   const answeredCount = useMemo(() => {
     if (!data) return 0;
     return data.questions.filter((q) => {
       const a = answers[q.assignment_question_id];
-      if (!a) return false;
+      // An uploaded photo counts as an answer even if auto-transcription failed —
+      // the teacher reviews the image itself.
+      const hasUpload = Boolean(uploads[q.assignment_question_id]?.thumb);
+      if (!a) return hasUpload;
       const partsAnswered = Object.values(a.part_answers || {}).some((v) => v.trim());
-      return Boolean(a.answer_text.trim() || a.selected_option || partsAnswered);
+      return Boolean(a.answer_text.trim() || a.selected_option || partsAnswered || hasUpload);
     }).length;
-  }, [answers, data]);
+  }, [answers, data, uploads]);
 
   // Return to wherever the student opened this from (their classroom or the
   // assignments list) instead of always dumping them on the orphan list page;
