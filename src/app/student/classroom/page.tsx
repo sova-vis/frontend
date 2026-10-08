@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/lib/auth";
-import { ChevronRight, Clock, Plus, School, Target } from "lucide-react";
+import { ChevronRight, Clock, Pencil, Plus, School, Target, Trash2 } from "lucide-react";
 import {
   AvailableAssignment,
   Classroom,
@@ -12,6 +12,7 @@ import {
   getMyClassrooms,
   getWeakSpots,
   joinClassByCode,
+  leaveClass,
 } from "@/lib/submissions";
 import { useClerkAuth } from "@/lib/useClerkAuth";
 import { resolveName } from "@/lib/displayName";
@@ -20,6 +21,17 @@ import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 
 interface HubCache { classrooms: Classroom[]; assignments: AvailableAssignment[]; weak: WeakTopic[] }
 const HUB_KEY = "pp:classroom:hub";
+
+// Per-student class labels (device-local). A student can rename a class to a name
+// that makes sense to them without changing the real class for the teacher/others.
+const NICK_KEY = "pp:class-nicknames";
+function loadNicknames(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(NICK_KEY) || "{}") as Record<string, string>; } catch { return {}; }
+}
+function saveNicknames(map: Record<string, string>) {
+  try { window.localStorage.setItem(NICK_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+}
 
 export default function StudentClassroomPage() {
   const router = useRouter();
@@ -33,6 +45,33 @@ export default function StudentClassroomPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [nicknames, setNicknames] = useState<Record<string, string>>({});
+  useEffect(() => { setNicknames(loadNicknames()); }, []);
+  const labelFor = (c: Classroom) => nicknames[c.class_id] || c.class_name;
+
+  const renameClass = (classId: string, current: string) => {
+    const next = window.prompt("Rename this class (only you see this name):", current);
+    if (next == null) return;
+    const name = next.trim();
+    setNicknames((prev) => {
+      const map = { ...prev };
+      if (name) map[classId] = name; else delete map[classId];
+      saveNicknames(map);
+      return map;
+    });
+  };
+
+  const leave = async (classId: string, label: string) => {
+    if (!window.confirm(`Leave "${label}"? It will be removed from your classroom. You can re-join anytime with the class code.`)) return;
+    setError("");
+    try {
+      await leaveClass(classId);
+      setNicknames((prev) => { const m = { ...prev }; delete m[classId]; saveNicknames(m); return m; });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not leave the class.");
+    }
+  };
 
   const load = async (useCache = false) => {
     // Instant paint from the last view while we revalidate in the background.
@@ -110,26 +149,38 @@ export default function StudentClassroomPage() {
                     const cTodo = ct.filter(isTodo).length;
                     const cSub = ct.filter(isSubmitted).length;
                     const cRev = ct.filter(isReviewed).length;
+                    const label = labelFor(c);
                     return (
-                      <button
+                      <div
                         key={c.class_id}
-                        onClick={() => router.push(`/student/classroom/${c.class_id}`)}
                         className="ed-card p-5 text-left hover:shadow-md transition-shadow"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-crimson-soft text-crimson-ink"><School size={20} /></span>
-                          <div className="min-w-0 flex-1">
-                            <h2 className="font-display text-lg font-semibold truncate">{c.class_name}</h2>
-                            <p className="text-xs text-ink-faint truncate">{c.teacher_name}{c.subject ? ` · ${c.subject}` : ""}</p>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => router.push(`/student/classroom/${c.class_id}`)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push(`/student/classroom/${c.class_id}`); } }}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-crimson-soft text-crimson-ink"><School size={20} /></span>
+                            <div className="min-w-0 flex-1">
+                              <h2 className="font-display text-lg font-semibold truncate">{label}</h2>
+                              <p className="text-xs text-ink-faint truncate">{c.teacher_name}{c.subject ? ` · ${c.subject}` : ""}</p>
+                            </div>
+                            <ChevronRight size={18} className="text-ink-faint shrink-0" />
                           </div>
-                          <ChevronRight size={18} className="text-ink-faint shrink-0" />
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {cTodo > 0 ? <span className="ed-pill-crimson text-[0.6rem]">{cTodo} to do</span> : <span className="ed-pill-mint text-[0.6rem]">All done</span>}
+                            {cSub > 0 && <span className="ed-pill-gold text-[0.6rem]">{cSub} in review</span>}
+                            {cRev > 0 && <span className="ed-pill-mint text-[0.6rem]">{cRev} reviewed</span>}
+                          </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {cTodo > 0 ? <span className="ed-pill-crimson text-[0.6rem]">{cTodo} to do</span> : <span className="ed-pill-mint text-[0.6rem]">All done</span>}
-                          {cSub > 0 && <span className="ed-pill-gold text-[0.6rem]">{cSub} in review</span>}
-                          {cRev > 0 && <span className="ed-pill-mint text-[0.6rem]">{cRev} reviewed</span>}
+                        <div className="mt-3 pt-3 border-t border-line flex items-center gap-4">
+                          <button onClick={() => renameClass(c.class_id, label)} className="text-xs font-semibold text-ink-muted hover:text-ink inline-flex items-center gap-1"><Pencil size={12} /> Rename</button>
+                          <button onClick={() => void leave(c.class_id, label)} className="text-xs font-semibold text-crimson hover:opacity-80 inline-flex items-center gap-1"><Trash2 size={12} /> Leave</button>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
 
@@ -200,7 +251,7 @@ export default function StudentClassroomPage() {
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-crimson-soft text-crimson-ink"><School size={15} /></span>
                         <div className="min-w-0">
                           <p className="font-medium text-ink truncate">{c.teacher_name}</p>
-                          <p className="text-xs text-ink-faint truncate">{c.class_name}{c.enrollment_status === "pending" ? " · pending" : ""}</p>
+                          <p className="text-xs text-ink-faint truncate">{labelFor(c)}{c.enrollment_status === "pending" ? " · pending" : ""}</p>
                         </div>
                       </div>
                     ))}
