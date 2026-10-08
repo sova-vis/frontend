@@ -7,7 +7,7 @@ import { Icon } from "@/components/propel/Icon";
 import { Segmented, EmptyState, useToast } from "@/components/propel/primitives";
 import {
   getClass, listEnrollments, decideEnrollments, regenerateJoinCode, setJoinEnabled,
-  removeStudent, archiveClass, joinLink, type TeacherClass, type Enrollment,
+  removeStudent, archiveClass, updateClass, joinLink, type TeacherClass, type Enrollment,
 } from "@/lib/teacherClasses";
 import { resolveName } from "@/lib/displayName";
 
@@ -39,6 +39,15 @@ export default function ClassDetailPage() {
   };
   const regen = async () => { try { setCls(await regenerateJoinCode(id)); toast("New code generated", "refresh"); } catch (e) { toast((e as Error).message, "alert"); } };
   const toggleJoin = async () => { if (!cls) return; try { setCls(await setJoinEnabled(id, !cls.join_enabled)); } catch (e) { toast((e as Error).message, "alert"); } };
+  const rename = async () => {
+    if (!cls) return;
+    const next = window.prompt("Rename this class:", cls.name);
+    if (next == null) return;
+    const name = next.trim();
+    if (!name || name === cls.name) return;
+    try { setCls(await updateClass(id, { name })); toast("Class renamed", "check_circle"); }
+    catch (e) { toast((e as Error).message, "alert"); }
+  };
   // Two-step so a stray click can't archive a class (it's reversible from the
   // Classes page's "Archived" section, but this avoids the surprise entirely).
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -70,6 +79,7 @@ export default function ClassDetailPage() {
         </div>
         <div className="flex gap-8 wrap" style={{ flex: "none" }}>
           <Link href={`/teacher/assignments/new?class_id=${cls.id}`} className="btn btn-primary"><Icon name="plus" size={16} /> New assignment</Link>
+          <button className="btn btn-ghost" onClick={rename} style={{ color: "var(--ink-soft)" }}><Icon name="edit" size={16} /> Rename</button>
           <button className="btn btn-ghost" onClick={archive} style={{ color: confirmArchive ? "var(--coral)" : "var(--ink-soft)" }}><Icon name="layers" size={16} /> {confirmArchive ? "Click again to archive" : "Archive"}</button>
         </div>
       </div>
