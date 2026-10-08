@@ -6,6 +6,7 @@ import { Modal, EmptyState, useToast } from "@/components/propel/primitives";
 import { listTeachers, createTeacher, bulkTeachers, updateTeacher, resetTeacherPassword, removeTeacher, type Teacher, type BulkRow } from "@/lib/schoolAdmin";
 import { teacherSubjectToken, parseTeacherSubjectToken, teacherSubjectLabel, normalizeTeacherSubjectTokens } from "@/lib/syllabus";
 import { loadLevelSubjects, type LevelSubject, type Lv } from "@/lib/librarySubjects";
+import CredentialField from "@/components/propel/CredentialField";
 
 export default function TeachersPage() {
   const toast = useToast();
@@ -63,6 +64,7 @@ export default function TeachersPage() {
                         {inactive ? <span className="badge coral">Deactivated</span> : t.must_change_password ? <span className="badge amber">Pending first sign-in</span> : <span className="badge teal">Active</span>}
                       </div>
                       <div className="muted" style={{ fontSize: 13 }}>{t.email}</div>
+                      {t.password && <div style={{ marginTop: 3 }}><CredentialField value={t.password} /></div>}
                       <div className="flex items-center gap-6 wrap mt-6">
                         {(t.syllabus_codes ?? []).slice(0, 6).map((c) => <span key={c} className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)" }}>{teacherSubjectLabel(c)}</span>)}
                         {(t.levels ?? []).map((l) => <span key={l} className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>{l}</span>)}
@@ -97,7 +99,7 @@ export default function TeachersPage() {
       {addOpen && <AddTeacherModal onClose={() => setAddOpen(false)} onDone={() => { toast("Teacher added", "check_circle"); load(); }} />}
       {bulkOpen && <BulkModal onClose={() => setBulkOpen(false)} onDone={load} />}
       {editing && <EditTeacherModal teacher={editing} onClose={() => setEditing(null)} onDone={() => { toast("Saved", "check_circle"); load(); }} />}
-      {resetFor && <ResetPasswordModal teacher={resetFor} onClose={() => setResetFor(null)} />}
+      {resetFor && <ResetPasswordModal teacher={resetFor} onClose={() => { setResetFor(null); load(); }} />}
       {deleting && <DeleteTeacherModal teacher={deleting} onClose={() => setDeleting(null)} onDone={() => { toast("Teacher deleted", "check_circle"); load(); }} />}
     </>
   );
@@ -176,7 +178,7 @@ function AddTeacherModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           <div style={{ width: 60, height: 60, margin: "0 auto 12px", borderRadius: 16, display: "grid", placeItems: "center", background: "var(--teal-soft)", color: "var(--teal-deep)" }}><Icon name="check_circle" size={30} /></div>
           <h3 className="card-title" style={{ fontSize: 19 }}>Teacher added</h3>
           {!res.existed && res.tempPassword
-            ? <><p className="muted mt-6">Share this one-time password; they reset it on first sign-in.</p><TempPasswordBox email={res.email} password={res.tempPassword} /></>
+            ? <><p className="muted mt-6">Share this password — it&apos;s their login password.</p><TempPasswordBox email={res.email} password={res.tempPassword} /></>
             : <p className="muted mt-6">That email already had an account, now promoted to teacher.</p>}
           <button className="btn btn-primary btn-block mt-16" onClick={onClose}>Done</button>
         </div>
@@ -213,14 +215,14 @@ function ResetPasswordModal({ teacher, onClose }: { teacher: Teacher; onClose: (
         <div style={{ textAlign: "center" }}>
           <div style={{ width: 60, height: 60, margin: "0 auto 12px", borderRadius: 16, display: "grid", placeItems: "center", background: "var(--teal-soft)", color: "var(--teal-deep)" }}><Icon name="check_circle" size={30} /></div>
           <h3 className="card-title" style={{ fontSize: 19 }}>Password reset</h3>
-          <p className="muted mt-6">Share this one-time password with {name}; they set a new one on next sign-in.</p>
+          <p className="muted mt-6">Share this password with {name} — it&apos;s now their login password.</p>
           <TempPasswordBox email={teacher.email || ""} password={pw} />
           <button className="btn btn-primary btn-block mt-16" onClick={onClose}>Done</button>
         </div>
       ) : (
         <>
           <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Reset password</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
-          <p className="muted">Generate a new one-time password for <b>{name}</b>? Their current password stops working and they set a new one on next sign-in.</p>
+          <p className="muted">Generate a new password for <b>{name}</b>? Their current password stops working and this becomes their new login password.</p>
           {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
           <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={doReset} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</button></div>
         </>

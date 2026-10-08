@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/propel/Icon";
 import { Ring, Bar, Modal, useToast } from "@/components/propel/primitives";
 import { getSchool, setLimits, updateSchool, addSchoolAdmin, deleteSchool, listSchoolAdmins, resetSchoolAdminPassword, updateSchoolAdminEmail, type SchoolWithUsage, type SchoolAdminRow } from "@/lib/owner";
+import CredentialField from "@/components/propel/CredentialField";
 
 type LimForm = {
   max_teachers: string; max_students_per_teacher: string; max_classes_per_teacher: string;
@@ -208,7 +209,7 @@ export default function SchoolDetailPage() {
         {/* Side: admins */}
         <div className="card card-pad">
           <div className="card-head"><div className="card-title">School admins</div></div>
-          <p className="muted" style={{ fontSize: 13 }}>They manage teachers and see aggregate reporting. Passwords aren&apos;t stored — reset to issue a new one-time password.</p>
+          <p className="muted" style={{ fontSize: 13 }}>They manage teachers and see aggregate reporting. Each admin&apos;s current login password is shown below — reset to issue a new one.</p>
 
           {admins === null ? (
             <div className="grid mt-12" style={{ gap: 8 }}>{[0, 1].map((i) => <div key={i} className="sk" style={{ height: 64, borderRadius: 12 }} />)}</div>
@@ -228,7 +229,7 @@ export default function SchoolDetailPage() {
       </div>
 
       {addOpen && <AddAdminModal id={id} onClose={() => setAddOpen(false)} onDone={() => { toast("Admin added", "check_circle"); loadAdmins(); }} />}
-      {resetAdmin && <AdminResetModal schoolId={id} admin={resetAdmin} onClose={() => setResetAdmin(null)} />}
+      {resetAdmin && <AdminResetModal schoolId={id} admin={resetAdmin} onClose={() => { setResetAdmin(null); loadAdmins(); }} />}
       {editAdmin && <AdminEmailModal schoolId={id} admin={editAdmin} onClose={() => setEditAdmin(null)} onDone={() => { toast("Email updated", "check_circle"); loadAdmins(); }} />}
       {delOpen && <DeleteSchoolModal school={s} onClose={() => setDelOpen(false)} onDeleted={() => { toast("School deleted", "check_circle"); router.replace("/owner"); }} />}
     </>
@@ -248,6 +249,11 @@ function AdminRow({ a, onReset, onEdit }: { a: SchoolAdminRow; onReset: () => vo
             : <span className="badge teal" style={{ fontSize: 10.5 }}>Active</span>}
       </div>
       <div className="mono faint" style={{ fontSize: 12, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.email}</div>
+      <div style={{ marginTop: 6 }}>
+        {a.password
+          ? <CredentialField value={a.password} />
+          : <span className="faint" style={{ fontSize: 11.5 }}>No stored password — reset to set one.</span>}
+      </div>
       <div className="flex gap-6 wrap" style={{ marginTop: 10 }}>
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Icon name="edit" size={13} /> Edit email</button>
         <button className="btn btn-ghost btn-sm" onClick={onReset} style={{ color: "var(--crimson)" }}><Icon name="refresh" size={13} /> Reset password</button>
@@ -272,7 +278,7 @@ function AdminResetModal({ schoolId, admin, onClose }: { schoolId: string; admin
         <div style={{ textAlign: "center" }}>
           <div style={{ width: 60, height: 60, margin: "0 auto 12px", borderRadius: 16, display: "grid", placeItems: "center", background: "var(--teal-soft)", color: "var(--teal-deep)" }}><Icon name="check_circle" size={30} /></div>
           <h3 className="card-title" style={{ fontSize: 19 }}>Password reset</h3>
-          <p className="muted mt-6">Share this one-time password with {name}; they set a new one on next sign-in.</p>
+          <p className="muted mt-6">Share this password with {name} — it&apos;s now their login password.</p>
           <div className="card" style={{ background: "var(--surface-2)", padding: 14, marginTop: 12, textAlign: "left" }}>
             <div className="eyebrow">{admin.email}</div>
             <div className="row-between mt-6">
@@ -285,7 +291,7 @@ function AdminResetModal({ schoolId, admin, onClose }: { schoolId: string; admin
       ) : (
         <>
           <div className="row-between" style={{ marginBottom: 16 }}><h3 className="card-title" style={{ fontSize: 19 }}>Reset password</h3><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
-          <p className="muted">Generate a new one-time password for <b>{name}</b>? Their current password stops working and they set a new one on next sign-in.</p>
+          <p className="muted">Generate a new password for <b>{name}</b>? Their current password stops working and this becomes their new login password.</p>
           {err && <p style={{ color: "var(--coral)", fontSize: 13, marginTop: 8 }}>{err}</p>}
           <div className="flex gap-10 mt-16"><button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary btn-block" onClick={doReset} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</button></div>
         </>

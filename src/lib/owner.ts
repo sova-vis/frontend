@@ -139,6 +139,7 @@ export interface SchoolAdminRow {
   deactivated_at: string | null;
   must_change_password: boolean;
   created_at: string | null;
+  password?: string | null; // decrypted admin-issued login password, if stored
 }
 
 export async function listSchoolAdmins(id: string): Promise<SchoolAdminRow[]> {

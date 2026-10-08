@@ -17,6 +17,7 @@ export interface Teacher {
   must_change_password: boolean;
   created_at: string;
   stats?: TeacherStat;
+  password?: string | null; // decrypted admin-issued login password, if stored
 }
 
 export interface SchoolAdminHome {
