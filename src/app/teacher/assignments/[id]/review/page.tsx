@@ -230,7 +230,7 @@ export default function ReviewPage() {
 
   return (
     <>
-      <style>{`.rv-panes{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}@media(min-width:900px){.rv-panes{grid-template-columns:1fr 1fr}}`}</style>
+      <style>{`.rv-panes{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}@media(min-width:900px){.rv-panes{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)}}`}</style>
 
       <div className="row-between wrap gap-12" style={{ marginBottom: 14 }}>
         <button className="chip" onClick={backToTable}><Icon name="chevron_left" size={15} /> All students</button>

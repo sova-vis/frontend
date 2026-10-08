@@ -13,7 +13,7 @@ import {
   PracticeProgress, loadPracticeProgressList, loadPracticeProgressLocal, practiceHref, progressPercent,
 } from "@/lib/practiceProgress";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
-import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, momentumScore, buildDailyPlan, predictedGrade } from "@/lib/insights";
+import { Attempt, loadAttempts, loadAttemptsLocal, weakestTopics, doneCountsByTopic, momentumScore, buildDailyPlan, predictedGrade } from "@/lib/insights";
 import { getApiUrl } from "@/lib/api";
 import NewspaperDatesheet from "@/components/student/NewspaperDatesheet";
 import WeakPointsBySubject from "@/components/student/WeakPointsBySubject";
@@ -104,6 +104,7 @@ export default function StudentDashboard() {
   // can compute real per-subject mastery — slicing to 5 here left most topics
   // with no data, so "overall mastery" always read 0%.
   const weakSpots = useMemo(() => weakestTopics(attempts, 1), [attempts]);
+  const doneByTopic = useMemo(() => doneCountsByTopic(attempts), [attempts]);
   const momentum = useMemo(() => momentumScore(attempts), [attempts]);
   // Snapchat-style streak: consecutive days with practice activity (today may be
   // pending without breaking it).
@@ -420,7 +421,7 @@ export default function StudentDashboard() {
                   Show detailed analytics <Icon name="chevron_right" size={15} />
                 </button>
               </div>
-              <WeakPointsBySubject weak={weakSpots.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
+              <WeakPointsBySubject weak={weakSpots.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy, done: doneByTopic[`${w.subject}|${w.topic}`.toLowerCase()] ?? w.attempts }))} />
             </div>
 
             {/* completed trend (real) */}

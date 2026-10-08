@@ -189,6 +189,23 @@ export function weakestTopics(attempts: Attempt[], min = 1): WeaknessTopic[] {
     .sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts);
 }
 
+/**
+ * Distinct questions attempted per topic, keyed by `${subject}|${topic}` lowercased.
+ * Powers the "completeness" bar (how much of a topic's question bank a student has
+ * covered) — counts unique questionIds, so re-doing a question never inflates it.
+ */
+export function doneCountsByTopic(attempts: Attempt[]): Record<string, number> {
+  const sets: Record<string, Set<string>> = {};
+  for (const a of attempts) {
+    if (!a.topic) continue;
+    const key = `${a.subject}|${a.topic}`.toLowerCase();
+    (sets[key] ??= new Set<string>()).add(a.questionId);
+  }
+  const out: Record<string, number> = {};
+  for (const k of Object.keys(sets)) out[k] = sets[k].size;
+  return out;
+}
+
 /** The mistake notebook: non-correct attempts, newest first. */
 export function mistakeList(attempts: Attempt[]): Attempt[] {
   return attempts

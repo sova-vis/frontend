@@ -8,7 +8,7 @@ import { subjectStyle } from "@/components/propel/subjects";
 import Link from "next/link";
 import { timeAgo } from "@/lib/useStudentStats";
 import {
-  Attempt, PatternResult, loadAttempts, loadAttemptsLocal, weakestTopics, mistakeList, dueRevisions, loadPatterns, topicReadiness,
+  Attempt, PatternResult, loadAttempts, loadAttemptsLocal, weakestTopics, doneCountsByTopic, mistakeList, dueRevisions, loadPatterns, topicReadiness,
 } from "@/lib/insights";
 import { TopicTrend, loadTopicTrends } from "@/lib/examTrends";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
@@ -57,6 +57,9 @@ export default function NotebookPage() {
   const [trends, setTrends] = useState<TopicTrend[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [topicsBySubject, setTopicsBySubject] = useState<Record<string, string[]>>({});
+  // Total questions per topic (mcq+structured) keyed by `${normSubj}|${topicLower}`,
+  // the denominator for the completeness bar in the weakness map.
+  const [topicCounts, setTopicCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
@@ -85,14 +88,20 @@ export default function NotebookPage() {
         .then((d) => {
           if (!active || !d?.subjects) return;
           const map: Record<string, string[]> = {};
-          for (const s of d.subjects as { name: string; types?: { mcq?: { topics?: { name: string }[] }; structured?: { topics?: { name: string }[] } } }[]) {
+          const counts: Record<string, number> = {};
+          for (const s of d.subjects as { name: string; types?: { mcq?: { topics?: { name: string; count?: number }[] }; structured?: { topics?: { name: string; count?: number }[] } } }[]) {
             const set = new Set<string>();
             [...(s.types?.mcq?.topics ?? []), ...(s.types?.structured?.topics ?? [])].forEach((t) => {
-              if (t?.name && !t.name.trim().toLowerCase().startsWith("uncategor")) set.add(t.name);
+              if (t?.name && !t.name.trim().toLowerCase().startsWith("uncategor")) {
+                set.add(t.name);
+                const k = `${normSubj(s.name)}|${t.name.toLowerCase()}`;
+                counts[k] = (counts[k] ?? 0) + (t.count ?? 0);
+              }
             });
             map[s.name] = Array.from(set);
           }
           setTopicsBySubject(map);
+          setTopicCounts(counts);
         })
         .catch(() => {});
     };
@@ -125,6 +134,7 @@ export default function NotebookPage() {
   const filtered = useMemo(() => (attempts ?? []).filter((a) => !subject || a.subject === subject), [attempts, subject]);
   const weak = useMemo(() => weakestTopics(filtered, 1).slice(0, 12), [filtered]);
   const allWeak = useMemo(() => weakestTopics(attempts ?? [], 1), [attempts]);
+  const doneByTopic = useMemo(() => doneCountsByTopic(attempts ?? []), [attempts]);
   const mistakes = useMemo(() => mistakeList(filtered).slice(0, 60), [filtered]);
   const readiness = useMemo(() => topicReadiness(filtered), [filtered]);
 
@@ -199,7 +209,7 @@ export default function NotebookPage() {
 
         {/* Topic mastery across every chosen subject — full width, primary view. */}
         <Panel icon="layers" iconColor="var(--crimson)" title="Topic mastery by subject" sub="Every topic in your subjects — expand a subject to see where you stand.">
-          <WeakPointsBySubject only={subject || undefined} weak={allWeak.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy }))} />
+          <WeakPointsBySubject only={subject || undefined} weak={allWeak.map((w) => ({ subject: w.subject, topic: w.topic, accuracy: w.accuracy, done: doneByTopic[`${w.subject}|${w.topic}`.toLowerCase()] ?? w.attempts }))} />
         </Panel>
 
         {attempts === null ? (
@@ -222,7 +232,11 @@ export default function NotebookPage() {
                   <p className="faint" style={{ fontSize: 13.5 }}>Not enough tagged-topic data yet — keep practising.</p>
                 ) : (
                   <div className="flex-col gap-16">
-                    {weak.slice(0, 8).map((w) => (
+                    {weak.slice(0, 8).map((w) => {
+                      const total = topicCounts[`${normSubj(w.subject)}|${w.topic.toLowerCase()}`] ?? 0;
+                      const done = total > 0 ? Math.min(doneByTopic[`${w.subject}|${w.topic}`.toLowerCase()] ?? w.attempts, total) : 0;
+                      const comp = total > 0 ? Math.round((done / total) * 100) : 0;
+                      return (
                       <div key={w.key} className="flex items-center gap-12">
                         <SubjGlyph subj={subjectStyle(w.subject)} size={32} />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -234,9 +248,19 @@ export default function NotebookPage() {
                           </div>
                           <div className="bar" style={{ height: 8 }}><i style={{ width: Math.max(3, w.accuracy) + "%", background: accColor(w.accuracy) }} /></div>
                           <div className="faint" style={{ fontSize: 11, marginTop: 3 }}>{w.correct}/{w.attempts} correct</div>
+                          {total > 0 && (
+                            <>
+                              <div className="row-between" style={{ marginTop: 6, marginBottom: 3, gap: 8 }}>
+                                <span className="faint" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Completeness</span>
+                                <span className="faint tnum" style={{ fontSize: 10.5, flex: "none" }}>{done}/{total}</span>
+                              </div>
+                              <div className="bar" style={{ height: 6 }}><i style={{ width: (comp === 0 ? 0 : Math.max(3, comp)) + "%", background: "var(--ink-faint)" }} /></div>
+                            </>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Panel>

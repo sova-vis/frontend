@@ -6,7 +6,7 @@ import { ChevronDown, Sparkles, Target } from "lucide-react";
 import { cacheGet, cacheSet } from "@/lib/sessionCache";
 import { loadSelectedSubjects } from "@/lib/studentPersonalization";
 
-export interface WeakItem { subject?: string | null; topic: string; accuracy: number; }
+export interface WeakItem { subject?: string | null; topic: string; accuracy: number; done?: number; }
 interface TopicMeta { name: string; count: number }
 interface SubjMeta { name: string; types: { mcq?: { topics?: TopicMeta[] }; structured?: { topics?: TopicMeta[] } } }
 
@@ -67,9 +67,30 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
     return Array.from(set).sort();
   }, [meta]);
 
+  // Total questions in the bank for a topic (mcq + structured) — the completeness
+  // denominator. Same subject-matching as topicsFor so A-Level subjects line up.
+  const countFor = useMemo(() => (subject: string, topic: string): number => {
+    if (!meta) return 0;
+    const n = normSubj(subject);
+    const m = meta.find((x) => { const f = normSubj(x.name); return f === n || f.startsWith(`${n} `) || n.startsWith(`${f} `); });
+    if (!m) return 0;
+    let c = 0;
+    for (const t of [...(m.types.mcq?.topics ?? []), ...(m.types.structured?.topics ?? [])]) {
+      if (t.name && t.name.toLowerCase() === topic.toLowerCase()) c += t.count || 0;
+    }
+    return c;
+  }, [meta]);
+
   const accFor = (subject: string, topic: string): number | null => {
     const w = weak.find((x) => (x.subject ? normSubj(x.subject) === normSubj(subject) : true) && x.topic.toLowerCase() === topic.toLowerCase());
     return w ? w.accuracy : null;
+  };
+
+  // How many of a topic's questions the student has done (unique questions),
+  // carried on each weak item from the attempts log; 0 for untouched topics.
+  const doneFor = (subject: string, topic: string): number => {
+    const w = weak.find((x) => (x.subject ? normSubj(x.subject) === normSubj(subject) : true) && x.topic.toLowerCase() === topic.toLowerCase());
+    return w?.done ?? 0;
   };
 
   if (subjects.length === 0) {
@@ -137,6 +158,9 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
                     {topics.map((t) => {
                       const val = accFor(s, t) ?? 0; // untouched topic → 0% mastery
                       const col = val >= 75 ? "var(--teal-deep)" : val >= 50 ? "var(--amber-deep)" : "var(--coral-bright)";
+                      const total = countFor(s, t);
+                      const done = Math.min(doneFor(s, t), total);
+                      const comp = total > 0 ? Math.round((done / total) * 100) : 0;
                       return (
                         <div key={t} style={{ fontSize: 12.5 }}>
                           <div className="row-between" style={{ gap: 10, marginBottom: 3 }}>
@@ -146,6 +170,18 @@ export default function WeakPointsBySubject({ weak, only }: { weak: WeakItem[]; 
                           <div style={{ height: 6, borderRadius: 4, background: "var(--surface-2)", overflow: "hidden" }}>
                             <div style={{ width: `${val === 0 ? 0 : Math.max(3, val)}%`, height: "100%", background: col, borderRadius: 4 }} />
                           </div>
+                          {/* Completeness: how much of this topic's question bank is done */}
+                          {total > 0 && (
+                            <div style={{ marginTop: 5 }}>
+                              <div className="row-between" style={{ gap: 10, marginBottom: 2 }}>
+                                <span className="faint" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Completeness</span>
+                                <span className="faint tnum" style={{ fontSize: 10.5, flex: "none" }}>{done}/{total}</span>
+                              </div>
+                              <div style={{ height: 5, borderRadius: 4, background: "var(--surface-2)", overflow: "hidden" }}>
+                                <div style={{ width: `${comp === 0 ? 0 : Math.max(3, comp)}%`, height: "100%", background: "var(--ink-faint)", borderRadius: 4 }} />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

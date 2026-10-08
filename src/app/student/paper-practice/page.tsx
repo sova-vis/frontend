@@ -1213,13 +1213,12 @@ function PracticeInner() {
   const [query, setQuery] = useState("");
 
   // ---- guided flow: a stepped setup wizard → a focused (fullscreen) solve ----
-  const resumeReady =
-    (savedView?.mode === "topic" && Boolean(savedView?.subject && savedView?.topic)) ||
-    (savedView?.mode === "paper" && Boolean(savedView?.subject && savedView?.paperKey));
-  const [phase, setPhase] = useState<"setup" | "solving">(deepLinkRef.current || resumeReady ? "solving" : "setup");
-  const [wizardStep, setWizardStep] = useState<"subject" | "format" | "method" | "setup">(
-    savedView?.subject ? (savedView?.topic || savedView?.paperKey ? "setup" : "format") : "subject",
-  );
+  // A page refresh or navigating away and back always returns to the start (subject)
+  // step — only an explicit deep link (?subject&year&…) opens straight into solving.
+  // The student's saved answers/progress persist server-side regardless, so
+  // re-opening the same paper or topic shows everything they'd entered before.
+  const [phase, setPhase] = useState<"setup" | "solving">(deepLinkRef.current ? "solving" : "setup");
+  const [wizardStep, setWizardStep] = useState<"subject" | "format" | "method" | "setup">("subject");
   // how the student answers: type on screen / upload a photo / draw on a canvas
   const [inputMethod, setInputMethod] = useState<"type" | "upload" | "draw">("type");
   const [timedEnabled, setTimedEnabled] = useState(false);

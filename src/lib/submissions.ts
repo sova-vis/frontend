@@ -104,6 +104,7 @@ export interface StatusBoardRow {
   total_score: number | null;
   total_marks: number | null;
   released?: boolean;
+  reviewed?: boolean;
 }
 
 export interface StatusBoard {

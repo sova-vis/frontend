@@ -293,8 +293,18 @@ function SubmissionSection({ board, canGrade, marking, onMark }: { board: Status
                   {r.submitted_at && <div className="faint" style={{ fontSize: 11.5 }}>Submitted {new Date(r.submitted_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</div>}
                 </div>
                 {scored && <span className="mono" style={{ fontSize: 13, fontWeight: 600, flex: "none" }}>{r.total_score}<span className="faint">/{r.total_marks ?? "?"}</span></span>}
-                {r.released && <Icon name="check_circle" size={15} style={{ color: "var(--teal)", flex: "none" }} />}
-                <span className="chip-tag" style={{ background: ss.bg, color: ss.fg, flex: "none" }}>{ss.label}</span>
+                {r.released ? (
+                  <span className="chip-tag" style={{ background: "var(--teal-soft)", color: "var(--teal)", flex: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="check_circle" size={12} /> Released</span>
+                ) : r.reviewed ? (
+                  <span className="chip-tag" style={{ background: "var(--surface-2)", color: "var(--purple)", flex: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="check_circle" size={12} /> Reviewed</span>
+                ) : (
+                  <span className="chip-tag" style={{ background: ss.bg, color: ss.fg, flex: "none" }}>{ss.label}</span>
+                )}
+                {scored && r.submission_id && (
+                  <Link href={`/teacher/assignments/${board.assignment.id}/review?student=${encodeURIComponent(r.student_clerk_id)}`} className="btn btn-ghost btn-sm" style={{ flex: "none" }}>
+                    <Icon name="eye" size={13} /> View
+                  </Link>
+                )}
               </div>
             );
           })}
