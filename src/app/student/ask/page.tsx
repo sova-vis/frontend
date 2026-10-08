@@ -52,6 +52,30 @@ const DEFAULT_PROMPTS = [
 
 const MAX_STORED_SESSIONS = 10;
 
+// ---- account-synced chat history (so chats appear on every device) ----
+async function loadServerChats(mode: Mode): Promise<Session[]> {
+  try {
+    const res = await apiCall(`/ask-chats?mode=${mode}`);
+    if (!res.ok) return [];
+    const d = await res.json();
+    return Array.isArray(d?.sessions) ? (d.sessions as Session[]) : [];
+  } catch { return []; }
+}
+async function saveServerChats(mode: Mode, sessions: Session[]): Promise<void> {
+  try {
+    await apiCall(`/ask-chats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, sessions }) });
+  } catch { /* offline — localStorage keeps it */ }
+}
+function mergeSessions(a: Session[], b: Session[]): Session[] {
+  const byId = new Map<string, Session>();
+  for (const s of [...a, ...b]) {
+    if (!s || !s.id) continue;
+    const prev = byId.get(s.id);
+    if (!prev || (s.updatedAt || "") >= (prev.updatedAt || "")) byId.set(s.id, s);
+  }
+  return Array.from(byId.values()).sort((x, y) => (y.updatedAt || "").localeCompare(x.updatedAt || ""));
+}
+
 // "now", "2m", "1h", "Mon", "12 Sep" — the rail's relative timestamps.
 function relTime(iso: string): string {
   const d = new Date(iso);
@@ -314,6 +338,12 @@ function AskAIInner() {
   const prefillRef = useRef(false);
   const imageInput = useRef<HTMLInputElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
+  // Account sync: whether the server list has loaded (so we never overwrite it
+  // with an empty/local state before the merge), a debounce timer, and a live
+  // mirror of sessions the async merge can read.
+  const serverLoadedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionsRef = useRef<Session[]>([]);
 
   // The LIVE O/A level — the same context the navbar toggle drives, so a
   // switch anywhere in the app re-renders Ask AI immediately (the question
@@ -346,23 +376,44 @@ function AskAIInner() {
     if (scopeSubject && !subjectOptions.includes(scopeSubject)) setScopeSubject("");
   }, [scopeSubject, subjectOptions]);
 
+  // Keep a live mirror of sessions so the async server merge reads the latest.
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+
   useEffect(() => {
+    serverLoadedRef.current = false;
+    let cancelled = false;
+    let localTrimmed: Session[] = [];
     try {
       const raw = localStorage.getItem(storageKey);
       const parsed: Session[] = raw ? JSON.parse(raw) : [];
       // Trim on load too, not just on new-session writes - localStorage may
       // already hold more than the cap from before this limit existed.
-      const trimmed = parsed.slice(0, MAX_STORED_SESSIONS);
-      setSessions(trimmed);
-      if (trimmed.length !== parsed.length) {
-        try { localStorage.setItem(storageKey, JSON.stringify(trimmed)); } catch { /* ignore */ }
+      localTrimmed = parsed.slice(0, MAX_STORED_SESSIONS);
+      setSessions(localTrimmed);
+      if (localTrimmed.length !== parsed.length) {
+        try { localStorage.setItem(storageKey, JSON.stringify(localTrimmed)); } catch { /* ignore */ }
       }
       // Always start on a fresh, blank chat - history is still there in the
       // Recent list to click back into, just never auto-resumed.
       setActiveId(null);
     } catch { /* ignore */ }
     setBootstrapped(true);
-  }, [storageKey]);
+    // Pull the account's saved chats and merge them in, so they show on every
+    // device. localStorage stays the offline cache; the server is the cross-device
+    // source of truth (last-write-wins per chat id).
+    (async () => {
+      const server = await loadServerChats(mode);
+      if (cancelled) return;
+      const merged = mergeSessions(mergeSessions(localTrimmed, sessionsRef.current), server).slice(0, MAX_STORED_SESSIONS);
+      setSessions(merged);
+      try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { /* ignore */ }
+      serverLoadedRef.current = true;
+      // Push the union up so a brand-new account / other devices converge.
+      void saveServerChats(mode, merged);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, mode]);
 
   // auto-dismiss the toast
   useEffect(() => {
@@ -378,6 +429,12 @@ function AskAIInner() {
     const trimmed = next.slice(0, MAX_STORED_SESSIONS);
     setSessions(trimmed);
     try { localStorage.setItem(storageKey, JSON.stringify(trimmed)); } catch { /* ignore */ }
+    // Mirror to the account (debounced) so chats sync across devices. Guarded so
+    // we never overwrite the server before the initial load/merge has happened.
+    if (serverLoadedRef.current) {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => { void saveServerChats(mode, trimmed); }, 700);
+    }
   };
 
   const active = sessions.find((s) => s.id === activeId) || null;
