@@ -11,6 +11,14 @@ export interface ReviewCriterion {
   confidence: number | null;
 }
 
+export interface Annotation {
+  id: string;
+  kind: "note" | "tick" | "cross";
+  x: number; // 0..100, percent of the answer box (from the left)
+  y: number; // 0..100, percent of the answer box (from the top)
+  text?: string; // note body (notes only)
+}
+
 export interface QueueItem {
   mark_id: string;
   submission_id: string;
@@ -30,6 +38,7 @@ export interface QueueItem {
   flagged: boolean;
   examiner_note: string | null;
   voice_note: string | null;
+  annotations: Annotation[];
 }
 
 export interface QueueResponse {
@@ -71,6 +80,16 @@ export async function saveVoiceNote(markId: string, audio: string | null): Promi
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audio }),
+    })
+  );
+}
+
+export async function saveAnnotations(markId: string, annotations: Annotation[]): Promise<void> {
+  await json(
+    await apiCall(`/review/marks/${markId}/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ annotations }),
     })
   );
 }

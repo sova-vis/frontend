@@ -1,4 +1,5 @@
 import { apiCall } from "./api";
+import type { Annotation } from "./review";
 
 /** Feedback (§10) + result release (§11) client. */
 
@@ -43,6 +44,7 @@ export interface StudentResult {
     score: number;
     available: number;
     voice_note?: string | null;
+    annotations?: Annotation[];
     criteria:
       | {
           criterion_text: string | null;

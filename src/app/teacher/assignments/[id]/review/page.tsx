@@ -8,17 +8,18 @@
  * "check & release" on the last answer. All actions reuse the stable
  * /review + /release APIs untouched. Marking itself is unchanged (§5.4).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Icon } from "@/components/propel/Icon";
 import { EmptyState, useToast } from "@/components/propel/primitives";
 import {
-  QueueItem, QueueResponse, approveMark, bulkApprove, flagMark, getQueue, overrideMark, saveVoiceNote,
+  QueueItem, QueueResponse, Annotation, approveMark, bulkApprove, flagMark, getQueue, overrideMark, saveVoiceNote, saveAnnotations,
 } from "@/lib/review";
 import { applyMissedGuidance, releaseOne, saveCriterionComment } from "@/lib/feedbackRelease";
 import CommentBankButton from "@/components/teacher/CommentBankButton";
 import VoiceNote from "@/components/teacher/VoiceNote";
+import AnswerAnnotator from "@/components/teacher/AnswerAnnotator";
 
 const REVIEWED = ["approved", "overridden", "auto_approved"];
 
@@ -40,6 +41,8 @@ export default function ReviewPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [annos, setAnnos] = useState<Annotation[]>([]);
+  const annoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -76,14 +79,30 @@ export default function ReviewPage() {
   const current: QueueItem | undefined = focusItems[index];
 
   useEffect(() => {
-    if (!current) { setAwarded([]); setComments([]); return; }
+    if (!current) { setAwarded([]); setComments([]); setAnnos([]); return; }
     const base = current.final_criteria ?? current.ai_criteria;
     setAwarded(base.map((c) => c.awarded));
     setComments(base.map((_, i) => current.criterion_comments?.find((cm) => cm.index === i)?.text ?? ""));
-  }, [current]);
+    setAnnos(Array.isArray(current.annotations) ? current.annotations : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.mark_id]);
 
   const markLocal = (markId: string, patch: Partial<QueueItem>) =>
     setData((d) => (d ? { ...d, items: d.items.map((it) => (it.mark_id === markId ? { ...it, ...patch } : it)) } : d));
+
+  // Red-pen annotations: update the working copy immediately; persist (and sync
+  // the cached item) on a short debounce so placing/typing isn't spammed.
+  const onAnnotations = useCallback((next: Annotation[]) => {
+    setAnnos(next);
+    const markId = current?.mark_id;
+    if (!markId) return;
+    if (annoTimer.current) clearTimeout(annoTimer.current);
+    annoTimer.current = setTimeout(() => {
+      markLocal(markId, { annotations: next });
+      void saveAnnotations(markId, next).catch(() => {});
+    }, 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.mark_id]);
 
   const total = useMemo(() => {
     if (!current) return { earned: 0, available: 0 };
@@ -263,19 +282,21 @@ export default function ReviewPage() {
             </div>
           )}
           {current.answer.ocr_status === "failed" && <span className="chip-tag" style={{ background: "var(--crimson-soft)", color: "var(--crimson)", marginBottom: 10, display: "inline-block" }}>OCR failed — original image required</span>}
-          {q.type === "mcq" ? (
-            <p style={{ fontSize: 14 }}>Selected: <span className="mono" style={{ fontWeight: 700 }}>{current.answer.selected_option || "—"}</span></p>
-          ) : (
-            <p style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{current.answer.text || current.answer.ocr_text || <span className="faint">No answer.</span>}</p>
-          )}
-          {answerImages.length > 0 && (
-            <div className="flex wrap gap-8" style={{ marginTop: 12 }}>
-              {answerImages.map((img, i) => img?.data_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={img.data_url} alt="handwritten answer" style={{ height: 128, borderRadius: 10, border: "1px solid var(--line)", objectFit: "cover" }} />
-              ) : null)}
-            </div>
-          )}
+          <AnswerAnnotator editable annotations={annos} onChange={onAnnotations}>
+            {q.type === "mcq" ? (
+              <p style={{ fontSize: 14 }}>Selected: <span className="mono" style={{ fontWeight: 700 }}>{current.answer.selected_option || "—"}</span></p>
+            ) : (
+              <p style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{current.answer.text || current.answer.ocr_text || <span className="faint">No answer.</span>}</p>
+            )}
+            {answerImages.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {answerImages.map((img, i) => img?.data_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={img.data_url} alt="handwritten answer" style={{ width: "100%", maxWidth: 560, height: "auto", display: "block", borderRadius: 10, border: "1px solid var(--line)" }} />
+                ) : null)}
+              </div>
+            )}
+          </AnswerAnnotator>
         </div>
 
         {/* Mark scheme + per-criterion override */}

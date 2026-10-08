@@ -13,6 +13,7 @@ import {
 } from "@/lib/submissions";
 import { StudentResult, getStudentResult } from "@/lib/feedbackRelease";
 import VoiceNote from "@/components/teacher/VoiceNote";
+import AnswerAnnotator from "@/components/teacher/AnswerAnnotator";
 import QuestionSolveCard, { fromStudentQuestion } from "@/components/practice/QuestionSolveCard";
 
 interface AnswerState { answer_text: string; selected_option: string; part_answers: Record<string, string> }
@@ -341,18 +342,20 @@ function ResultsView({ result }: { result: StudentResult }) {
           {(q.your_answer || q.your_option || (q.your_images && q.your_images.length > 0)) && (
             <div className="ed-card-soft p-2.5 mt-2">
               <p className="ed-label mb-1">Your answer</p>
-              {q.your_option && <p className="text-sm text-ink">Selected: <span className="font-mono font-bold">{q.your_option}</span></p>}
-              {q.your_answer && <p className="text-sm text-ink whitespace-pre-wrap">{q.your_answer}</p>}
-              {q.your_images && q.your_images.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {q.your_images.map((img, k) =>
-                    img?.data_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={k} src={img.data_url} alt="your work" className="h-24 rounded-lg border border-line object-cover" />
-                    ) : null
-                  )}
-                </div>
-              )}
+              <AnswerAnnotator annotations={q.annotations ?? []}>
+                {q.your_option && <p className="text-sm text-ink">Selected: <span className="font-mono font-bold">{q.your_option}</span></p>}
+                {q.your_answer && <p className="text-sm text-ink whitespace-pre-wrap">{q.your_answer}</p>}
+                {q.your_images && q.your_images.length > 0 && (
+                  <div className="flex flex-col gap-2 mt-1">
+                    {q.your_images.map((img, k) =>
+                      img?.data_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={k} src={img.data_url} alt="your work" style={{ width: "100%", maxWidth: 560, height: "auto", display: "block" }} className="rounded-lg border border-line" />
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </AnswerAnnotator>
             </div>
           )}
           {q.voice_note && (
