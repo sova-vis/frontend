@@ -423,7 +423,10 @@ async function fetchQuestions(
     .from("questions")
     .select(QUESTION_COLUMNS)
     .eq("level", level)
-    .ilike("subject", subject)
+    // Exact match (not ILIKE) on the already-resolved bank subject so Postgres can
+    // use idx_q_subject_type_* instead of a full-table scan. `subject` was resolved
+    // to the exact stored name by resolveBankSubject before we got here.
+    .eq("subject", subject)
     .eq("type", type)
     .eq("exam_year", year)
     .order("session", { ascending: true })
@@ -463,7 +466,10 @@ async function fetchTopicQuestions(
     .from("questions")
     .select("id,dedup_group,question_id,exam_year,question_number")
     .eq("level", level)
-    .ilike("subject", subject)
+    // Exact match (not ILIKE) so the topic scan uses idx_q_subject_type_topic
+    // instead of scanning the whole bank — this is the main cause of slow topic
+    // loading. `subject` is already the exact resolved bank name.
+    .eq("subject", subject)
     .eq("type", type)
     .order("exam_year", { ascending: false })
     .order("question_number", { ascending: true })
@@ -523,7 +529,7 @@ async function fetchAvailablePapers(
       .from("questions")
       .select("exam_year,session,paper,variant,type")
       .eq("level", level)
-      .ilike("subject", subject)
+      .eq("subject", subject)
       .order("question_id", { ascending: true })
       .range(from, from + pageSize - 1);
     if (year) query = query.eq("exam_year", year);
@@ -580,7 +586,7 @@ async function fetchWholePaper(
     .from("questions")
     .select(QUESTION_COLUMNS)
     .eq("level", level)
-    .ilike("subject", subject)
+    .eq("subject", subject)
     .eq("exam_year", year)
     .eq("session", session)
     .eq("paper", paper)

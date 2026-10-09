@@ -522,6 +522,8 @@ function McqExplain({ question, correct, studentAnswer }: {
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const firedRef = useRef(false);
 
   const run = async () => {
     setOpen(true);
@@ -549,33 +551,53 @@ function McqExplain({ question, correct, studentAnswer }: {
     }
   };
 
-  if (!open) {
-    return (
-      <button className="btn btn-ghost btn-sm" onClick={run} style={{ alignSelf: "flex-start" }}>
-        <Icon name="sparkles" size={14} /> Ask AI why
-      </button>
-    );
-  }
+  // Auto-reveal the explanation the moment a wrong MCQ scrolls into view, so the
+  // student always sees WHY their answer was wrong without hunting for a button.
+  // It fires once per question and only for on-screen cards, so the cost stays
+  // proportional to what the student actually reviews.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || firedRef.current || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting) && !firedRef.current) {
+        firedRef.current = true;
+        io.disconnect();
+        void run();
+      }
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="card card-pad" style={{ padding: 13, background: "var(--purple-soft)", border: "none", alignSelf: "stretch" }}>
-      <div className="flex items-center gap-8" style={{ marginBottom: text || loading || error ? 8 : 0 }}>
-        <Icon name="sparkles" size={15} style={{ color: "var(--purple)" }} />
-        <span className="eyebrow" style={{ color: "var(--purple)", flex: 1 }}>Why {correct} is correct</span>
-        <button className="icon-btn" aria-label="Close" onClick={() => setOpen(false)} style={{ width: 24, height: 24 }}>
-          <Icon name="x" size={13} />
+    <div ref={wrapRef} style={{ alignSelf: "stretch" }}>
+      {!open ? (
+        <button className="btn btn-ghost btn-sm" onClick={run} style={{ alignSelf: "flex-start" }}>
+          <Icon name="sparkles" size={14} /> Why {correct} is correct
         </button>
-      </div>
-      {loading && <span className="faint" style={{ fontSize: 13 }}>Thinking…</span>}
-      {error && (
-        <span style={{ fontSize: 13, color: "var(--coral)" }}>
-          Couldn&apos;t load —{" "}
-          <button onClick={() => { setText(""); setError(false); run(); }}
-            style={{ color: "var(--crimson)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
-            try again
-          </button>
-        </span>
+      ) : (
+        <div className="card card-pad" style={{ padding: 13, background: "var(--purple-soft)", border: "none" }}>
+          <div className="flex items-center gap-8" style={{ marginBottom: text || loading || error ? 8 : 0 }}>
+            <Icon name="sparkles" size={15} style={{ color: "var(--purple)" }} />
+            <span className="eyebrow" style={{ color: "var(--purple)", flex: 1 }}>Why {correct} is correct</span>
+            <button className="icon-btn" aria-label="Close" onClick={() => setOpen(false)} style={{ width: 24, height: 24 }}>
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          {loading && <span className="faint" style={{ fontSize: 13 }}>Thinking…</span>}
+          {error && (
+            <span style={{ fontSize: 13, color: "var(--coral)" }}>
+              Couldn&apos;t load —{" "}
+              <button onClick={() => { setText(""); setError(false); run(); }}
+                style={{ color: "var(--crimson)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+                try again
+              </button>
+            </span>
+          )}
+          {!loading && !error && text && <div style={{ fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{text}</div>}
+        </div>
       )}
-      {!loading && !error && text && <div style={{ fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{text}</div>}
     </div>
   );
 }
